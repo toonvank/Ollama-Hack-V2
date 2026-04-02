@@ -132,8 +132,9 @@ environment:
     - APP__LOG_LEVEL=INFO # Log level
     - APP__SECRET_KEY=change_this_key # JWT secret key
     - APP__ACCESS_TOKEN_EXPIRE_MINUTES=30 # Access token expiration time
-    - DATABASE__ENGINE=mysql # Database engine
+    - DATABASE__ENGINE=postgresql # Database engine (postgresql or mysql)
     - DATABASE__HOST=db # Database host
+    - DATABASE__PORT=5432 # Database port (5432 for PostgreSQL, 3306 for MySQL)
     - DATABASE__USERNAME=user # Database username
     - DATABASE__PASSWORD=password # Database password
     - DATABASE__DB=ollama_hack # Database name

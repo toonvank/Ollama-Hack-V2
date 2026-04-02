@@ -25,6 +25,9 @@ match config.database.engine:
         from sqlalchemy.dialects.mysql import LONGTEXT
 
         LONGTEXT = LONGTEXT
+    case DatabaseEngine.POSTGRESQL:
+        # PostgreSQL uses TEXT type which has no length limit
+        LONGTEXT = TEXT
 
 
 class SQLModel(_SQLModel):
@@ -80,6 +83,8 @@ def get_engine_schema():
     match config.database.engine:
         case DatabaseEngine.MYSQL:
             schema = f"mysql+aiomysql://{config.database.username}:{config.database.password}@{config.database.host}:{config.database.port}/{config.database.db}?charset=utf8mb4"
+        case DatabaseEngine.POSTGRESQL:
+            schema = f"postgresql+asyncpg://{config.database.username}:{config.database.password}@{config.database.host}:{config.database.port}/{config.database.db}"
         case _:
             raise ValueError(f"Unsupported database engine: {config.database.engine}")
     return schema
