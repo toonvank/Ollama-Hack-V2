@@ -11,6 +11,7 @@ import {
   SortOrder,
 } from "@/types";
 import { EyeIcon } from "@/components/icons";
+import { Switch } from "@heroui/switch";
 
 interface ModelTableProps {
   models: AIModelInfoWithEndpointCount[] | undefined;
@@ -28,6 +29,7 @@ interface ModelTableProps {
   onOpenModelDetail: (modelId: number) => void;
   onPageChange: (page: number) => void;
   onSearch: (e: React.FormEvent) => void;
+  onToggleModel?: (modelId: number, enabled: boolean) => void;
   totalPages?: number;
   totalItems?: number;
 }
@@ -48,6 +50,7 @@ const ModelTable: React.FC<ModelTableProps> = ({
   onOpenModelDetail,
   onPageChange,
   onSearch,
+  onToggleModel,
   totalPages,
   totalItems,
 }) => {
@@ -55,7 +58,10 @@ const ModelTable: React.FC<ModelTableProps> = ({
   const getModelStatus = (
     model: AIModelInfoWithEndpointCount,
   ): AIModelStatusEnum => {
-    if (model.avaliable_endpoint_count === 0) {
+    if (!model.enabled) {
+      return AIModelStatusEnum.UNAVAILABLE;
+    }
+    if (model.endpoints === 0) {
       return AIModelStatusEnum.UNAVAILABLE;
     }
 
@@ -78,7 +84,8 @@ const ModelTable: React.FC<ModelTableProps> = ({
     { key: "id", label: "ID", allowsSorting: true },
     { key: "name", label: "Name", allowsSorting: true },
     { key: "tag", label: "Tag", allowsSorting: true },
-    { key: "endpoint_count", label: "Endpoint Count" },
+    { key: "endpoints", label: "Endpoints" },
+    { key: "enabled", label: "Enabled" },
     { key: "status", label: "Status" },
     { key: "created_at", label: "Created At", allowsSorting: true },
     { key: "actions", label: "Actions" },
@@ -122,11 +129,20 @@ const ModelTable: React.FC<ModelTableProps> = ({
             {model.tag}
           </span>
         );
-      case "endpoint_count":
+      case "endpoints":
+        return model.endpoints || 0;
+      case "enabled":
         return (
-          <>
-            {model.avaliable_endpoint_count} / {model.total_endpoint_count}
-          </>
+          <Switch
+            isSelected={model.enabled}
+            size="sm"
+            color="success"
+            onChange={(e) => {
+              if (model.id && onToggleModel) {
+                onToggleModel(model.id, e.target.checked);
+              }
+            }}
+          />
         );
       case "status":
         return <StatusBadge status={getModelStatus(model)} />;

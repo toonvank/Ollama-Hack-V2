@@ -33,7 +33,7 @@ func (h *AIModelHandler) List(c *gin.Context) {
 		return
 	}
 
-	utils.Success(c, rowInfos)
+	utils.SuccessPage(c, rowInfos, len(rowInfos), 1, 50, 1)
 }
 
 func (h *AIModelHandler) Get(c *gin.Context) {

@@ -16,7 +16,6 @@ export const aiModelApi = {
       search: params.search,
       order_by: params.order_by,
       order: params.order,
-      is_available: params.is_available,
     });
 
     return apiClient.get<PageResponse<AIModelInfoWithEndpointCount>>(
@@ -28,6 +27,13 @@ export const aiModelApi = {
   getAIModelById: (modelId: number, page: number = 1, size: number = 50) => {
     return apiClient.get<AIModelInfoWithEndpoint>(
       `/api/v2/ai_model/${modelId}?page=${page}&size=${size}`,
+    );
+  },
+  // Toggle model enabled state
+  toggleModel: (modelId: number, enabled: boolean) => {
+    return apiClient.patch<AIModelInfoWithEndpointCount>(
+      `/api/v2/ai_model/${modelId}/toggle`,
+      { enabled },
     );
   },
 };

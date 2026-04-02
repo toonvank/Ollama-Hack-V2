@@ -28,7 +28,7 @@ func (h *EndpointHandler) List(c *gin.Context) {
 		utils.InternalServerError(c, "Failed to fetch endpoints")
 		return
 	}
-	utils.Success(c, endpoints)
+	utils.SuccessPage(c, endpoints, len(endpoints), 1, 50, 1)
 }
 
 func (h *EndpointHandler) Create(c *gin.Context) {

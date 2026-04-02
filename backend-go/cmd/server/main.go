@@ -67,8 +67,8 @@ func main() {
 	// Public routes
 	public := r.Group("/api/v2")
 	{
-		public.POST("/auth/login", authHandler.Login)
-		public.POST("/init", authHandler.InitializeAdmin)
+		public.POST("/user/login", authHandler.Login)
+		public.POST("/user/init", authHandler.InitializeAdmin)
 		public.GET("/health", func(c *gin.Context) {
 			c.JSON(200, gin.H{"status": "healthy"})
 		})
@@ -78,43 +78,50 @@ func main() {
 	protected := r.Group("/api/v2")
 	protected.Use(middleware.AuthMiddleware(authService))
 	{
-		protected.GET("/auth/me", authHandler.GetCurrentUser)
-		protected.PUT("/auth/password", authHandler.ChangePassword)
+		protected.GET("/user/me", authHandler.GetCurrentUser)
+		protected.PATCH("/user/me/change-password", authHandler.ChangePassword)
+		
+		// Plans for self
+		protected.GET("/plan/me", planHandler.GetCurrentUserPlan)
+
 		// Own API keys (non-admin users manage their own)
-		protected.GET("/apikeys", apikeyHandler.List)
-		protected.POST("/apikeys", apikeyHandler.Create)
-		protected.DELETE("/apikeys/:id", apikeyHandler.Delete)
+		protected.GET("/apikey", apikeyHandler.List)
+		protected.POST("/apikey", apikeyHandler.Create)
+		protected.DELETE("/apikey/:id", apikeyHandler.Delete)
+		protected.GET("/apikey/:id/stats", apikeyHandler.GetStats)
 
 		// Admin-only routes
 		admin := protected.Group("")
 		admin.Use(middleware.AdminMiddleware())
 		{
 			// User management
-			admin.GET("/users", userHandler.List)
-			admin.POST("/users", userHandler.Create)
-			admin.GET("/users/:id", userHandler.Get)
-			admin.PUT("/users/:id", userHandler.Update)
-			admin.DELETE("/users/:id", userHandler.Delete)
+			admin.GET("/user", userHandler.List)
+			admin.POST("/user", userHandler.Create)
+			admin.GET("/user/:id", userHandler.Get)
+			admin.PATCH("/user/:id", userHandler.Update)
+			admin.DELETE("/user/:id", userHandler.Delete)
 
 			// Plans
-			admin.GET("/plans", planHandler.List)
-			admin.POST("/plans", planHandler.Create)
-			admin.PUT("/plans/:id", planHandler.Update)
-			admin.DELETE("/plans/:id", planHandler.Delete)
+			admin.GET("/plan", planHandler.List)
+			admin.POST("/plan", planHandler.Create)
+			admin.GET("/plan/:id", planHandler.Get)
+			admin.PATCH("/plan/:id", planHandler.Update)
+			admin.DELETE("/plan/:id", planHandler.Delete)
 
 			// Endpoints
-			admin.GET("/endpoints", endpointHandler.List)
-			admin.POST("/endpoints", endpointHandler.Create)
-			admin.POST("/endpoints/batch", endpointHandler.BatchCreate)
-			admin.PUT("/endpoints/:id", endpointHandler.Update)
-			admin.DELETE("/endpoints/:id", endpointHandler.Delete)
-			admin.DELETE("/endpoints/batch", endpointHandler.BatchDelete)
-			admin.POST("/endpoints/batch-test", endpointHandler.BatchTest)
+			admin.GET("/endpoint", endpointHandler.List)
+			admin.POST("/endpoint", endpointHandler.Create)
+			admin.POST("/endpoint/batch", endpointHandler.BatchCreate)
+			admin.GET("/endpoint/:id", endpointHandler.Get)
+			admin.PATCH("/endpoint/:id", endpointHandler.Update)
+			admin.DELETE("/endpoint/:id", endpointHandler.Delete)
+			admin.DELETE("/endpoint/batch", endpointHandler.BatchDelete)
+			admin.POST("/endpoint/batch-test", endpointHandler.BatchTest)
 
 			// AI models
-			admin.GET("/models", modelHandler.List)
-			admin.GET("/models/:id", modelHandler.Get)
-			admin.PATCH("/models/:id/toggle", modelHandler.Toggle) // enable/disable
+			admin.GET("/ai_model", modelHandler.List)
+			admin.GET("/ai_model/:id", modelHandler.Get)
+			admin.PATCH("/ai_model/:id/toggle", modelHandler.Toggle) // enable/disable
 		}
 	}
 

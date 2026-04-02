@@ -105,6 +105,16 @@ export const ModelListPage = () => {
     setIsDetailDrawerOpen(false);
   };
 
+  // Handle toggle model enabled
+  const handleToggleModel = async (modelId: number, enabled: boolean) => {
+    try {
+      await aiModelApi.toggleModel(modelId, enabled);
+      refetch();
+    } catch (e) {
+      console.error("Failed to toggle model:", e);
+    }
+  };
+
   return (
     <DashboardLayout current_root_href="/models">
       <ModelTable
@@ -125,6 +135,7 @@ export const ModelListPage = () => {
         onOpenModelDetail={openModelDetail}
         onPageChange={handlePageChange}
         onSearch={handleSearch}
+        onToggleModel={handleToggleModel}
       />
 
       {/* ModelDetails drawer */}

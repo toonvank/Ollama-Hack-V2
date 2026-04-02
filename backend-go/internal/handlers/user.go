@@ -33,7 +33,7 @@ func (h *UserHandler) List(c *gin.Context) {
 			PlanID:   u.PlanID,
 		})
 	}
-	utils.Success(c, infos)
+	utils.SuccessPage(c, infos, len(infos), 1, 50, 1)
 }
 
 func (h *UserHandler) Get(c *gin.Context) {

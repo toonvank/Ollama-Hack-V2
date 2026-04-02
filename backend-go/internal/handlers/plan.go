@@ -25,7 +25,30 @@ func (h *PlanHandler) List(c *gin.Context) {
 		utils.InternalServerError(c, "Failed to fetch plans")
 		return
 	}
-	utils.Success(c, plans)
+	utils.SuccessPage(c, plans, len(plans), 1, 50, 1)
+}
+
+func (h *PlanHandler) GetCurrentUserPlan(c *gin.Context) {
+	userID, _ := c.Get("user_id")
+	
+	var user models.User
+	if err := h.db.Get(&user, "SELECT plan_id FROM users WHERE id = $1", userID); err != nil {
+		utils.NotFound(c, "User not found")
+		return
+	}
+
+	if user.PlanID == nil {
+		utils.NotFound(c, "Plan not found")
+		return
+	}
+
+	var plan models.Plan
+	if err := h.db.Get(&plan, "SELECT * FROM plans WHERE id = $1", *user.PlanID); err != nil {
+		utils.NotFound(c, "Plan not found")
+		return
+	}
+
+	utils.Success(c, plan)
 }
 
 func (h *PlanHandler) Create(c *gin.Context) {

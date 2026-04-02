@@ -37,7 +37,7 @@ func (h *APIKeyHandler) List(c *gin.Context) {
 			CreatedAt:  key.CreatedAt,
 		})
 	}
-	utils.Success(c, keyInfos)
+	utils.SuccessPage(c, keyInfos, len(keyInfos), 1, 50, 1)
 }
 
 func (h *APIKeyHandler) Create(c *gin.Context) {
@@ -95,4 +95,14 @@ func (h *APIKeyHandler) Delete(c *gin.Context) {
 	}
 
 	utils.NoContent(c)
+}
+
+func (h *APIKeyHandler) GetStats(c *gin.Context) {
+	// Dummy stats implementation for now
+	keyID := c.Param("id")
+	utils.Success(c, gin.H{
+		"id": keyID,
+		"usage_last_30_days": 1500,
+		"last_used_at": "2024-03-20T15:30:00Z",
+	})
 }

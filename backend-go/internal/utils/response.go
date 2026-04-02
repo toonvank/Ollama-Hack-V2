@@ -13,8 +13,26 @@ type Response struct {
 	Detail  string      `json:"detail,omitempty"`
 }
 
+type PageResponse struct {
+	Items interface{} `json:"items"`
+	Total int         `json:"total"`
+	Page  int         `json:"page"`
+	Size  int         `json:"size"`
+	Pages int         `json:"pages"`
+}
+
 func Success(c *gin.Context, data interface{}) {
 	c.JSON(http.StatusOK, data)
+}
+
+func SuccessPage(c *gin.Context, data interface{}, total int, page int, size int, pages int) {
+	c.JSON(http.StatusOK, PageResponse{
+		Items: data,
+		Total: total,
+		Page:  page,
+		Size:  size,
+		Pages: pages,
+	})
 }
 
 func Created(c *gin.Context, data interface{}) {

@@ -22,14 +22,13 @@ export interface ModelFromEndpointInfo {
   model_performances: AIModelPerformance[];
 }
 
-// AI Models Info with Endpoint Count
 export interface AIModelInfoWithEndpointCount {
   id?: number;
   name: string;
   tag: string;
+  enabled: boolean;
   created_at: string;
-  total_endpoint_count: number;
-  avaliable_endpoint_count: number;
+  endpoints: number;
 }
 
 // AI Models details with Endpoints
