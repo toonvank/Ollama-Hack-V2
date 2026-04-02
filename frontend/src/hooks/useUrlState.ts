@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 /**
- * 使用URL参数管理状态的Hook
- * @param param0 参数配置
- * @returns 状态和更新函数
+ * Hook for URL parameter state management
+ * @param param0 parameter configuration
+ * @returns State and update functions
  */
 export function useUrlState<T>(
   initialState: T,
@@ -24,7 +24,7 @@ export function useUrlState<T>(
 
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // 从URL参数获取初始值，如果不存在则使用initialState
+  // Get initial value from URL parameter, use initialState if not present
   const getInitialValue = useCallback(() => {
     const paramValue = searchParams.get(paramName);
 
@@ -41,7 +41,7 @@ export function useUrlState<T>(
 
   const [state, setState] = useState<T>(getInitialValue);
 
-  // 更新状态时同步到URL参数
+  // Sync URL parameter when updating state
   const updateState = useCallback(
     (newState: T | ((prevState: T) => T)) => {
       setState((prevState) => {
@@ -68,7 +68,7 @@ export function useUrlState<T>(
             { replace: replaceState },
           );
         } catch {
-          // 忽略错误
+          // Ignore errors
         }
 
         return nextState;
@@ -77,7 +77,7 @@ export function useUrlState<T>(
     [initialState, paramName, replaceState, serialize, setSearchParams],
   );
 
-  // 当URL参数变化时更新状态
+  // Update state when URL parameter changes
   useEffect(() => {
     const paramValue = searchParams.get(paramName);
 
@@ -87,10 +87,10 @@ export function useUrlState<T>(
 
         setState(parsedValue);
       } catch {
-        // 忽略错误
+        // Ignore errors
       }
     } else if (searchParams.toString() !== "") {
-      // 只有当存在其他参数且当前参数不存在时，才重置为初始值
+      // Reset to initial value only when other parameters exist but current parameter does not
       setState(initialState);
     }
   }, [searchParams, paramName, deserialize, initialState]);
@@ -99,30 +99,30 @@ export function useUrlState<T>(
 }
 
 /**
- * 分页参数验证配置接口
+ * Pagination params validation configuration interface
  */
 export interface PaginationValidationConfig {
-  // 页码验证
+  // Page number validation
   page?: {
-    min?: number; // 最小页码，默认为1
-    max?: number; // 最大页码，如果提供了totalPages则会自动计算
+    min?: number; // Minimum page number, default is1
+    max?: number; // Maximum page number, automatically calculated if totalPages is provided
   };
-  // 每页条数验证
+  // Per page count validation
   pageSize?: {
-    min?: number; // 最小每页条数
-    max?: number; // 最大每页条数
+    min?: number; // Minimum per page count
+    max?: number; // Maximum per page count
   };
-  // 排序字段验证
+  // sort fieldvalidation
   orderBy?: {
-    allowedFields?: string[]; // 允许的排序字段列表
-    defaultField?: string; // 默认排序字段
+    allowedFields?: string[]; // allowedofsortingfield list
+    defaultField?: string; // Default sort field
   };
-  // 总页数，用于页码回退功能
+  // Total pages, for page fallback functionality
   totalPages?: number;
 }
 
 /**
- * 更通用的URL参数状态Hook，可以同时管理多个参数
+ * More generic URL parameter state hook that can manage multiple parameters
  */
 export function usePaginationUrlState<SortType = string>(
   initialState: {
@@ -137,32 +137,32 @@ export function usePaginationUrlState<SortType = string>(
 ) {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // 从URL获取初始状态
+  // Get initial state from URL
   const getInitialStateFromUrl = () => {
     const stateFromUrl = { ...initialState };
 
-    // 解析页码
+    // Parse page number
     const page = searchParams.get("page");
 
     if (page && !isNaN(Number(page))) {
       stateFromUrl.page = Number(page);
     }
 
-    // 解析每页条数
+    // Parse per page count
     const pageSize = searchParams.get("pageSize");
 
     if (pageSize && !isNaN(Number(pageSize))) {
       stateFromUrl.pageSize = Number(pageSize);
     }
 
-    // 解析搜索词
+    // Parse search term
     const search = searchParams.get("search");
 
     if (search) {
       stateFromUrl.search = search;
     }
 
-    // 解析排序字段
+    // Parse sort field
     const orderBy = searchParams.get("orderBy");
 
     if (orderBy) {
@@ -173,14 +173,14 @@ export function usePaginationUrlState<SortType = string>(
       }
     }
 
-    // 解析排序方向
+    // Parse sorting direction
     const order = searchParams.get("order");
 
     if (order) {
       stateFromUrl.order = order;
     }
 
-    // 处理其他自定义参数
+    // Handle other custom parameters
     Object.keys(initialState).forEach((key) => {
       if (!["page", "pageSize", "search", "orderBy", "order"].includes(key)) {
         const value = searchParams.get(key);
@@ -195,23 +195,23 @@ export function usePaginationUrlState<SortType = string>(
       }
     });
 
-    // 应用验证规则
+    // Apply validation rules
     if (validationConfig) {
-      // 验证页码
+      // Validate page number
       if (validationConfig.page && typeof stateFromUrl.page === "number") {
         const { min = 1, max } = validationConfig.page;
 
-        // 确保页码不小于最小值
+        // Ensure page number is not less than minimum
         if (stateFromUrl.page < min) {
           stateFromUrl.page = min;
         }
 
-        // 如果提供了最大值，确保页码不超过最大值
+        // If maximum is provided, ensure page number does not exceed maximum
         if (max !== undefined && stateFromUrl.page > max) {
           stateFromUrl.page = max;
         }
 
-        // 如果提供了总页数，确保页码不超过总页数
+        // If total pages is provided, ensure page number does not exceed total pages
         if (
           validationConfig.totalPages !== undefined &&
           stateFromUrl.page > validationConfig.totalPages
@@ -220,14 +220,14 @@ export function usePaginationUrlState<SortType = string>(
         }
       }
 
-      // 验证每页条数
+      // Validate per page count
       if (
         validationConfig.pageSize &&
         typeof stateFromUrl.pageSize === "number"
       ) {
         const { min, max } = validationConfig.pageSize;
 
-        // 应用最小值和最大值限制
+        // Apply minimum and maximum limits
         if (min !== undefined && stateFromUrl.pageSize < min) {
           stateFromUrl.pageSize = min;
         }
@@ -242,28 +242,28 @@ export function usePaginationUrlState<SortType = string>(
 
   const [state, setState] = useState(getInitialStateFromUrl());
 
-  // 验证并调整状态
+  // Validate and adjust state
   const validateState = useCallback(
     (newState: typeof state) => {
       if (!validationConfig) return newState;
 
       const validatedState = { ...newState };
 
-      // 验证页码
+      // Validate page number
       if (validationConfig.page && typeof validatedState.page === "number") {
         const { min = 1, max } = validationConfig.page;
 
-        // 确保页码不小于最小值
+        // Ensure page number is not less than minimum
         if (validatedState.page < min) {
           validatedState.page = min;
         }
 
-        // 如果提供了最大值，确保页码不超过最大值
+        // If maximum is provided, ensure page number does not exceed maximum
         if (max !== undefined && validatedState.page > max) {
           validatedState.page = max;
         }
 
-        // 如果提供了总页数，确保页码不超过总页数
+        // If total pages is provided, ensure page number does not exceed total pages
         if (
           validationConfig.totalPages !== undefined &&
           validatedState.page > validationConfig.totalPages
@@ -272,14 +272,14 @@ export function usePaginationUrlState<SortType = string>(
         }
       }
 
-      // 验证每页条数
+      // Validate per page count
       if (
         validationConfig.pageSize &&
         typeof validatedState.pageSize === "number"
       ) {
         const { min, max } = validationConfig.pageSize;
 
-        // 应用最小值和最大值限制
+        // Apply minimum and maximum limits
         if (min !== undefined && validatedState.pageSize < min) {
           validatedState.pageSize = min;
         }
@@ -293,11 +293,11 @@ export function usePaginationUrlState<SortType = string>(
     [validationConfig],
   );
 
-  // 状态变化时更新URL
+  // Update URL when state changes
   useEffect(() => {
     const newParams = new URLSearchParams(searchParams);
 
-    // 处理所有状态参数
+    // Handle all state parameters
     Object.entries(state).forEach(([key, value]) => {
       if (value === undefined || value === null || value === "") {
         newParams.delete(key);
@@ -311,12 +311,12 @@ export function usePaginationUrlState<SortType = string>(
     setSearchParams(newParams);
   }, [state, setSearchParams]);
 
-  // 当URL参数变化时更新状态
+  // Update state when URL parameter changes
   useEffect(() => {
     setState(getInitialStateFromUrl());
   }, [searchParams]);
 
-  // 当totalPages变化时检查页码是否需要回退
+  // Check if page number needs to fall back when totalPages changes
   useEffect(() => {
     if (
       validationConfig?.totalPages !== undefined &&
@@ -331,7 +331,7 @@ export function usePaginationUrlState<SortType = string>(
     }
   }, [validationConfig?.totalPages, state.page]);
 
-  // 提供更新各个状态的专用方法
+  // Provide dedicated methods for updating individual state properties
   const setPage = useCallback(
     (page: number) => {
       setState((prev) => {
@@ -346,7 +346,7 @@ export function usePaginationUrlState<SortType = string>(
   const setPageSize = useCallback(
     (pageSize: number) => {
       setState((prev) => {
-        const newState = { ...prev, pageSize, page: 1 }; // 重置到第一页
+        const newState = { ...prev, pageSize, page: 1 }; // Reset to first page
 
         return validateState(newState);
       });
@@ -357,7 +357,7 @@ export function usePaginationUrlState<SortType = string>(
   const setSearch = useCallback(
     (search: string) => {
       setState((prev) => {
-        const newState = { ...prev, search, page: 1 }; // 重置到第一页
+        const newState = { ...prev, search, page: 1 }; // Reset to first page
 
         return validateState(newState);
       });

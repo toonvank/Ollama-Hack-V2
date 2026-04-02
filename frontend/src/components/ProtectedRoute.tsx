@@ -16,7 +16,7 @@ const ProtectedRoute = ({ requireAdmin = false }: ProtectedRouteProps) => {
   const location = useLocation();
 
   if (isLoading) {
-    // 加载中，可以返回一个加载组件
+    // Loading, return a loading component
     return (
       <DashboardLayout>
         <Card>
@@ -28,17 +28,17 @@ const ProtectedRoute = ({ requireAdmin = false }: ProtectedRouteProps) => {
     );
   }
 
-  // 如果用户未认证，重定向到登录页面
+  // If user is not authenticated, redirect to login
   if (!isAuthenticated) {
     return <Navigate replace state={{ from: location }} to="/login" />;
   }
 
-  // 如果需要管理员权限，但用户不是管理员，重定向到首页或显示无权限页面
+  // If admin required but user is not admin, redirect to unauthorized page
   if (requireAdmin && !isAdmin) {
     return <Navigate replace to="/unauthorized" />;
   }
 
-  // 用户已认证且满足权限要求，渲染子路由
+  // User is authenticated and meets permission requirements, render child routes
   return <Outlet />;
 };
 

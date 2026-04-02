@@ -8,7 +8,7 @@ interface SearchInputProps {
   placeholder: string;
   setSearchTerm: (value: string) => void;
   handleSearch: (e: React.FormEvent) => void;
-  autoSearchDelay?: number; // 自动搜索延迟（毫秒）
+  autoSearchDelay?: number; // Auto-search delay (ms)
 }
 
 const SearchForm = ({
@@ -16,21 +16,21 @@ const SearchForm = ({
   searchTerm,
   setSearchTerm,
   handleSearch,
-  autoSearchDelay = 0, // 默认不自动搜索
+  autoSearchDelay = 0, // No auto-search by default
 }: SearchInputProps) => {
   const [localSearchTerm, setLocalSearchTerm] = useState(searchTerm);
 
-  // 当外部的 searchTerm 改变时，更新本地的 searchTerm
+  // When external searchTerm changes, update local searchTerm
   useEffect(() => {
     setLocalSearchTerm(searchTerm);
   }, [searchTerm]);
 
-  // 处理搜索输入变化并支持自动搜索
+  // Handle search input change with auto-search support
   const handleSearchChange = (value: string) => {
     setLocalSearchTerm(value);
     setSearchTerm(value);
 
-    // 如果设置了自动搜索延迟，启用防抖自动搜索
+    // If auto-search delay is set, enable debounced auto-search
     if (autoSearchDelay > 0) {
       const timer = setTimeout(() => {
         const syntheticEvent = {

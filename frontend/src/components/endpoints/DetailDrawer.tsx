@@ -46,7 +46,7 @@ const EndpointDetailDrawer = ({
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(5);
 
-  // 获取端点详情
+  // Fetch endpoint details
   const {
     data: endpoint,
     isLoading,
@@ -58,19 +58,19 @@ const EndpointDetailDrawer = ({
     { staleTime: 30000, enabled: !!id && isOpen },
   );
 
-  // 在抽屉打开时重新获取数据
+  // Refetch data when drawer opens
   useEffect(() => {
     if (isOpen && id) {
       refetch();
     }
   }, [isOpen, id, refetch]);
 
-  // 处理页码变化
+  // Handle page change
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
   };
 
-  // 获取端点状态
+  // Get endpoint status
   const getEndpointStatus = (): EndpointStatusEnum => {
     if (!endpoint || endpoint.recent_performances.length === 0) {
       return EndpointStatusEnum.UNAVAILABLE;
@@ -79,20 +79,20 @@ const EndpointDetailDrawer = ({
     return endpoint.recent_performances[0].status;
   };
 
-  // 格式化日期
+  // Format date
   const formatDate = (dateString: string) => {
     return new Date(dateString + "Z").toLocaleString();
   };
 
-  // 定义表格列
+  // Define table columns
   const columns = [
-    { key: "name", label: "模型" },
-    { key: "tag", label: "标签" },
-    { key: "status", label: "状态" },
-    { key: "performance", label: "性能" },
+    { key: "name", label: "Model" },
+    { key: "tag", label: "Tag" },
+    { key: "status", label: "Status" },
+    { key: "performance", label: "Performance" },
   ];
 
-  // 渲染单元格内容
+  // Render cell content
   const renderCell = (model: any, columnKey: string) => {
     switch (columnKey) {
       case "name":
@@ -111,22 +111,22 @@ const EndpointDetailDrawer = ({
         );
       case "performance":
         return model.status === AIModelStatusEnum.AVAILABLE ? (
-          <Tooltip content="生成速度（每秒token数）">
+          <Tooltip content="Generation speed (tokens per second)">
             <div>
               {model.token_per_second
                 ? `${model.token_per_second.toFixed(2)} tokens/s`
-                : "未测试"}
+                : "Not tested"}
             </div>
           </Tooltip>
         ) : (
-          "不可用"
+          "Unavailable"
         );
       default:
         return null;
     }
   };
 
-  // 渲染抽屉内容
+  // Render drawer content
   const renderContent = () => {
     if (isLoading) {
       return (
@@ -139,7 +139,7 @@ const EndpointDetailDrawer = ({
     if (error) {
       return (
         <ErrorDisplay
-          error={new Error((error as Error)?.message || "加载端点详情失败")}
+          error={new Error((error as Error)?.message || "Failed to load endpoint details")}
         />
       );
     }
@@ -147,7 +147,7 @@ const EndpointDetailDrawer = ({
     if (!endpoint) {
       return (
         <div className="text-center py-8">
-          <p>未找到端点信息</p>
+          <p>Endpoint not found</p>
         </div>
       );
     }
@@ -155,10 +155,10 @@ const EndpointDetailDrawer = ({
     return (
       <>
         <div className="grid grid-cols-1 gap-6 mb-6">
-          {/* 端点基本信息卡片 */}
+          {/* Endpoint info card */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-2 p-4">
-              <h3 className="text-xl font-bold">端点信息</h3>
+              <h3 className="text-xl font-bold">Endpoint Info</h3>
               <div className="flex flex-row gap-2 items-center justify-end w-auto">
                 <StatusTimeline
                   performanceTests={endpoint.recent_performances}
@@ -177,7 +177,7 @@ const EndpointDetailDrawer = ({
                 </div>
                 <div>
                   <h4 className="text-sm text-gray-500 dark:text-gray-400">
-                    名称
+                    Name
                   </h4>
                   <p>{endpoint.name}</p>
                 </div>
@@ -189,50 +189,50 @@ const EndpointDetailDrawer = ({
                 </div>
                 <div>
                   <h4 className="text-sm text-gray-500 dark:text-gray-400">
-                    Ollama 版本
+                    Ollama Version
                   </h4>
                   <p>
                     {endpoint.recent_performances.length > 0 &&
                     endpoint.recent_performances[0].ollama_version
                       ? endpoint.recent_performances[0].ollama_version
-                      : "未知"}
+                      : "Unknown"}
                   </p>
                 </div>
                 <div>
                   <h4 className="text-sm text-gray-500 dark:text-gray-400">
-                    创建时间
+                    Created At
                   </h4>
                   <p>
                     {endpoint.created_at
                       ? formatDate(endpoint.created_at)
-                      : "未知"}
+                      : "Unknown"}
                   </p>
                 </div>
                 <div>
                   <h4 className="text-sm text-gray-500 dark:text-gray-400">
-                    最后检查时间
+                    Last Checked
                   </h4>
                   <p>
                     {endpoint.recent_performances.length > 0
                       ? formatDate(endpoint.recent_performances[0].created_at)
-                      : "未知"}
+                      : "Unknown"}
                   </p>
                 </div>
               </div>
             </CardBody>
           </Card>
 
-          {/* AI 模型列表卡片 */}
+          {/* AI model list card */}
           <Card>
             <CardHeader className="p-4">
-              <h3 className="text-xl font-bold">可用模型</h3>
+              <h3 className="text-xl font-bold">Available Models</h3>
             </CardHeader>
             <Divider />
             <CardBody className="p-4">
               {endpoint.ai_models.items.length === 0 ? (
                 <div className="py-8 text-center">
                   <p className="text-gray-500 dark:text-gray-400">
-                    该端点上没有可用的 AI 模型
+                    No AI models available on this endpoint
                   </p>
                 </div>
               ) : (
@@ -241,7 +241,7 @@ const EndpointDetailDrawer = ({
                   data={endpoint.ai_models.items}
                   emptyContent={
                     <p className="text-gray-500 dark:text-gray-400">
-                      该端点上没有可用的 AI 模型
+                      No AI models available on this endpoint
                     </p>
                   }
                   isLoading={isLoading}
@@ -252,7 +252,7 @@ const EndpointDetailDrawer = ({
                   selectedSize={size}
                   setSize={setSize}
                   showCustomPageSize={false}
-                  title="可用模型"
+                  title="Available Models"
                   total={endpoint.ai_models.total}
                   onPageChange={handlePageChange}
                 />
@@ -278,10 +278,10 @@ const EndpointDetailDrawer = ({
       <DrawerContent>
         <>
           {/* <DrawerHeader className="flex flex-col gap-1">
-              {`端点详情 ${endpoint ? `- ${endpoint.name}` : ""}`}
+              {`EndpointsDetails ${endpoint ? `- ${endpoint.name}` : ""}`}
             </DrawerHeader> */}
           <DrawerHeader className="absolute top-0 inset-x-0 z-50 flex flex-row gap-2 px-2 py-2 border-b border-default-200/50 justify-between bg-content1/50 backdrop-saturate-150 backdrop-blur-lg">
-            <Tooltip content="关闭">
+            <Tooltip content="Close">
               <Button
                 isIconOnly
                 className="text-default-400 active:opacity-50 text-lg"
@@ -294,7 +294,7 @@ const EndpointDetailDrawer = ({
             <div>
               {isAdmin && (
                 <>
-                  <Tooltip content="编辑端点">
+                  <Tooltip content="Edit Endpoint">
                     <Button
                       isIconOnly
                       className="text-default-400 active:opacity-50 text-lg"
@@ -306,7 +306,7 @@ const EndpointDetailDrawer = ({
                       <EditIcon />
                     </Button>
                   </Tooltip>
-                  <Tooltip color="danger" content="删除端点">
+                  <Tooltip color="danger" content="Delete Endpoint">
                     <Button
                       isIconOnly
                       className="text-default-400 active:opacity-50 text-lg"
@@ -327,7 +327,7 @@ const EndpointDetailDrawer = ({
           <DrawerBody className="pt-16">{renderContent()}</DrawerBody>
           {/* <DrawerFooter>
               <Button color="primary" variant="light" onPress={onCloseDrawer}>
-                关闭
+                Close
               </Button>
             </DrawerFooter> */}
         </>

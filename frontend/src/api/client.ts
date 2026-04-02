@@ -5,19 +5,19 @@ import axios, {
   AxiosResponse,
 } from "axios";
 
-// 定义 API 响应的基本结构
+// Define base API response structure
 export interface ApiResponse<T = any> {
   data: T;
   success: boolean;
   message?: string;
 }
 
-// 扩展AxiosError接口以包含detail字段
+// Extend AxiosError interface to include detail field
 export interface EnhancedAxiosError extends AxiosError {
   detail?: string;
 }
 
-// 将查询参数对象转换为URL查询字符串
+// Convert query params object to URL query string
 export const buildQueryString = (params: Record<string, any>): string => {
   const query = Object.entries(params)
     .filter(
@@ -49,7 +49,7 @@ export class ApiClient {
   }
 
   private setupInterceptors() {
-    // 请求拦截器 - 添加认证 token
+    // Request interceptor - add auth token
     this.client.interceptors.request.use(
       (config) => {
         const token = localStorage.getItem("auth_token");
@@ -63,7 +63,7 @@ export class ApiClient {
       (error) => Promise.reject(error),
     );
 
-    // 响应拦截器 - 处理错误和刷新 token
+    // Response interceptor - handle errors and refresh token
     this.client.interceptors.response.use(
       (response) => response,
       async (error: AxiosError) => {
@@ -71,11 +71,11 @@ export class ApiClient {
           _retry?: boolean;
         };
 
-        // 处理错误响应中的detail字段
+        // Handle detail field in error response
         if (error.response?.data) {
           const responseData = error.response.data;
 
-          // 检查是否包含detail字段
+          // Check if response contains detail field
           if (typeof responseData === "object" && "detail" in responseData) {
             const detail = responseData.detail;
 
@@ -85,15 +85,15 @@ export class ApiClient {
           }
         }
 
-        // 处理 401 错误（未授权）
+        // Handle 401 error (unauthorized)
         if (
           error.response?.status === 401 &&
           !originalRequest._retry &&
           window.location.pathname !== "/init" &&
           window.location.pathname !== "/login"
         ) {
-          // 如果需要实现 token 刷新，可以在这里添加逻辑
-          // 当前简单实现：401 就清除 token 并跳转到登录页
+          // If token refresh is needed, add logic here
+          // Current simple implementation: clear token on 401 and redirect to login
           localStorage.removeItem("auth_token");
           window.location.href = "/login";
 
@@ -105,7 +105,7 @@ export class ApiClient {
     );
   }
 
-  // 通用 GET 请求
+  // Generic GET request
   public async get<T = any>(
     url: string,
     config?: AxiosRequestConfig,
@@ -115,7 +115,7 @@ export class ApiClient {
     return response.data;
   }
 
-  // 通用 POST 请求
+  // Generic POST request
   public async post<T = any>(
     url: string,
     data?: any,
@@ -126,7 +126,7 @@ export class ApiClient {
     return response.data;
   }
 
-  // 通用 PUT 请求
+  // Generic PUT request
   public async put<T = any>(
     url: string,
     data?: any,
@@ -137,7 +137,7 @@ export class ApiClient {
     return response.data;
   }
 
-  // 通用 PATCH 请求
+  // Generic PATCH request
   public async patch<T = any>(
     url: string,
     data?: any,
@@ -148,7 +148,7 @@ export class ApiClient {
     return response.data;
   }
 
-  // 通用 DELETE 请求
+  // Generic DELETE request
   public async delete<T = any>(
     url: string,
     config?: AxiosRequestConfig,
@@ -160,7 +160,7 @@ export class ApiClient {
 }
 const baseURL = import.meta.env.VITE_API_BASE_URL;
 
-// 创建默认客户端实例
+// Create default client instance
 export const apiClient = new ApiClient(baseURL || "http://localhost:8000");
 
 export default apiClient;

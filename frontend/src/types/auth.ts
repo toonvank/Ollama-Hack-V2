@@ -1,16 +1,16 @@
-// 用户认证请求
+// User authentication request
 export interface UserAuth {
   username: string;
   password: string;
 }
 
-// Token 响应
+// Token response
 export interface Token {
   access_token: string;
   token_type: string;
 }
 
-// 用户信息
+// User info
 export interface UserInfo {
   id: number;
   username: string;
@@ -19,7 +19,7 @@ export interface UserInfo {
   plan_name?: string;
 }
 
-// 用户更新请求
+// User update request
 export interface UserUpdate {
   username?: string;
   is_admin?: boolean;
@@ -27,7 +27,7 @@ export interface UserUpdate {
   plan_id?: number;
 }
 
-// 密码修改请求
+// Password change request
 export interface ChangePasswordRequest {
   old_password: string;
   new_password: string;

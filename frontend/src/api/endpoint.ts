@@ -15,7 +15,7 @@ import {
 } from "@/types";
 
 export const endpointApi = {
-  // 获取所有端点（带最近性能测试和 AI 模型数量）
+  // Get all endpoints (with recent performance tests and AI model counts)
   getEndpoints: (params: QueryParams = {}) => {
     const queryString = buildQueryString({
       page: params.page || 1,
@@ -31,12 +31,12 @@ export const endpointApi = {
     );
   },
 
-  // 创建新端点
+  // Create New Endpoint
   createEndpoint: (data: EndpointCreate) => {
     return apiClient.post<EndpointInfo>("/api/v2/endpoint/", data);
   },
 
-  // 获取单个端点详情（包含 AI 模型）
+  // Get single endpoint details (with AI models)
   getEndpointById: (
     endpointId: number,
     page: number = 1,
@@ -47,7 +47,7 @@ export const endpointApi = {
     );
   },
 
-  // 更新端点
+  // UpdateEndpoints
   updateEndpoint: (endpointId: number, data: EndpointUpdate) => {
     return apiClient.patch<EndpointInfo>(
       `/api/v2/endpoint/${endpointId}`,
@@ -55,17 +55,17 @@ export const endpointApi = {
     );
   },
 
-  // 删除端点
+  // Delete Endpoint
   deleteEndpoint: (endpointId: number) => {
     return apiClient.delete<void>(`/api/v2/endpoint/${endpointId}`);
   },
 
-  // 批量创建端点
+  // Batch CreateEndpoints
   batchCreateEndpoints: (data: EndpointBatchCreate) => {
     return apiClient.post<EndpointInfo[]>("/api/v2/endpoint/batch", data);
   },
 
-  // 批量测试端点
+  // Batch test endpoints
   batchTestEndpoints: (data: EndpointBatchOperation) => {
     return apiClient.post<BatchOperationResult>(
       "/api/v2/endpoint/batch-test",
@@ -73,19 +73,19 @@ export const endpointApi = {
     );
   },
 
-  // 批量删除端点
+  // Batch delete endpoints
   batchDeleteEndpoints: (data: EndpointBatchOperation) => {
     return apiClient.delete<BatchOperationResult>("/api/v2/endpoint/batch", {
       data,
     });
   },
 
-  // 手动触发端点测试
+  // Manually trigger endpoint test
   triggerEndpointTest: (endpointId: number) => {
     return apiClient.post<void>(`/api/v2/endpoint/${endpointId}/test`);
   },
 
-  // 获取端点测试结果
+  // Get endpoint test results
   getEndpointTask: (endpointId: number) => {
     return apiClient.get<EndpointTaskInfo>(
       `/api/v2/endpoint/${endpointId}/task`,

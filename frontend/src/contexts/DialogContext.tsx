@@ -12,7 +12,7 @@ export const useDialog = (): DialogContextType => {
   const context = useContext(DialogContext);
 
   if (!context) {
-    throw new Error("useDialog必须在DialogProvider内部使用");
+    throw new Error("useDialog must be used inside a DialogProvider");
   }
 
   return context;
@@ -33,7 +33,7 @@ export const DialogProvider: React.FC<DialogProviderProps> = ({ children }) => {
 
   const confirm = (message: string, onConfirm: () => void, title?: string) => {
     setDialogContent({
-      title: title || "确认操作",
+      title: title || "Confirm Action",
       message,
       type: "confirm",
       onConfirm,

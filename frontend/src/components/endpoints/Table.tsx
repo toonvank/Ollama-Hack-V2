@@ -82,7 +82,7 @@ const EndpointTable: React.FC<EndpointTableProps> = ({
   onSelectionChange,
   selectionToolbarContent,
 }) => {
-  // 获取端点状态
+  // Get endpoint status
   const getEndpointStatus = (
     endpoint: EndpointWithAIModelCount,
   ): EndpointStatusEnum => {
@@ -93,7 +93,7 @@ const EndpointTable: React.FC<EndpointTableProps> = ({
     return endpoint.recent_performances[0].status;
   };
 
-  // 排序状态
+  // Sort state
   const [sortDescriptor, setSortDescriptor] = React.useState<SortDescriptor>({
     column: orderBy || "id",
     direction:
@@ -104,18 +104,18 @@ const EndpointTable: React.FC<EndpointTableProps> = ({
           : "ascending",
   });
 
-  // 定义表格列
+  // Define table columns
   const columns = [
     { key: "id", label: "ID", allowsSorting: true },
-    { key: "name", label: "名称", allowsSorting: true },
+    { key: "name", label: "Name", allowsSorting: true },
     { key: "url", label: "URL", allowsSorting: true },
-    { key: "status", label: "状态", allowsSorting: true },
-    { key: "models", label: "AI模型" },
-    { key: "created_at", label: "创建时间", allowsSorting: true },
-    { key: "actions", label: "操作" },
+    { key: "status", label: "Status", allowsSorting: true },
+    { key: "models", label: "AI Models" },
+    { key: "created_at", label: "Created At", allowsSorting: true },
+    { key: "actions", label: "Actions" },
   ];
 
-  // 处理排序
+  // Handle sort
   const handleSort = (descriptor: SortDescriptor) => {
     setSortDescriptor(descriptor);
     if (descriptor.column) {
@@ -123,7 +123,7 @@ const EndpointTable: React.FC<EndpointTableProps> = ({
       const newOrder =
         descriptor.direction === "ascending" ? SortOrder.ASC : SortOrder.DESC;
 
-      // 更新父组件中的排序状态
+      // Update parent sort state
       if (orderBy !== newOrderBy || order !== newOrder) {
         setOrderBy &&
           typeof setOrderBy === "function" &&
@@ -144,7 +144,7 @@ const EndpointTable: React.FC<EndpointTableProps> = ({
   }) => {
     return (
       <div className="relative flex items-center gap-2">
-        <Tooltip content="查看端点">
+        <Tooltip content="View Endpoint">
           <Button
             isIconOnly
             className="text-default-400 active:opacity-50 text-lg"
@@ -160,7 +160,7 @@ const EndpointTable: React.FC<EndpointTableProps> = ({
         </Tooltip>
         {isAdmin && (
           <>
-            <Tooltip content="测试端点">
+            <Tooltip content="Test Endpoint">
               <Button
                 isIconOnly
                 className="text-default-400 active:opacity-50 text-lg"
@@ -176,7 +176,7 @@ const EndpointTable: React.FC<EndpointTableProps> = ({
                 <TestIcon />
               </Button>
             </Tooltip>
-            <Tooltip content="编辑端点">
+            <Tooltip content="Edit Endpoint">
               <Button
                 isIconOnly
                 className="text-default-400 active:opacity-50 text-lg"
@@ -186,7 +186,7 @@ const EndpointTable: React.FC<EndpointTableProps> = ({
                 <EditIcon />
               </Button>
             </Tooltip>
-            <Tooltip color="danger" content="删除端点">
+            <Tooltip color="danger" content="Delete Endpoint">
               <Button
                 isIconOnly
                 className="text-default-400 active:opacity-50 text-lg"
@@ -206,7 +206,7 @@ const EndpointTable: React.FC<EndpointTableProps> = ({
     );
   };
 
-  // 渲染单元格内容
+  // Render cell content
   const renderCell = (
     endpoint: EndpointWithAIModelCount,
     columnKey: string,
@@ -266,7 +266,7 @@ const EndpointTable: React.FC<EndpointTableProps> = ({
       addButtonProps={
         isAdmin
           ? {
-              tooltip: "添加端点",
+              tooltip: "Add Endpoint",
               onClick: onCreateEndpoint,
               isIconOnly: true,
             }
@@ -276,11 +276,11 @@ const EndpointTable: React.FC<EndpointTableProps> = ({
       data={endpoints || []}
       emptyContent={
         <>
-          <p className="text-xl">暂无端点数据</p>
+          <p className="text-xl">No endpoint data</p>
           {isAdmin && (
             <Tooltip
               color="primary"
-              content="添加第一个端点"
+              content="Add your first endpoint"
               placement="bottom"
             >
               <Button
@@ -300,7 +300,7 @@ const EndpointTable: React.FC<EndpointTableProps> = ({
       page={page}
       pages={totalPages}
       renderCell={renderCell}
-      searchPlaceholder="搜索端点..."
+      searchPlaceholder="Search endpoints..."
       searchTerm={searchTerm}
       selectedKeys={selectedKeys}
       selectedSize={pageSize}
@@ -310,7 +310,7 @@ const EndpointTable: React.FC<EndpointTableProps> = ({
       setSize={setPageSize}
       setVisibleColumns={setVisibleColumns}
       sortDescriptor={sortDescriptor}
-      title="端点列表"
+      title="Endpoint List"
       total={totalItems}
       visibleColumns={visibleColumns}
       onPageChange={onPageChange}

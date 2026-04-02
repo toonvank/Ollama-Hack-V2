@@ -20,7 +20,7 @@ const LoginPage = () => {
   const location = useLocation();
   const { login } = useAuth();
 
-  // 获取重定向来源
+  // Get redirect source
   const from =
     (location.state as { from?: { pathname: string } })?.from?.pathname || "/";
 
@@ -29,8 +29,8 @@ const LoginPage = () => {
 
     if (!username || !password) {
       addToast({
-        title: "登录失败",
-        description: "请输入用户名和密码",
+        title: "Login Failed",
+        description: "Please enter a username and password",
         color: "danger",
       });
 
@@ -43,9 +43,9 @@ const LoginPage = () => {
       navigate(from, { replace: true });
     } catch (err) {
       addToast({
-        title: "登录失败",
+        title: "Login Failed",
         description:
-          (err as EnhancedAxiosError).detail || "发生未知错误，请稍后重试",
+          (err as EnhancedAxiosError).detail || "An unknown error occurred. Please try again later.",
         color: "danger",
       });
     } finally {
@@ -66,15 +66,15 @@ const LoginPage = () => {
             <CardBody className="space-y-4">
               <Input
                 required
-                label="用户名"
-                placeholder="请输入用户名"
+                label="Username"
+                placeholder="Enter your username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
               />
               <Input
                 required
-                label="密码"
-                placeholder="请输入密码"
+                label="Password"
+                placeholder="Enter your password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -87,7 +87,7 @@ const LoginPage = () => {
                 isLoading={isLoading}
                 type="submit"
               >
-                登录
+                Sign In
               </Button>
             </CardFooter>
           </Form>

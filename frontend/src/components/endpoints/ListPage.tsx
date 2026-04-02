@@ -25,12 +25,12 @@ import ErrorDisplay from "@/components/ErrorDisplay";
 import { useDialog } from "@/contexts/DialogContext";
 import { DeleteIcon, TestIcon } from "@/components/icons";
 
-// 端点列表页
+// Endpoint list page
 const EndpointListPage = () => {
   const { isAdmin } = useAuth();
   const { confirm } = useDialog();
 
-  // 验证配置
+  // Validation config
   const [validationConfig, setValidationConfig] =
     useState<PaginationValidationConfig>({
       page: { min: 1 },
@@ -42,7 +42,7 @@ const EndpointListPage = () => {
       },
     });
 
-  // 使用URL参数管理状态，替代多个单独的useState
+  // Use URL params for state management instead of multiple useState
   const {
     page,
     pageSize,
@@ -65,18 +65,18 @@ const EndpointListPage = () => {
     validationConfig,
   );
 
-  // 详情抽屉状态
+  // Detail drawer state
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
   const [selectedEndpointId, setSelectedEndpointId] = useState<number | null>(
     null,
   );
 
-  // 多选状态
+  // Multi-select state
   const [selectedEndpointIds, setSelectedEndpointIds] = useState<Selection>(
     new Set([]),
   );
 
-  // 新增状态变量
+  // New state variables
   const INITIAL_VISIBLE_COLUMNS = [
     "id",
     "name",
@@ -90,17 +90,17 @@ const EndpointListPage = () => {
     new Set(INITIAL_VISIBLE_COLUMNS),
   );
 
-  // 模态框状态
+  // Modal state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingEndpoint, setEditingEndpoint] =
     useState<EndpointWithAIModelCount | null>(null);
 
-  // 测试状态管理
+  // Test state management
   const [testingEndpointIds, setTestingEndpointIds] = useState<number[]>([]);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 获取端点列表
+  // Fetch endpoint list
   const {
     data: endpoints,
     isLoading,
@@ -119,7 +119,7 @@ const EndpointListPage = () => {
     { staleTime: 30000 },
   );
 
-  // 当总页数变化时，更新验证配置
+  // Update validation config when total pages change
   useEffect(() => {
     if (endpoints?.pages) {
       setValidationConfig((prev) => ({
@@ -144,38 +144,38 @@ const EndpointListPage = () => {
     }
   }, [endpoints, setTestingEndpointIds]);
 
-  // 处理搜索
+  // Handle search
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
     refetch();
   };
 
-  // 处理页码变化
+  // Handle page change
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
   };
 
-  // 处理选择变化
+  // Handle selection change
   const handleSelectionChange = (keys: Set<Key>) => {
     setSelectedEndpointIds(keys);
   };
 
-  // 处理批量测试端点
+  // Handle batch test endpoints
   const handleBatchTestEndpoints = () => {
     if (!selectedEndpointIds || selectedEndpointIds.size === 0) return;
 
     const endpointIds = Array.from(selectedEndpointIds).map(Number);
 
     confirm(
-      `确定要测试选定的 ${endpointIds.length} 个端点吗？`,
+      `Are you sure you want to test the selected ${endpointIds.length} endpoints?`,
       async () => {
         try {
           const result = await endpointApi.batchTestEndpoints({
             endpoint_ids: endpointIds,
           });
 
-          // 添加到测试中的端点列表
+          // Add tested endpoints to the testing list
           setTestingEndpointIds((prev) => {
             const newTestingIds = new Set([...prev]);
 
@@ -189,33 +189,33 @@ const EndpointListPage = () => {
           });
 
           addToast({
-            title: "批量测试已触发",
-            description: `成功: ${result.success_count}, 失败: ${result.failed_count}`,
+            title: "Batch test triggered",
+            description: `Success: ${result.success_count}, Failed: ${result.failed_count}`,
             color: "primary",
           });
 
-          // 清除选择
+          // Clear selection
           setSelectedEndpointIds(new Set([]));
         } catch (err) {
           addToast({
-            title: "批量测试失败",
-            description: (err as Error).message || "请重试",
+            title: "Batch test failed",
+            description: (err as Error).message || "Please try again",
             color: "danger",
           });
         }
       },
-      "确认批量测试端点",
+      "Confirm Batch Test",
     );
   };
 
-  // 处理批量删除端点
+  // Handle batch delete endpoints
   const handleBatchDeleteEndpoints = () => {
     if (!selectedEndpointIds || selectedEndpointIds.size === 0) return;
 
     const endpointIds = Array.from(selectedEndpointIds).map(Number);
 
     confirm(
-      `确定要删除选定的 ${endpointIds.length} 个端点吗？此操作不可撤销。`,
+      `Are you sure you want to delete the selected ${endpointIds.length} endpoints? This action cannot be undone.`,
       async () => {
         try {
           const result = await endpointApi.batchDeleteEndpoints({
@@ -223,57 +223,57 @@ const EndpointListPage = () => {
           });
 
           addToast({
-            title: "批量删除成功",
-            description: `成功: ${result.success_count}, 失败: ${result.failed_count}`,
+            title: "Batch delete successful",
+            description: `Success: ${result.success_count}, Failed: ${result.failed_count}`,
             color: "success",
           });
 
-          // 清除选择
+          // Clear selection
           setSelectedEndpointIds(new Set([]));
 
-          // 刷新列表
+          // Refresh list
           refetch();
         } catch (err) {
           addToast({
-            title: "批量删除失败",
-            description: (err as Error).message || "请重试",
+            title: "Batch delete failed",
+            description: (err as Error).message || "Please try again",
             color: "danger",
           });
         }
       },
-      "确认批量删除端点",
+      "Confirm Batch Delete",
     );
   };
 
-  // 处理删除端点
+  // Handle delete endpoint
   const handleDeleteEndpoint = async (id: number) => {
-    confirm("确定要删除这个端点吗？此操作不可撤销。", async () => {
+    confirm("Are you sure you want to delete this endpoint? This action cannot be undone.", async () => {
       try {
         await endpointApi.deleteEndpoint(id);
         refetch();
         setIsEditModalOpen(false);
       } catch (err) {
         addToast({
-          title: "删除端点失败",
-          description: (err as Error).message || "请重试",
+          title: "Failed to delete endpoint",
+          description: (err as Error).message || "Please try again",
           color: "danger",
         });
       }
     });
   };
 
-  // 处理测试端点
+  // Handle test endpoint
   const handleTestEndpoint = (id: number) => {
     confirm(
-      `确定要测试端点 ${id} 吗？`,
+      `Are you sure you want to test endpoint ${id}?`,
       async () => {
         try {
-          // 直接调用函数式更新，避免 stale closure
+          // Use functional update to avoid stale closure
           setTestingEndpointIds((prev) => {
             if (prev.includes(id)) {
               addToast({
-                title: "测试已触发",
-                description: `端点 ${id} 测试已开始，请等待结果`,
+                title: "Test triggered",
+                description: `Endpoint ${id} test started. Please wait for results.`,
                 color: "primary",
               });
 
@@ -281,8 +281,8 @@ const EndpointListPage = () => {
             }
             endpointApi.triggerEndpointTest(id);
             addToast({
-              title: "测试已触发",
-              description: `端点 ${id} 测试已开始，请等待结果`,
+              title: "Test triggered",
+              description: `Endpoints ${id} Test started，Please wait for results`,
               color: "primary",
             });
 
@@ -290,17 +290,17 @@ const EndpointListPage = () => {
           });
         } catch (err) {
           addToast({
-            title: "触发测试失败",
-            description: (err as Error).message || "请重试",
+            title: "Failed to trigger test",
+            description: (err as Error).message || "Please try again",
             color: "danger",
           });
         }
       },
-      "确认测试端点",
+      "Confirm Test Endpoint",
     );
   };
 
-  // 创建选择工具栏内容
+  // Create selection toolbar content
   const selectionToolbarContent = useMemo(() => {
     if (!selectedEndpointIds || selectedEndpointIds.size === 0) return null;
 
@@ -313,7 +313,7 @@ const EndpointListPage = () => {
           variant="flat"
           onPress={handleBatchTestEndpoints}
         >
-          批量测试
+          Batch Test
         </Button>
         <Button
           color="danger"
@@ -322,24 +322,24 @@ const EndpointListPage = () => {
           variant="flat"
           onPress={handleBatchDeleteEndpoints}
         >
-          批量删除
+          Batch Delete
         </Button>
       </div>
     );
   }, [selectedEndpointIds]);
 
-  // 添加轮询逻辑
+  // Add polling logic
   useEffect(() => {
-    // 如果有正在测试的端点，开始轮询
+    // Start polling if there are endpoints being tested
     if (testingEndpointIds.length > 0 && !pollingIntervalRef.current) {
-      // 创建一个当前ID列表的副本，用于闭包内部使用
+      // Create a copy of current ID list for closure
       const currentTestingIds = [...testingEndpointIds];
 
       pollingIntervalRef.current = setInterval(async () => {
-        // 获取当前最新的测试ID列表
+        // Get current latest test ID list
         let stillTestingIds = [...currentTestingIds];
 
-        // 检查每个正在测试的端点的状态
+        // Check status of each endpoint being tested
         for (const endpointId of currentTestingIds) {
           try {
             const task = await endpointApi.getEndpointTask(endpointId);
@@ -358,33 +358,33 @@ const EndpointListPage = () => {
             ) {
               if (task.status === TaskStatusEnum.FAILED) {
                 addToast({
-                  title: "测试失败",
-                  description: `端点 ${endpointId} 测试失败，请重试`,
+                  title: "Test Failed",
+                  description: `Endpoints ${endpointId} Test Failed，Please try again`,
                   color: "danger",
                 });
               } else if (task.status === TaskStatusEnum.DONE) {
                 addToast({
-                  title: "测试成功",
-                  description: `端点 ${endpointId} 测试成功`,
+                  title: "Test Successful",
+                  description: `Endpoints ${endpointId} Test Successful`,
                   color: "success",
                 });
               }
-              // 如果没有运行中的任务，从测试列表中移除
+              // Remove from test list if no running tasks
               stillTestingIds = stillTestingIds.filter(
                 (id) => Number(id) !== Number(endpointId),
               );
-              // 刷新端点列表以获取最新状态
+              // Refresh endpoint list for latest status
               refetch();
             }
           } catch {
-            // 出错时也从列表中移除，避免无限尝试
+            // Remove from list on error to avoid infinite retries
             stillTestingIds = stillTestingIds.filter(
               (id) => Number(id) !== Number(endpointId),
             );
           }
         }
 
-        // 更新正在测试的端点列表 - 使用函数式更新确保使用最新状态
+        // Update testing endpoint list - use functional update for latest state
         setTestingEndpointIds((prev) => {
           if (JSON.stringify(stillTestingIds) !== JSON.stringify(prev)) {
             return stillTestingIds;
@@ -393,16 +393,16 @@ const EndpointListPage = () => {
           return prev;
         });
 
-        // 如果没有正在测试的端点，清除轮询
+        // Clear polling if no endpoints are being tested
         if (stillTestingIds.length === 0 && pollingIntervalRef.current) {
           clearInterval(pollingIntervalRef.current);
           pollingIntervalRef.current = null;
         }
-      }, 5000); // 每5秒轮询一次
+      }, 5000); // Poll every 5 seconds
     }
 
     return () => {
-      // 组件卸载时清除轮询
+      // Clear polling on component unmount
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
@@ -410,13 +410,13 @@ const EndpointListPage = () => {
     };
   }, [testingEndpointIds, refetch]);
 
-  // 打开端点详情抽屉
+  // Open endpoint detail drawer
   const openEndpointDetail = (endpointId: number) => {
     setSelectedEndpointId(endpointId);
     setIsDetailDrawerOpen(true);
   };
 
-  // 关闭端点详情抽屉
+  // Close endpoint detail drawer
   const closeEndpointDetail = () => {
     setIsDetailDrawerOpen(false);
   };
@@ -426,7 +426,7 @@ const EndpointListPage = () => {
       {endpointsError ? (
         <ErrorDisplay
           error={
-            new Error((endpointsError as Error)?.message || "加载端点列表失败")
+            new Error((endpointsError as Error)?.message || "Failed to load endpoint list")
           }
         />
       ) : (
@@ -466,14 +466,14 @@ const EndpointListPage = () => {
         />
       )}
 
-      {/* 创建端点对话框 */}
+      {/* Create endpoint dialog */}
       <CreateEndpointModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onSuccess={refetch}
       />
 
-      {/* 编辑端点对话框 */}
+      {/* Edit endpoint dialog */}
       {editingEndpoint && (
         <EndpointEditModal
           endpointId={editingEndpoint.id}
@@ -486,7 +486,7 @@ const EndpointListPage = () => {
         />
       )}
 
-      {/* 端点详情抽屉 */}
+      {/* Endpoint detail drawer */}
       {selectedEndpointId && (
         <EndpointDetailDrawer
           id={selectedEndpointId}

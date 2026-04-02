@@ -11,7 +11,7 @@ import ErrorDisplay from "@/components/ErrorDisplay";
 const ProfilePage = () => {
   const { user } = useAuth();
 
-  // 获取用户当前计划
+  // Fetch user current plan
   const {
     data: userPlan,
     isLoading: isLoadingPlan,
@@ -36,7 +36,7 @@ const ProfilePage = () => {
     <DashboardLayout current_root_href="/profile">
       {planError && (
         <ErrorDisplay
-          error={new Error((planError as any)?.message || "加载计划信息失败")}
+          error={new Error((planError as any)?.message || "Failed to load plan info")}
         />
       )}
 
@@ -46,12 +46,12 @@ const ProfilePage = () => {
             <div>
               <h2 className="text-xl font-semibold">{user?.username}</h2>
               <p className="text-gray-600 dark:text-gray-400">
-                {user?.is_admin ? "管理员" : "普通用户"}
+                {user?.is_admin ? "Admin" : "User"}
               </p>
             </div>
             {/* <Link href="/settings">
                             <Button variant="light" size="sm">
-                                修改密码
+                                Change Password
                             </Button>
                         </Link> */}
           </div>
@@ -59,7 +59,7 @@ const ProfilePage = () => {
           <div className="mt-6 space-y-3">
             <div className="flex justify-between">
               <span className="text-gray-600 dark:text-gray-400">
-                用户 ID：
+                User ID:
               </span>
               <span className="font-medium">{user?.id}</span>
             </div>
@@ -69,32 +69,32 @@ const ProfilePage = () => {
         {userPlan && (
           <Card className="p-6">
             <div className="flex items-start justify-between">
-              <h2 className="text-xl font-semibold">当前计划</h2>
+              <h2 className="text-xl font-semibold">Current Plan</h2>
             </div>
 
             <div className="mt-6 space-y-3">
               <div className="flex justify-between">
                 <span className="text-gray-600 dark:text-gray-400">
-                  计划名称：
+                  Plan Name:
                 </span>
                 <span className="font-medium">{userPlan.name}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600 dark:text-gray-400">
-                  每分钟请求数限制：
+                  Requests Per Minute Limit:
                 </span>
                 <span className="font-medium">{userPlan.rpm}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600 dark:text-gray-400">
-                  每天请求数限制：
+                  Requests Per Day Limit:
                 </span>
                 <span className="font-medium">{userPlan.rpd}</span>
               </div>
               {userPlan.description && (
                 <div className="pt-2">
                   <span className="text-gray-600 dark:text-gray-400">
-                    计划描述：
+                    Plan Description:
                   </span>
                   <p className="mt-1">{userPlan.description}</p>
                 </div>

@@ -3,10 +3,10 @@ import { Routes, Route } from "react-router-dom";
 
 import LoadingFallback from "@/components/LoadingFallback";
 
-// 使用惰性加载导入 EndpointListPage 组件
+// Lazy load EndpointListPage component
 const EndpointListPage = lazy(() => import("@/components/endpoints/ListPage"));
 
-// 路由组件
+// Router component
 const EndpointsPage = () => {
   return (
     <Routes>

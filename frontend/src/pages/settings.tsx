@@ -47,13 +47,13 @@ const Settings = () => {
     setSuccess(false);
 
     if (!oldPassword || !newPassword || !confirmPassword) {
-      setError(new Error("请填写所有密码字段"));
+      setError(new Error("Please fill in all password fields"));
 
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setError(new Error("新密码与确认密码不匹配"));
+      setError(new Error("New password and confirmation do not match"));
 
       return;
     }
@@ -64,19 +64,19 @@ const Settings = () => {
         old_password: oldPassword,
         new_password: newPassword,
       });
-      // 清空表单
+      // Clear form
       setOldPassword("");
       setNewPassword("");
       setConfirmPassword("");
       addToast({
-        title: "密码修改成功",
-        description: "请使用新密码登录",
+        title: "Password Changed",
+        description: "Please sign in with your new password",
         color: "success",
       });
     } catch {
       addToast({
-        title: "密码修改失败",
-        description: "请检查旧密码是否正确",
+        title: "Password Change Failed",
+        description: "Please check if your current password is correct",
         color: "danger",
       });
     } finally {
@@ -94,34 +94,34 @@ const Settings = () => {
         updateEndpointTaskInterval.toString(),
       );
       addToast({
-        title: "更新端点任务间隔成功",
-        description: "请等待端点任务更新",
+        title: "Interval Updated",
+        description: "Please wait for the endpoint tasks to update",
         color: "success",
       });
     } catch {
       addToast({
-        title: "更新端点任务间隔失败",
-        description: "请检查更新端点任务间隔是否正确",
+        title: "Interval Update Failed",
+        description: "Please check if the interval value is valid",
         color: "danger",
       });
     } finally {
       setIsUpdateEndpointTaskIntervalLoading(false);
     }
 
-    setUpdateEndpointTaskInterval(Number(updateEndpointTaskIntervalData) || 24);
+    setUpdateEndpointTaskInterval(Number(updateEndpointTaskIntervalData?.value) || 24);
   };
 
   return (
     <DashboardLayout current_root_href="/settings">
       <div className="max-w-3xl mx-auto">
         <Card className="p-6">
-          <h2 className="text-xl font-semibold mb-6">修改密码</h2>
+          <h2 className="text-xl font-semibold mb-6">Change Password</h2>
 
           {error && <ErrorDisplay className="mb-4" error={error} />}
 
           {success && (
             <div className="p-4 mb-4 text-white bg-success-500 rounded-md">
-              <p>密码修改成功！</p>
+              <p>Password changed successfully!</p>
             </div>
           )}
 
@@ -132,13 +132,13 @@ const Settings = () => {
                   className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
                   htmlFor="oldPassword"
                 >
-                  当前密码
+                  Current Password
                 </label> */}
                 <Input
                   fullWidth
                   id="oldPassword"
-                  label="当前密码"
-                  placeholder="请输入当前密码"
+                  label="Current Password"
+                  placeholder="Enter current password"
                   type="password"
                   value={oldPassword}
                   onChange={(e) => setOldPassword(e.target.value)}
@@ -149,8 +149,8 @@ const Settings = () => {
                 <Input
                   fullWidth
                   id="newPassword"
-                  label="新密码"
-                  placeholder="请输入新密码"
+                  label="New Password"
+                  placeholder="Enter new password"
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
@@ -161,8 +161,8 @@ const Settings = () => {
                 <Input
                   fullWidth
                   id="confirmPassword"
-                  label="确认新密码"
-                  placeholder="请再次输入新密码"
+                  label="Confirm New Password"
+                  placeholder="Re-enter new password"
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
@@ -172,7 +172,7 @@ const Settings = () => {
 
             <div className="mt-6">
               <Button color="primary" isLoading={isLoading} type="submit">
-                修改密码
+                Change Password
               </Button>
             </div>
           </form>
@@ -180,13 +180,13 @@ const Settings = () => {
 
         {isAdmin && (
           <Card className="p-6 mt-6">
-            <h2 className="text-xl font-semibold mb-4">系统设置</h2>
+            <h2 className="text-xl font-semibold mb-4">System Settings</h2>
             <form onSubmit={handleUpdateEndpointTaskInterval}>
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <Input
-                    description="设为 0 禁用自动更新"
-                    label="更新端点任务间隔（小时）"
+                    description="Set to 0 to disable auto-update"
+                    label="Endpoint Test Interval (hours)"
                     min={0}
                     type="number"
                     value={updateEndpointTaskInterval}
@@ -201,7 +201,7 @@ const Settings = () => {
                     isLoading={isUpdateEndpointTaskIntervalLoading}
                     type="submit"
                   >
-                    更新
+                    Update
                   </Button>
                 </div>
               </div>
@@ -210,24 +210,24 @@ const Settings = () => {
         )}
 
         <Card className="p-6 mt-6">
-          <h2 className="text-xl font-semibold mb-4">账户信息</h2>
+          <h2 className="text-xl font-semibold mb-4">Account Info</h2>
           <div className="space-y-3">
             <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">用户名：</span>
+              <span className="text-gray-600 dark:text-gray-400">Username:</span>
               <span className="font-medium">{user?.username}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600 dark:text-gray-400">
-                用户 ID：
+                User ID:
               </span>
               <span className="font-medium">{user?.id}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600 dark:text-gray-400">
-                用户类型：
+                User Type:
               </span>
               <span className="font-medium">
-                {user?.is_admin ? "管理员" : "普通用户"}
+                {user?.is_admin ? "Admin" : "User"}
               </span>
             </div>
           </div>

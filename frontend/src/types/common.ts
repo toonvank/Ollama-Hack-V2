@@ -1,4 +1,4 @@
-// 分页响应通用类型
+// Paginated response generic type
 export interface PageResponse<T> {
   items: T[];
   total?: number;
@@ -7,33 +7,33 @@ export interface PageResponse<T> {
   pages?: number;
 }
 
-// API 请求通用参数
+// API request generic parameters
 export interface PaginationParams {
   page?: number;
   size?: number;
 }
 
-// 排序方向枚举
+// Sort direction enum
 export enum SortOrder {
   ASC = "asc",
   DESC = "desc",
 }
 
-// 通用查询参数接口
+// Generic query parameter interface
 export interface QueryParams extends PaginationParams {
   search?: string;
   order_by?: string;
   order?: SortOrder;
 }
 
-// API 错误响应
+// API error response
 export interface ApiError {
   status: number;
   message: string;
   details?: unknown;
 }
 
-// API 状态枚举
+// API status enum
 export enum ApiStatus {
   IDLE = "idle",
   LOADING = "loading",
@@ -41,14 +41,14 @@ export enum ApiStatus {
   ERROR = "error",
 }
 
-// 通用状态类型
+// Generic status type
 export type ApiState<T> = {
   data: T | null;
   status: ApiStatus;
   error: ApiError | null;
 };
 
-// 枚举类型
+// Enum type
 export enum AIModelStatusEnum {
   AVAILABLE = "available",
   UNAVAILABLE = "unavailable",
@@ -62,7 +62,7 @@ export enum EndpointStatusEnum {
   FAKE = "fake",
 }
 
-// 任务状态枚举
+// Task status enum
 export enum TaskStatusEnum {
   PENDING = "pending",
   RUNNING = "running",

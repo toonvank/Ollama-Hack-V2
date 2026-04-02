@@ -50,34 +50,34 @@ const DashboardLayout = ({
 
   const menuItems = [
     {
-      label: "首页",
+      label: "Home",
       href: "/",
     },
     {
-      label: "端点管理",
+      label: "Endpoints",
       href: "/endpoints",
     },
     {
-      label: "模型管理",
+      label: "Models",
       href: "/models",
     },
     {
-      label: "API 密钥",
+      label: "API Keys",
       href: "/apikeys",
     },
     {
-      label: "用户管理",
+      label: "Users",
       href: "/users",
       adminOnly: true,
     },
     {
-      label: "计划管理",
+      label: "Plans",
       href: "/plans",
       adminOnly: true,
     },
   ];
 
-  // 主题切换组件
+  // Theme toggle component
   const ThemeSwitch = () => (
     <div className="flex items-center gap-2">
       <Switch
@@ -98,9 +98,9 @@ const DashboardLayout = ({
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* 主内容区域 */}
+      {/* Main content area */}
       <div className="flex-1 flex flex-col overflow-x-hidden overflow-y-auto">
-        {/* 导航栏 */}
+        {/* Navbar */}
         <Navbar isBordered onMenuOpenChange={setIsMenuOpen}>
           <NavbarContent>
             <NavbarMenuToggle
@@ -131,7 +131,7 @@ const DashboardLayout = ({
           )}
 
           <NavbarContent as="div" justify="end">
-            {/* 大屏幕下显示的主题切换开关 */}
+            {/* Theme toggle for large screens */}
             <div className="hidden sm:flex mr-4">
               <ThemeSwitch />
             </div>
@@ -140,26 +140,26 @@ const DashboardLayout = ({
                 <DropdownTrigger>
                   <User
                     avatarProps={{
-                      name: user?.username || "用户",
+                      name: user?.username || "User",
                     }}
-                    description={isAdmin ? "管理员" : "用户"}
-                    name={user?.username || "用户"}
+                    description={isAdmin ? "Admin" : "User"}
+                    name={user?.username || "User"}
                   />
                 </DropdownTrigger>
-                <DropdownMenu aria-label="用户菜单">
+                <DropdownMenu aria-label="UserMenu">
                   <DropdownSection>
                     <DropdownItem key="profile" as={Link} href="/profile">
-                      个人资料
+                      Profile
                     </DropdownItem>
                     <DropdownItem key="settings" as={Link} href="/settings">
-                      设置
+                      Settings
                     </DropdownItem>
                     <DropdownItem
                       key="logout"
                       color="danger"
                       onClick={handleLogout}
                     >
-                      退出登录
+                      Sign Out
                     </DropdownItem>
                   </DropdownSection>
                 </DropdownMenu>
@@ -186,7 +186,7 @@ const DashboardLayout = ({
                   ),
                 )
               : null}
-            {/* 小屏幕下显示的主题切换选项 */}
+            {/* Theme toggle for small screensitems */}
             <NavbarMenuItem className="mt-4 flex justify-center">
               <ThemeSwitch />
             </NavbarMenuItem>

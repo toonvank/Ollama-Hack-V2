@@ -11,8 +11,8 @@ const ErrorDisplay = ({ error, className = "" }: ErrorDisplayProps) => {
     <div
       className={`p-4 text-white bg-danger-500 rounded-md my-4 ${className}`}
     >
-      <p className="font-medium">错误</p>
-      <p>{error.message || "发生了一个错误"}</p>
+      <p className="font-medium">Error</p>
+      <p>{error.message || "An error occurred"}</p>
     </div>
   );
 };

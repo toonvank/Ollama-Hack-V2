@@ -2,106 +2,106 @@
 
 # Ollama-Hack V2 🚀
 
-## 📖 简介
+## 📖 Introduction
 
-> 网上许多暴露无鉴权的 Ollama 接口，想薅来使用，但是一个一个试性能、查模型太麻烦了？还可能要频繁更换失效的接口？
+> Many publicly exposed Ollama interfaces are available online without authentication. You want to use them, but testing their performance and checking available models one by one is too tedious. Plus, you might need to frequently switch between failing interfaces.
 >
-> 来试试 Ollama-Hack 吧！它是一个基于 Python 的中转平台，能够帮助你轻松管理、测试和无缝使用多个 Ollama 接口。
+> Try Ollama-Hack! It's a Python-based aggregation platform that helps you easily manage, test, and seamlessly use multiple Ollama interfaces.
 
-Ollama-Hack 是一个用于管理、测试和转发 Ollama API 的服务。它可以集中管理多个 Ollama 端点，并根据性能自动选择最优的线路，提供兼容 OpenAI 的 API。平台提供友好的 Web 界面，方便用户管理端点、模型、API 密钥和用量计划。
+Ollama-Hack is a service for managing, testing, and forwarding Ollama APIs. It centrally manages multiple Ollama endpoints and automatically selects the optimal route based on performance, providing an OpenAI-compatible API. The platform offers a friendly web interface for managing endpoints, models, API keys, and usage plans.
 
-## ✨ 功能特性
+## ✨ Features
 
--   🔄 **多端点管理**：集中管理多个 Ollama 服务端点，可以批量进行导入
-    ![端点管理](./assets/endpoints.png)
--   🔍 **端点详情**：查看每个端点的详细信息和可用模型
-    ![端点详情](./assets/endpoint_details.png)
--   🧩 **兼容 OpenAI API**：提供兼容 OpenAI 的 API 接口
--   ⚖️ **最优线路选择**：根据 Token/s 性能自动选择最优的 Ollama 端点
--   🔑 **API 密钥管理**：生成和管理用于身份验证的 API 密钥
--   📊 **性能监控**：测试和显示不同端点上模型的性能指标
--   📝 **模型管理**：搜索和查看可用的模型
-    ![模型管理](./assets/models.png)
--   📈 **模型性能**：查看每个模型的详细性能数据
-    ![模型详情](./assets/model_details.png)
--   🔐 **用户管理**：管理员可以创建和管理用户账户
--   💰 **计划管理**：创建和管理不同的用量计划，限制 API 请求频率
--   🌙 **深色模式**：支持明亮/暗黑主题切换
+-   🔄 **Multi-Endpoint Management**: Centrally manage multiple Ollama service endpoints with batch import support
+    ![Endpoint Management](./assets/endpoints.png)
+-   🔍 **Endpoint Details**: View detailed information and available models for each endpoint
+    ![Endpoint Details](./assets/endpoint_details.png)
+-   🧩 **OpenAI API Compatible**: Provides OpenAI-compatible API interface
+-   ⚖️ **Optimal Route Selection**: Automatically selects the best Ollama endpoint based on Token/s performance
+-   🔑 **API Key Management**: Generate and manage API keys for authentication
+-   📊 **Performance Monitoring**: Test and display performance metrics for models on different endpoints
+-   📝 **Model Management**: Search and view available models
+    ![Model Management](./assets/models.png)
+-   📈 **Model Performance**: View detailed performance data for each model
+    ![Model Details](./assets/model_details.png)
+-   🔐 **User Management**: Admins can create and manage user accounts
+-   💰 **Plan Management**: Create and manage different usage plans with API request rate limits
+-   🌙 **Dark Mode**: Supports light/dark theme switching
 
-## 🛠️ 环境要求
+## 🛠️ Requirements
 
--   Docker 和 Docker Compose（推荐）
--   或 Python 3.12+（直接运行）
+-   Docker and Docker Compose (recommended)
+-   Or Python 3.12+ (for direct execution)
 
-## 🚀 安装与运行
+## 🚀 Installation & Deployment
 
-### 方法一：使用 Docker 部署（推荐）
+### Method 1: Docker Deployment (Recommended)
 
-如果你已安装 Docker 和 Docker Compose，可以使用以下命令一键启动：
+If you have Docker and Docker Compose installed, start with a single command:
 
 ```bash
-# 下载 docker-compose.yml 文件
+# Download docker-compose.yml file
 curl -o docker-compose.yml https://raw.githubusercontent.com/timlzh/ollama-hack/main/docker-compose.example.yml
 
-# 修改 docker-compose.yml 文件中的密钥等敏感配置
+# Modify sensitive configurations like secret keys in docker-compose.yml
 vim docker-compose.yml
 
-# 启动服务
+# Start services
 docker compose up -d
 ```
 
-服务启动后，打开 http://localhost:3000/init 即可使用。
+After starting, visit http://localhost:3000/init to use the platform.
 
-### 方法二：直接运行（开发环境）
+### Method 2: Direct Execution (Development Environment)
 
-#### 后端
+#### Backend
 
 ```bash
 cd backend
-# 使用Poetry安装依赖
+# Install dependencies using Poetry
 pip install poetry
 poetry install
 
-# 启动服务
+# Start service
 poetry run uvicorn src.main:app --host 0.0.0.0 --port 8000
 ```
 
-#### 前端
+#### Frontend
 
 ```bash
 cd frontend
-# 安装依赖
+# Install dependencies
 yarn install
 
-# 开发模式启动
+# Start in development mode
 yarn dev
 ```
 
-## 📝 使用方法
+## 📝 Usage
 
-### Web 界面
+### Web Interface
 
-访问 http://localhost:3000/init 来初始化管理员账户。
+Visit http://localhost:3000/init to initialize the admin account.
 
-登录后，你可以：
+After logging in, you can:
 
--   创建和管理用户账户
--   添加和管理 Ollama 端点
--   生成 API 密钥
--   创建和分配用量计划
--   查看模型性能数据
+-   Create and manage user accounts
+-   Add and manage Ollama endpoints
+-   Generate API keys
+-   Create and assign usage plans
+-   View model performance data
 
-### 计划管理
+### Plan Management
 
-V2 版本新增了计划管理功能，管理员可以创建不同的用量计划，并将其分配给用户。每个计划可以设置：
+V2 adds plan management functionality. Admins can create different usage plans and assign them to users. Each plan can set:
 
--   每分钟请求限制 (RPM)
--   每天请求限制 (RPD)
--   默认计划标记
+-   Requests per minute limit (RPM)
+-   Requests per day limit (RPD)
+-   Default plan flag
 
-### API 使用示例
+### API Usage Examples
 
-#### 兼容 Ollama API
+#### Ollama API Compatible
 
 ```bash
 curl -N -X POST http://localhost:3000/v1/chat/completions \
@@ -110,52 +110,52 @@ curl -N -X POST http://localhost:3000/v1/chat/completions \
   -d '{
     "model": "llama3",
     "messages": [
-      {"role": "system", "content": "你是一个有帮助的助手"},
-      {"role": "user", "content": "你好，请介绍一下自己"}
+      {"role": "system", "content": "You are a helpful assistant"},
+      {"role": "user", "content": "Hello, please introduce yourself"}
     ],
     "temperature": 0.7,
     "stream": true
   }'
 ```
 
-Ollama-Hack 支持 Ollama 的全部 OpenAI 兼容 API，详细列表请参考：[Ollama/OpenAI Compability](https://github.com/ollama/ollama/blob/main/docs/openai.md)。
+Ollama-Hack supports all Ollama OpenAI-compatible APIs. For details, see: [Ollama/OpenAI Compatibility](https://github.com/ollama/ollama/blob/main/docs/openai.md).
 
-## 🔧 配置选项
+## 🔧 Configuration Options
 
-### 环境变量
+### Environment Variables
 
-在 docker-compose.yml 文件中，你可以通过以下环境变量自定义后端：
+In the docker-compose.yml file, you can customize the backend through these environment variables:
 
 ```yaml
 environment:
-    - APP__ENV=prod # 环境类型：dev 或 prod
-    - APP__LOG_LEVEL=INFO # 日志级别
-    - APP__SECRET_KEY=change_this_key # JWT密钥
-    - APP__ACCESS_TOKEN_EXPIRE_MINUTES=30 # 访问令牌过期时间
-    - DATABASE__ENGINE=mysql # 数据库引擎
-    - DATABASE__HOST=db # 数据库主机
-    - DATABASE__USERNAME=user # 数据库用户名
-    - DATABASE__PASSWORD=password # 数据库密码
-    - DATABASE__DB=ollama_hack # 数据库名称
+    - APP__ENV=prod # Environment type: dev or prod
+    - APP__LOG_LEVEL=INFO # Log level
+    - APP__SECRET_KEY=change_this_key # JWT secret key
+    - APP__ACCESS_TOKEN_EXPIRE_MINUTES=30 # Access token expiration time
+    - DATABASE__ENGINE=mysql # Database engine
+    - DATABASE__HOST=db # Database host
+    - DATABASE__USERNAME=user # Database username
+    - DATABASE__PASSWORD=password # Database password
+    - DATABASE__DB=ollama_hack # Database name
 ```
 
-## 👤 作者
+## 👤 Author
 
 [Timlzh](https://github.com/timlzh)
 
-## 📜 许可证
+## 📜 License
 
 MIT License
 
-## 🖼️ 截图
+## 🖼️ Screenshots
 
--   主页
-    ![主页](./assets/index.png)
--   端点管理
-    ![端点管理](./assets/endpoints.png)
--   模型管理
-    ![模型管理](./assets/models.png)
--   模型详情
-    ![模型详情](./assets/model_details.png)
--   端点详情
-    ![端点详情](./assets/endpoint_details.png)
+-   Home
+    ![Home](./assets/index.png)
+-   Endpoint Management
+    ![Endpoint Management](./assets/endpoints.png)
+-   Model Management
+    ![Model Management](./assets/models.png)
+-   Model Details
+    ![Model Details](./assets/model_details.png)
+-   Endpoint Details
+    ![Endpoint Details](./assets/endpoint_details.png)

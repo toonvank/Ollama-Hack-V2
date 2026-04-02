@@ -21,18 +21,18 @@ const InitPage = () => {
 
   const navigate = useNavigate();
 
-  // 检查系统是否已经初始化
+  // Check if system is initialized
   useEffect(() => {
     const checkInitialization = async () => {
       try {
         setIsChecking(true);
         await authApi.getCurrentUser();
-        // 如果成功获取用户信息，说明系统已初始化
+        // If user info is retrieved, system is initialized
         setInitialized(true);
-        // 自动重定向到登录页
+        // Auto redirect to login page
         setTimeout(() => navigate("/login"), 2000);
       } catch {
-        // 错误意味着系统未初始化，可以继续
+        // Error means system is not initialized, proceed
         setInitialized(false);
       } finally {
         setIsChecking(false);
@@ -47,8 +47,8 @@ const InitPage = () => {
 
     if (!username || !password) {
       addToast({
-        title: "初始化失败",
-        description: "请输入用户名和密码",
+        title: "Initialization Failed",
+        description: "Please enter a username and password",
         color: "danger",
       });
 
@@ -59,13 +59,13 @@ const InitPage = () => {
       setIsLoading(true);
       await authApi.initUser({ username, password });
       setInitialized(true);
-      // 初始化成功后跳转登录
+      // Redirect to login after initialization
       setTimeout(() => navigate("/login"), 2000);
     } catch (err) {
       addToast({
-        title: "初始化失败",
+        title: "Initialization Failed",
         description:
-          (err as EnhancedAxiosError).detail || "初始化失败，请稍后再试",
+          (err as EnhancedAxiosError).detail || "Initialization failed. Please try again later.",
         color: "danger",
       });
     } finally {
@@ -89,27 +89,27 @@ const InitPage = () => {
         {/* <div className="flex items-center justify-center min-h-full pt-10">
                     <div className="w-full max-w-md p-8 space-y-8 text-center">
                         <h1 className="text-2xl font-bold">
-                            系统已初始化
+                            System Initialized
                         </h1>
                         <p>
-                            系统已经初始化过，正在跳转到登录页...
+                            System has already been initialized. Redirecting to login...
                         </p>
                         <Link href="/login" className="inline-block">
-                            <Button color="primary">立即登录</Button>
+                            <Button color="primary">Sign In Now</Button>
                         </Link>
                         </div>
                     </div> */}
         <div className="flex items-center justify-center min-h-full pt-10">
           <Card className="w-full max-w-md p-8">
             <CardHeader>
-              <h1 className="text-2xl font-bold">系统已初始化</h1>
+              <h1 className="text-2xl font-bold">System Initialized</h1>
             </CardHeader>
             <CardBody>
-              <p>系统已经初始化过，正在跳转到登录页...</p>
+              <p>System has already been initialized. Redirecting to login...</p>
             </CardBody>
             <CardFooter>
               <Link className="inline-block" href="/login">
-                <Button color="primary">立即登录</Button>
+                <Button color="primary">Sign In Now</Button>
               </Link>
             </CardFooter>
           </Card>
@@ -124,15 +124,15 @@ const InitPage = () => {
         <Card className="w-full max-w-md p-8">
           <CardHeader>
             <h1 className="text-2xl font-bold flex items-center gap-2">
-              <LogoIcon className="w-8 h-8" /> 管理员账号初始化
+              <LogoIcon className="w-8 h-8" /> Admin Account Setup
             </h1>
           </CardHeader>
           <Form className="space-y-4" onSubmit={handleSubmit}>
             <CardBody className="space-y-4">
               <Input
                 isRequired
-                label="用户名"
-                placeholder="请输入用户名"
+                label="Username"
+                placeholder="Enter your username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
               />
@@ -140,30 +140,30 @@ const InitPage = () => {
                 isRequired
                 errorMessage={({ validationDetails, validationErrors }) => {
                   if (validationDetails.tooShort) {
-                    return "密码长度不能小于8位";
+                    return "Password must be at least 8 characters";
                   }
                   if (validationDetails.tooLong) {
-                    return "密码长度不能大于128位";
+                    return "Password must be at most 128 characters";
                   }
 
                   return validationErrors;
                 }}
-                label="密码"
+                label="Password"
                 maxLength={128}
                 minLength={8}
-                placeholder="请输入密码"
+                placeholder="Enter your password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
               <Input
                 isRequired
-                label="确认密码"
-                placeholder="请再次输入密码"
+                label="Confirm Password"
+                placeholder="Please re-enter your password"
                 type="password"
                 validate={(value) => {
                   if (value !== password) {
-                    return "两次输入的密码不一致";
+                    return "Passwords do not match";
                   }
 
                   return null;
@@ -177,7 +177,7 @@ const InitPage = () => {
                 isLoading={isLoading}
                 type="submit"
               >
-                初始化系统
+                Initialize System
               </Button>
             </CardFooter>
           </Form>

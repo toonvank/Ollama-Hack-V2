@@ -16,28 +16,28 @@ const RequestsChart: React.FC<RequestsChartProps> = ({ data }) => {
   const [mounted, setMounted] = useState(false);
   const { theme } = useTheme();
 
-  // 页面加载后再渲染图表，避免SSR问题
+  // Render chart only after page load to avoid SSR issues
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // 检查并格式化数据
+  // Check and format data
   const validData = data
     .filter(
       (item) => typeof item.date === "string" && typeof item.count === "number",
     )
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  // 如果没有数据，显示提示信息
+  // If no data, show a message
   if (validData.length === 0) {
     return (
       <div className="flex justify-center items-center h-full">
-        <p className="text-gray-500 dark:text-gray-400">暂无数据</p>
+        <p className="text-gray-500 dark:text-gray-400">No data available</p>
       </div>
     );
   }
 
-  // 格式化日期
+  // Format date
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
 
@@ -51,10 +51,10 @@ const RequestsChart: React.FC<RequestsChartProps> = ({ data }) => {
     // }
   };
 
-  // 准备ApexCharts所需的数据
+  // Prepare data for ApexCharts
   const series = [
     {
-      name: "请求数",
+      name: "Requests",
       data: validData.map((item) => ({
         x: formatDate(item.date),
         y: item.count,
@@ -62,7 +62,7 @@ const RequestsChart: React.FC<RequestsChartProps> = ({ data }) => {
     },
   ];
 
-  // ApexCharts配置
+  // ApexCharts configuration
   const options: ApexOptions = {
     theme: {
       mode: theme,
@@ -120,7 +120,7 @@ const RequestsChart: React.FC<RequestsChartProps> = ({ data }) => {
     },
     series: [
       {
-        name: "请求数",
+        name: "Requests",
         data: validData.map((item) => item.count),
       },
     ],
@@ -150,7 +150,7 @@ const RequestsChart: React.FC<RequestsChartProps> = ({ data }) => {
     },
   };
 
-  // 等待客户端渲染后再显示图表
+  // Wait for client rendering before showing chart
   if (!mounted) return <div className="h-full w-full" />;
 
   return (

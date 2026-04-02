@@ -65,43 +65,48 @@ async def batch_create_or_update_endpoints(
 ) -> None:
     """
     Create or update multiple endpoints.
+    Handles duplicates within the request and with existing endpoints.
     """
-    # 提取所有 URL
-    urls = [ep.url for ep in endpoint_batch.endpoints]
+    # Extract all URLs and deduplicate while preserving order
+    seen_urls = set()
+    unique_urls = []
+    for ep in endpoint_batch.endpoints:
+        if ep.url not in seen_urls:
+            seen_urls.add(ep.url)
+            unique_urls.append(ep.url)
 
-    # 1. 查询已存在的 URL
+    # 1. Query existing URLs
     result = await session.execute(
-        select(EndpointDB.url, EndpointDB.id).where(col(EndpointDB.url).in_(urls))
+        select(EndpointDB.url, EndpointDB.id).where(col(EndpointDB.url).in_(unique_urls))
     )
     existing = {row[0]: row[1] for row in result.all()}
 
-    # 2. 过滤出未存在的 URL
-    new_urls = [url for url in urls if url not in existing]
+    # 2. Filter out URLs that don't exist yet
+    new_urls = [url for url in unique_urls if url not in existing]
 
-    # 3. 批量插入新 URL
-    new_ids = []
+    # 3. Batch insert new URLs
     if new_urls:
-        # 构建插入数据
-        new_urls = list(set(urls))
+        # Build insert data for new URLs
         to_insert = [{"url": url, "name": url} for url in new_urls]
         await session.execute(insert(EndpointDB).values(to_insert))
         await session.commit()
 
-        # 查询新插入的记录的 ID
+        # Query the IDs of newly inserted records
         result = await session.execute(
             select(EndpointDB.url, EndpointDB.id).where(col(EndpointDB.url).in_(new_urls))
         )
-        new_ids = [row[1] for row in result.all()]
+        for row in result.all():
+            existing[row[0]] = row[1]
 
-    # 4. 合并所有 ID
-    all_ids = list(existing.values()) + new_ids
+    # 4. Get all endpoint IDs (deduplicated)
+    all_ids = list(set(existing.values()))
 
-    # 使用调度器为每个端点创建测试任务
+    # Use the scheduler to create test tasks for each endpoint
     async def create_test_tasks():
         from .scheduler import get_scheduler
 
+        scheduler = get_scheduler()
         for eid in all_ids:
-            scheduler = get_scheduler()
             await scheduler.schedule_endpoint_test(eid, now() + timedelta(seconds=5))
 
     background_task.add_task(create_test_tasks)
@@ -133,16 +138,16 @@ async def get_endpoints(
     set_page(Page[EndpointDB])
     query = select(EndpointDB).options(selectinload(EndpointDB.performances))  # type: ignore
 
-    # 添加搜索条件
+    # Add search conditions
     if params.search:
         search_term = f"%{params.search}%"
         query = query.where(
             or_(col(EndpointDB.name).ilike(search_term), col(EndpointDB.url).ilike(search_term))
         )
 
-    # 添加排序
+    # Add sorting
     if params.order_by:
-        # 处理基本字段排序
+        # Handle basic field sorting
         order_column = getattr(EndpointDB, params.order_by.value)
         if params.order == SortOrder.DESC:
             order_column = order_column.desc()
@@ -183,7 +188,7 @@ async def create_or_update_endpoint(
             detail="Failed to generate endpoint ID",
         )
 
-    # 使用调度器创建测试任务
+    # Use the scheduler to create a test task
     await create_test_task(session, endpoint.id)
 
     return endpoint
@@ -218,7 +223,7 @@ async def delete_endpoint(
     """
     endpoint = await get_endpoint_by_id(session, endpoint_id)
 
-    # 确保加载关联数据以激活级联删除
+    # Ensure related data is loaded to activate cascade delete
     await session.refresh(endpoint, ["ai_model_links", "performances"])
 
     logger.info(f"Deleting endpoint {endpoint.id} ({endpoint.name}) with all its relations")
@@ -306,7 +311,7 @@ async def process_models_test_results(
 
     mission_model_ids = list(existing_link_map.keys())
     for model_performance in results.model_performances:
-        # 创建或获取模型
+        # Create or get the model
         model = await create_ai_model_if_not_exists(session, model_performance.ai_model)
 
         if model.id is None:
@@ -319,16 +324,16 @@ async def process_models_test_results(
                 performance.endpoint_id = endpoint_id
                 performances.append(performance)
 
-            # 如果关系不存在且ID有效，则创建关联表条目
+            # If the association doesn't exist and the ID is valid, create a link entry
             if model.id not in existing_link_map:
                 link = EndpointAIModelDB(endpoint_id=endpoint_id, ai_model_id=model.id)
                 existing_link_map[model.id] = link
-            # 如果关系存在，则更新关联表条目
+            # If the association exists, update the link entry
             else:
                 link = existing_link_map[model.id]
                 await session.refresh(link)
 
-            # 添加性能数据
+            # Add performance data
             if performance:
                 link.performances.append(performance)
                 link.status = performance.status
@@ -341,7 +346,7 @@ async def process_models_test_results(
                 else:
                     link.max_connection_time = performance.connection_time
 
-            # 添加关联表条目
+            # Add link entry
             links.append(link)
             if model.id in mission_model_ids:
                 mission_model_ids.remove(model.id)
@@ -362,7 +367,7 @@ async def process_models_test_results(
         )
         performances.append(performance)
 
-    # 批量添加所有关联和性能数据
+    # Batch add all associations and performance data
     if links:
         session.add_all(links)
     if performances:
@@ -707,7 +712,7 @@ async def batch_test_endpoints(
     success_count = 0
     failed_ids = {}
 
-    # 创建一个后台任务来执行所有测试
+    # Create a background task to execute all tests
     async def run_tests():
         from .scheduler import get_scheduler
 
@@ -715,20 +720,20 @@ async def batch_test_endpoints(
 
         for endpoint_id in batch_operation.endpoint_ids:
             try:
-                # 创建2秒后执行的测试任务
+                # Create a test task to execute after 2 seconds
                 scheduled_at = now() + timedelta(seconds=2)
                 await scheduler.schedule_endpoint_test(endpoint_id, scheduled_at)
                 logger.info(f"Scheduled test for endpoint {endpoint_id}")
             except Exception as e:
                 logger.error(f"Failed to schedule test for endpoint {endpoint_id}: {e}")
 
-    # 添加后台任务
+    # Add background task
     background_task.add_task(run_tests)
 
-    # 统计成功和失败的数量
+    # Count successes and failures
     for endpoint_id in batch_operation.endpoint_ids:
         try:
-            # 验证端点是否存在
+            # Verify the endpoint exists
             await get_endpoint_by_id(session, endpoint_id)
             success_count += 1
         except Exception as e:
@@ -760,10 +765,10 @@ async def batch_delete_endpoints(
 
     for endpoint_id in batch_operation.endpoint_ids:
         try:
-            # 获取并删除端点
+            # Get and delete the endpoint
             endpoint = await get_endpoint_by_id(session, endpoint_id)
 
-            # 确保加载关联数据以激活级联删除
+            # Ensure related data is loaded to activate cascade delete
             await session.refresh(endpoint, ["ai_model_links", "performances"])
 
             logger.info(f"Deleting endpoint {endpoint.id} ({endpoint.name}) with all its relations")
@@ -774,7 +779,7 @@ async def batch_delete_endpoints(
             logger.error(f"Failed to delete endpoint {endpoint_id}: {e}")
             failed_ids[str(endpoint_id)] = str(e)
 
-    # 提交所有更改
+    # Commit all changes
     await session.commit()
 
     return BatchOperationResult(

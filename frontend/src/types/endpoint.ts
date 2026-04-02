@@ -4,7 +4,7 @@ import {
   TaskStatusEnum,
 } from "./common";
 
-// 端点信息
+// Endpoint Info
 export interface EndpointInfo {
   id?: number;
   url: string;
@@ -12,7 +12,7 @@ export interface EndpointInfo {
   created_at?: string;
 }
 
-// 端点性能信息
+// Endpoint Performance Information
 export interface EndpointPerformanceInfo {
   id?: number;
   status: EndpointStatusEnum;
@@ -20,7 +20,7 @@ export interface EndpointPerformanceInfo {
   created_at: string;
 }
 
-// 带 AI 模型数量的端点信息
+// Endpoint Info with AI Models count
 export interface EndpointWithAIModelCount extends EndpointInfo {
   recent_performances: EndpointPerformanceInfo[];
   total_ai_model_count: number;
@@ -28,7 +28,7 @@ export interface EndpointWithAIModelCount extends EndpointInfo {
   task_status?: TaskStatusEnum;
 }
 
-// 端点 AI 模型信息
+// Endpoint AI Models Information
 export interface EndpointAIModelInfo {
   id: number;
   name: string;
@@ -39,7 +39,7 @@ export interface EndpointAIModelInfo {
   max_connection_time?: number;
 }
 
-// 带 AI 模型列表的端点信息
+// Endpoint Info with AI Models list
 export interface EndpointWithAIModels extends EndpointInfo {
   recent_performances: EndpointPerformanceInfo[];
   ai_models: {
@@ -51,38 +51,38 @@ export interface EndpointWithAIModels extends EndpointInfo {
   };
 }
 
-// 端点创建请求
+// Endpoint Create Request
 export interface EndpointCreate {
   url: string;
   name?: string;
 }
 
-// 端点更新请求
+// Endpoint Update Request
 export interface EndpointUpdate {
   name?: string;
 }
 
-// 批量创建端点请求
+// Batch Create Endpoints Request
 export interface EndpointBatchCreate {
   endpoints: EndpointCreate[];
 }
 
-// 批量操作端点请求
+// Batch Action Endpoints Request
 export interface EndpointBatchOperation {
-  endpoint_ids: number[]; // 要操作的节点ID列表
+  endpoint_ids: number[]; // List of endpoint IDs to perform action on
 }
 
-// 批量操作结果响应
+// Batch Action Results Response
 export interface BatchOperationResult {
-  success_count: number; // 成功操作的节点数量
-  failed_count: number; // 失败的节点数量
+  success_count: number; // Number of successfully processed endpoints
+  failed_count: number; // Number of failed endpoints
   failed_ids: {
-    // 失败的节点ID及原因
+    // Failed endpoint IDs and reasons
     [key: string]: string;
   };
 }
 
-// 端点任务信息
+// Endpoint Task Information
 export interface EndpointTaskInfo {
   id: number;
   endpoint_id: number;

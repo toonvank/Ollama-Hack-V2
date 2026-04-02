@@ -7,7 +7,7 @@ export type IconSvgProps = SVGProps<SVGSVGElement> & {
 // remove icon prop
 export type FontAwesomeIconProps = Omit<FontAwesomeIconPropsType, "icon">;
 
-// 导出所有类型
+// Export all types
 export * from "./common";
 export * from "./auth";
 export * from "./endpoint";

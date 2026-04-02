@@ -20,7 +20,7 @@ interface DialogModalProps {
 }
 
 /**
- * 对话框组件，支持错误提示和确认对话框
+ * Dialog component supporting error alerts and confirmation dialogs
  */
 const DialogModal: React.FC<DialogModalProps> = ({
   isOpen,
@@ -30,7 +30,7 @@ const DialogModal: React.FC<DialogModalProps> = ({
   type,
   onConfirm,
 }) => {
-  const defaultTitle = type === "error" ? "操作失败" : "确认操作";
+  const defaultTitle = type === "error" ? "Operation Failed" : "Confirm Action";
 
   return (
     <Modal
@@ -58,12 +58,12 @@ const DialogModal: React.FC<DialogModalProps> = ({
               variant="light"
               onPress={onClose}
             >
-              关闭
+              Close
             </Button>
           ) : (
             <div className="flex w-full justify-end gap-2">
               <Button variant="flat" onPress={onClose}>
-                取消
+                Cancel
               </Button>
               <Button
                 color="primary"
@@ -72,7 +72,7 @@ const DialogModal: React.FC<DialogModalProps> = ({
                   onClose();
                 }}
               >
-                确认
+                Confirm
               </Button>
             </div>
           )}

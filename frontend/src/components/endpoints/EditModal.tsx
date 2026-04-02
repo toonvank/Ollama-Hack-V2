@@ -33,13 +33,13 @@ const EndpointEditModal = ({
   endpointName,
   endpointUrl,
 }: EndpointEditModalProps) => {
-  // 表单状态
+  // Form state
   const [formData, setFormData] = useState<EndpointUpdate>({
     name: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 当 props 变化时更新表单数据
+  // Update form data when props change
   useEffect(() => {
     if (endpointName) {
       setFormData({
@@ -48,14 +48,14 @@ const EndpointEditModal = ({
     }
   }, [endpointName, isOpen]);
 
-  // 关闭时重置状态
+  // Reset state on close
   const handleClose = () => {
     if (!isSubmitting) {
       onClose();
     }
   };
 
-  // 处理表单输入变化
+  // Handle form input change
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
 
@@ -65,7 +65,7 @@ const EndpointEditModal = ({
     }));
   };
 
-  // 处理表单提交
+  // Handle form submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!endpointId) return;
@@ -73,22 +73,22 @@ const EndpointEditModal = ({
     setIsSubmitting(true);
 
     try {
-      // 表单验证
+      // Form validation
       if (!formData.name) {
-        throw new Error("名称不能为空");
+        throw new Error("Name cannot be empty");
       }
 
-      // 提交更新请求
+      // Submit update request
       await endpointApi.updateEndpoint(endpointId, formData);
 
-      // 更新成功，关闭模态框
+      // Success, close modal
       setIsSubmitting(false);
       onSuccess();
       handleClose();
     } catch (err) {
       addToast({
-        title: "更新端点失败",
-        description: (err as EnhancedAxiosError).detail || "更新端点失败",
+        title: "Failed to update endpoint",
+        description: (err as EnhancedAxiosError).detail || "Failed to update endpoint",
         color: "danger",
       });
       setIsSubmitting(false);
@@ -99,16 +99,16 @@ const EndpointEditModal = ({
     <Modal isOpen={isOpen} placement="center" onClose={handleClose}>
       <ModalContent>
         <Form className="w-full" onSubmit={handleSubmit}>
-          <ModalHeader>编辑端点</ModalHeader>
+          <ModalHeader>Edit Endpoint</ModalHeader>
           <ModalBody className="w-full">
             <div className="space-y-4">
               <div className="mb-4">
                 <Input
                   disabled
                   className="w-full"
-                  description="端点 URL 不可修改"
+                  description="Endpoint URL cannot be modified"
                   id="url"
-                  label="端点 URL"
+                  label="Endpoint URL"
                   value={endpointUrl}
                 />
               </div>
@@ -116,11 +116,11 @@ const EndpointEditModal = ({
               <div className="mb-6">
                 <Input
                   className="w-full"
-                  description="端点名称"
+                  description="Endpoint Name"
                   id="name"
-                  label="端点名称"
+                  label="Endpoint Name"
                   name="name"
-                  placeholder="端点名称"
+                  placeholder="Endpoint Name"
                   value={formData.name}
                   onChange={handleInputChange}
                 />
@@ -137,10 +137,10 @@ const EndpointEditModal = ({
               {isSubmitting ? (
                 <>
                   <LoadingSpinner size="small" />
-                  <span className="ml-2">保存中...</span>
+                  <span className="ml-2">Saving...</span>
                 </>
               ) : (
-                "保存更改"
+                "Save Changes"
               )}
             </Button>
           </ModalFooter>

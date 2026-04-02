@@ -18,7 +18,7 @@ import ErrorDisplay from "@/components/ErrorDisplay";
 const DashboardPage = () => {
   const { user } = useAuth();
 
-  // 获取用户当前计划
+  // Fetch user current plan
   const {
     data: userPlan,
     isLoading: isLoadingPlan,
@@ -29,7 +29,7 @@ const DashboardPage = () => {
     { enabled: !!user },
   );
 
-  // 管理员统计信息
+  // AdminStatistics
   // const {
   //   data: users,
   //   isLoading: isLoadingUsers,
@@ -117,12 +117,12 @@ const DashboardPage = () => {
     availableEndpointsError ||
     availableModelsError;
 
-  // 创建用于 ErrorDisplay 的 Error 对象
+  // Createfor ErrorDisplay of Error object
   const getErrorForDisplay = () => {
     if (!error) return null;
 
-    // 将 ApiError 转换为 Error 对象
-    return new Error((error as ApiError)?.message || "发生了一个错误");
+    // Convert ApiError to Error object
+    return new Error((error as ApiError)?.message || "An error occurred");
   };
 
   if (isLoading) {
@@ -139,25 +139,25 @@ const DashboardPage = () => {
     <DashboardLayout current_root_href="/">
       {error && <ErrorDisplay error={getErrorForDisplay()} />}
 
-      {/* 欢迎卡片 */}
+      {/* Welcome card */}
       <Card className="mb-6 p-6">
         <h2 className="text-xl font-semibold mb-2">
-          👋 你好, {user?.username}
+          👋 Hello, {user?.username}
         </h2>
         <p className="text-gray-600 dark:text-gray-400">
-          欢迎使用 Ollama Hack 平台，这里可以管理你的 Ollama 端点和 AI 模型。
+          Welcome to the Ollama Hack platform. Manage your Ollama endpoints and AI models here.
         </p>
       </Card>
 
-      {/* 统计卡片 */}
+      {/* Statistics cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <Card className="p-6">
           <CardHeader className="p-0">
-            <h3 className="text-primary-400 text-lg font-bold">端点</h3>
+            <h3 className="text-primary-400 text-lg font-bold">Endpoints</h3>
           </CardHeader>
           <p className="text-3xl font-bold">{endpoints?.total || 0}</p>
           <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-2">
-            已添加的端点总数
+            Total endpoints added
           </p>
           <div className="flex flex-col gap-2 justify-center">
             <Progress
@@ -168,7 +168,7 @@ const DashboardPage = () => {
             />
             <div className="flex flex-row gap-2 justify-between">
               <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                可用端点
+                Available Endpoints
               </span>
               <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
                 {availableEndpoints?.total || 0} / {endpoints?.total || 0}
@@ -179,11 +179,11 @@ const DashboardPage = () => {
 
         <Card className="p-6">
           <CardHeader className="p-0">
-            <h3 className="text-success-400 text-lg font-bold">AI 模型</h3>
+            <h3 className="text-success-400 text-lg font-bold">AI Models</h3>
           </CardHeader>
           <p className="text-3xl font-bold">{models?.total || 0}</p>
           <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-2">
-            扫描出的 AI 模型总数
+            Total AI models discovered
           </p>
           <div className="flex flex-col gap-2 justify-center">
             <Progress
@@ -194,7 +194,7 @@ const DashboardPage = () => {
             />
             <div className="flex flex-row gap-2 justify-between">
               <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                可用 AI 模型
+                Available AI Models
               </span>
               <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
                 {availableModels?.total || 0} / {models?.total || 0}
@@ -205,11 +205,11 @@ const DashboardPage = () => {
         {/* {isAdmin && (
           <Card className="p-6">
             <CardHeader className="p-0">
-              <h3 className="text-primary-300 text-lg font-bold">用户</h3>
+              <h3 className="text-primary-300 text-lg font-bold">User</h3>
             </CardHeader>
             <p className="text-3xl font-bold">{users?.total || 0}</p>
             <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-2">
-              已注册用户总数
+              Total registered users
             </p>
             <div className="flex flex-col gap-2 justify-center">
               <Progress
@@ -220,7 +220,7 @@ const DashboardPage = () => {
               />
               <div className="flex flex-row gap-2 justify-between">
                 <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  已注册用户
+                  Registered users
                 </span>
                 <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
                   {users?.total || 0} / {users?.total || 0}
@@ -231,33 +231,33 @@ const DashboardPage = () => {
         )} */}
       </div>
 
-      {/* 当前计划 */}
+      {/* Current Plan */}
       {userPlan && (
         <Card className="mb-6 p-6">
-          <h3 className="font-semibold text-lg mb-4">当前计划</h3>
+          <h3 className="font-semibold text-lg mb-4">Current Plan</h3>
           <div className="space-y-2">
             <div className="flex justify-between">
               <span className="text-gray-600 dark:text-gray-400">
-                计划名称：
+                Plan Name:
               </span>
               <span className="font-medium">{userPlan.name}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600 dark:text-gray-400">
-                每分钟请求数限制：
+                Requests Per Minute Limit:
               </span>
               <span className="font-medium">{userPlan.rpm}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600 dark:text-gray-400">
-                每天请求数限制：
+                Requests Per Day Limit:
               </span>
               <span className="font-medium">{userPlan.rpd}</span>
             </div>
             {userPlan.description && (
               <div className="pt-2">
                 <span className="text-gray-600 dark:text-gray-400">
-                  计划描述：
+                  Plan Description:
                 </span>
                 <p className="mt-1">{userPlan.description}</p>
               </div>

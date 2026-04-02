@@ -8,7 +8,7 @@ import {
 } from "@/types";
 
 export const aiModelApi = {
-  // 获取所有 AI 模型（带最近性能测试）
+  // Get all AI models (with recent performance tests)
   getAIModels: (params: QueryParams = {}) => {
     const queryString = buildQueryString({
       page: params.page || 1,
@@ -24,7 +24,7 @@ export const aiModelApi = {
     );
   },
 
-  // 获取单个 AI 模型详情（包含端点）
+  // Get single AI model details (with endpoints)
   getAIModelById: (modelId: number, page: number = 1, size: number = 50) => {
     return apiClient.get<AIModelInfoWithEndpoint>(
       `/api/v2/ai_model/${modelId}?page=${page}&size=${size}`,

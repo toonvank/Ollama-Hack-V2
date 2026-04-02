@@ -27,7 +27,7 @@ import SearchForm from "./SearchForm";
 import { PlusIcon } from "./icons";
 import Pagination from "./Pagination";
 
-// ChevronDownIcon组件
+// ChevronDownIcon component
 const ChevronDownIcon = ({
   strokeWidth = 1.5,
   ...otherProps
@@ -55,14 +55,14 @@ const ChevronDownIcon = ({
   );
 };
 
-// 列定义类型
+// Column definition types
 export interface Column {
   key: string;
   label: string;
   allowsSorting?: boolean;
 }
 
-// 添加按钮属性类型
+// Add button property types
 export interface AddButtonProps {
   tooltip?: string;
   onClick: () => void;
@@ -70,7 +70,7 @@ export interface AddButtonProps {
   isIconOnly?: boolean;
 }
 
-// DataTable组件属性类型
+// DataTable component property types
 export interface DataTableProps<T> {
   title: string;
   columns: Column[];
@@ -98,9 +98,9 @@ export interface DataTableProps<T> {
   autoSearchDelay?: number;
   removeWrapper?: boolean;
   topActionContent?: ReactNode;
-  minPageSize?: number; // 最小页面大小
-  maxPageSize?: number; // 最大页面大小
-  // 多选相关属性
+  minPageSize?: number; // Minimum page size
+  maxPageSize?: number; // Maximum page size
+  // Multi-select related props
   selectionMode?: "none" | "single" | "multiple";
   selectedKeys?: Selection;
   onSelectionChange?: (keys: Set<Key>) => void;
@@ -109,7 +109,7 @@ export interface DataTableProps<T> {
   showCustomPageSize?: boolean;
 }
 
-// 通用DataTable组件
+// Generic DataTable component
 export const DataTable = <T extends { id?: number | string }>({
   title,
   columns,
@@ -124,7 +124,7 @@ export const DataTable = <T extends { id?: number | string }>({
   isLoading = false,
   error,
   searchTerm = "",
-  searchPlaceholder = "搜索...",
+  searchPlaceholder = "Search...",
   onSearch,
   setSearchTerm,
   renderCell,
@@ -139,7 +139,7 @@ export const DataTable = <T extends { id?: number | string }>({
   topActionContent,
   minPageSize = 5,
   maxPageSize = 100,
-  // 多选相关属性
+  // Multi-select related props
   selectionMode = "none",
   selectedKeys,
   onSelectionChange,
@@ -147,7 +147,7 @@ export const DataTable = <T extends { id?: number | string }>({
   showJumper = true,
   showCustomPageSize = true,
 }: DataTableProps<T>) => {
-  // 获取表头列
+  // Get header columns
   const headerColumns = React.useMemo(() => {
     if (visibleColumns === "all") return columns;
 
@@ -156,7 +156,7 @@ export const DataTable = <T extends { id?: number | string }>({
     );
   }, [visibleColumns, columns]);
 
-  // 每页行数
+  // Rows per page
   const pageSizeOptions = [5, 10, 15, 30, 50];
   const [pageSizeSelectedKeys, setPageSizeSelectedKeys] = useState(
     pageSizeOptions.includes(selectedSize)
@@ -164,12 +164,12 @@ export const DataTable = <T extends { id?: number | string }>({
       : new Set(["custom"]),
   );
 
-  // 自定义页面大小
+  // Custom page size
   const [customPageSize, setCustomPageSize] = useState<string>(
     selectedSize.toString(),
   );
 
-  // 验证自定义页面大小的函数
+  // Validate custom page size
   const validateCustomPageSize = (value: string): boolean => {
     return (
       value.match(/^\d+$/) &&
@@ -178,12 +178,12 @@ export const DataTable = <T extends { id?: number | string }>({
     );
   };
 
-  // 判断自定义页面大小是否无效
+  // Check if custom page size is invalid
   const isInvalidCustomPageSize = useMemo(() => {
     return !validateCustomPageSize(customPageSize);
   }, [customPageSize, minPageSize, maxPageSize]);
 
-  // 处理自定义页面大小应用
+  // Handle apply custom page size
   const applyCustomPageSize = () => {
     if (isInvalidCustomPageSize) {
       return;
@@ -202,14 +202,14 @@ export const DataTable = <T extends { id?: number | string }>({
     onPageChange(1);
   };
 
-  // 处理回车键应用自定义页面大小
+  // Handle enter key for custom page size
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       applyCustomPageSize();
     }
   };
 
-  // 底部内容区域
+  // Bottom content area
   const bottomContent = React.useMemo(() => {
     return (
       <div className="py-2 px-2 flex justify-between items-center flex-col gap-3">
@@ -237,7 +237,7 @@ export const DataTable = <T extends { id?: number | string }>({
     maxPageSize,
   ]);
 
-  // 顶部内容区域
+  // Top content area
   const topContent = React.useMemo(() => {
     return (
       <div className="flex justify-between flex-col gap-3 w-full">
@@ -259,12 +259,12 @@ export const DataTable = <T extends { id?: number | string }>({
                     endContent={<ChevronDownIcon className="text-small" />}
                     variant="flat"
                   >
-                    选择列
+                    Columns
                   </Button>
                 </DropdownTrigger>
                 <DropdownMenu
                   disallowEmptySelection
-                  aria-label="显示的列"
+                  aria-label="Visible Columns"
                   closeOnSelect={false}
                   selectedKeys={visibleColumns}
                   selectionMode="multiple"
@@ -282,7 +282,7 @@ export const DataTable = <T extends { id?: number | string }>({
             {addButtonProps && (
               <Tooltip
                 color="primary"
-                content={addButtonProps.tooltip || "添加"}
+                content={addButtonProps.tooltip || "Add"}
               >
                 <Button
                   color="primary"
@@ -305,23 +305,23 @@ export const DataTable = <T extends { id?: number | string }>({
                     endContent={<ChevronDownIcon className="text-small" />}
                     variant="light"
                   >
-                    每页行数: {selectedSize}
+                    Rows per page: {selectedSize}
                   </Button> */}
                   <div className="flex items-center gap-1 text-default-400 text-small ml-2 cursor-pointer">
-                    <span>每页行数: {selectedSize}</span>
+                    <span>Rows per page: {selectedSize}</span>
                     <ChevronDownIcon />
                   </div>
                 </DropdownTrigger>
                 <DropdownMenu
                   disallowEmptySelection
-                  aria-label="每页行数"
+                  aria-label="Rows per page"
                   closeOnSelect={true}
                   selectedKeys={pageSizeSelectedKeys}
                   selectionMode="single"
                   onSelectionChange={(e) => {
                     const key = e.currentKey;
 
-                    // 不再需要处理"custom"选项，因为已经整合到下拉菜单中
+                    // No need to handle "custom" option, integrated into dropdown
                     if (key && key !== "custom") {
                       setSize(Number(key));
                       setPageSizeSelectedKeys(new Set([key]));
@@ -330,13 +330,13 @@ export const DataTable = <T extends { id?: number | string }>({
                     }
                   }}
                 >
-                  <DropdownSection showDivider title="预设大小">
+                  <DropdownSection showDivider title="Preset Sizes">
                     {pageSizeOptions.map((size) => (
                       <DropdownItem key={size}>{size}</DropdownItem>
                     ))}
                   </DropdownSection>
                   {showCustomPageSize && (
-                    <DropdownSection title="自定义">
+                    <DropdownSection title="Custom">
                       <DropdownItem
                         isReadOnly
                         endContent={
@@ -350,17 +350,17 @@ export const DataTable = <T extends { id?: number | string }>({
                               applyCustomPageSize();
                             }}
                           >
-                            应用
+                            Apply
                           </Button>
                         }
                         startContent={
                           <Input
-                            aria-label="自定义页面大小"
+                            aria-label="Custom page size"
                             className="w-20"
                             color={
                               isInvalidCustomPageSize ? "danger" : "default"
                             }
-                            errorMessage={`页面大小必须在 ${minPageSize} 到 ${maxPageSize} 之间`}
+                            errorMessage={`Page size must be between ${minPageSize} and ${maxPageSize} `}
                             isInvalid={isInvalidCustomPageSize}
                             placeholder={`${minPageSize}-${maxPageSize}`}
                             radius="sm"
@@ -370,7 +370,7 @@ export const DataTable = <T extends { id?: number | string }>({
                             onValueChange={setCustomPageSize}
                           />
                         }
-                        textValue="自定义页面大小"
+                        textValue="Custom page size"
                       />
                     </DropdownSection>
                   )}
@@ -379,7 +379,7 @@ export const DataTable = <T extends { id?: number | string }>({
             )}
 
             <span className="text-default-400 text-small mr-2">
-              共 {total || data.length} 条记录
+              Total: {total || data.length} records
             </span>
           </div>
         )}
@@ -388,7 +388,7 @@ export const DataTable = <T extends { id?: number | string }>({
           selectedKeys.size > 0 && (
             <div className="w-full flex justify-between items-center">
               <span className="text-default-400 text-small ml-2">
-                已选择 {selectedKeys.size} 项
+                Selected {selectedKeys.size} items
               </span>
               {selectionToolbarContent}
             </div>
@@ -420,7 +420,7 @@ export const DataTable = <T extends { id?: number | string }>({
     handleKeyDown,
   ]);
 
-  // 渲染表格
+  // Render table
   const renderTable = () => (
     <Table
       isHeaderSticky
@@ -453,7 +453,7 @@ export const DataTable = <T extends { id?: number | string }>({
         )}
       </TableHeader>
       <TableBody
-        emptyContent={emptyContent || <p className="text-xl">暂无数据</p>}
+        emptyContent={emptyContent || <p className="text-xl">No data</p>}
         isLoading={isLoading}
         items={data}
         loadingContent={
@@ -473,11 +473,11 @@ export const DataTable = <T extends { id?: number | string }>({
     </Table>
   );
 
-  // 主要渲染逻辑
+  // Main render logic
   return (
     <div className="w-full">
       {error ? (
-        <ErrorDisplay error={new Error(error?.message || `加载${title}失败`)} />
+        <ErrorDisplay error={new Error(error?.message || `Loading${title}failed`)} />
       ) : (
         renderTable()
       )}

@@ -36,7 +36,7 @@ const ModelDetailDrawer = ({ id, isOpen, onClose }: ModelDetailProps) => {
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(5);
 
-  // 获取模型详情
+  // Get model details
   const {
     data: model,
     isLoading,
@@ -48,33 +48,33 @@ const ModelDetailDrawer = ({ id, isOpen, onClose }: ModelDetailProps) => {
     { staleTime: 30000, enabled: !!id && isOpen },
   );
 
-  // 在抽屉打开时重新获取数据
+  // Refetch data when drawer opens
   useEffect(() => {
     if (isOpen && id) {
       refetch();
     }
   }, [isOpen, id, refetch]);
 
-  // 处理页码变化
+  // Handle page change
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
   };
 
-  // 格式化日期
+  // Format date
   const formatDate = (dateString: string) => {
     return new Date(dateString + "Z").toLocaleString();
   };
 
-  // 定义表格列
+  // Define table columns
   const columns = [
-    // { key: "endpoint", label: "端点" },
+    // { key: "endpoint", label: "Endpoints" },
     { key: "url", label: "URL" },
-    { key: "status", label: "状态" },
-    { key: "performance", label: "性能" },
-    // { key: "actions", label: "操作" },
+    { key: "status", label: "Status" },
+    { key: "performance", label: "Performance" },
+    // { key: "actions", label: "Actions" },
   ];
 
-  // 渲染单元格内容
+  // Render cell content
   const renderCell = (endpoint: ModelFromEndpointInfo, columnKey: string) => {
     switch (columnKey) {
       case "url":
@@ -101,15 +101,15 @@ const ModelDetailDrawer = ({ id, isOpen, onClose }: ModelDetailProps) => {
         );
       case "performance":
         return endpoint.status === AIModelStatusEnum.AVAILABLE ? (
-          <Tooltip content="生成速度（每秒token数）">
+          <Tooltip content="Generation speed (tokens per second)">
             <div>
               {endpoint.token_per_second
                 ? `${endpoint.token_per_second.toFixed(1)} tps`
-                : "未测试"}
+                : "Not tested"}
             </div>
           </Tooltip>
         ) : (
-          "不可用"
+          "Unavailable"
         );
       //   case "actions":
       //     return (
@@ -127,7 +127,7 @@ const ModelDetailDrawer = ({ id, isOpen, onClose }: ModelDetailProps) => {
     }
   };
 
-  // 渲染抽屉内容
+  // Render drawer content
   const renderContent = () => {
     if (isLoading) {
       return (
@@ -140,7 +140,7 @@ const ModelDetailDrawer = ({ id, isOpen, onClose }: ModelDetailProps) => {
     if (error) {
       return (
         <ErrorDisplay
-          error={new Error((error as Error)?.message || "加载模型详情失败")}
+          error={new Error((error as Error)?.message || "Failed to load model details")}
         />
       );
     }
@@ -148,7 +148,7 @@ const ModelDetailDrawer = ({ id, isOpen, onClose }: ModelDetailProps) => {
     if (!model) {
       return (
         <div className="text-center py-8">
-          <p>未找到模型信息</p>
+          <p>Model not found</p>
         </div>
       );
     }
@@ -156,10 +156,10 @@ const ModelDetailDrawer = ({ id, isOpen, onClose }: ModelDetailProps) => {
     return (
       <>
         <div className="grid grid-cols-1 gap-6 mb-6">
-          {/* 模型基本信息卡片 */}
+          {/* Model info card */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between gap-2 p-4">
-              <h3 className="text-xl font-bold">模型信息</h3>
+              <h3 className="text-xl font-bold">Model Info</h3>
               <div className="flex flex-row gap-2 items-center justify-end w-auto">
                 <StatusBadge
                   status={
@@ -181,27 +181,27 @@ const ModelDetailDrawer = ({ id, isOpen, onClose }: ModelDetailProps) => {
                 </div>
                 <div>
                   <h4 className="text-sm text-gray-500 dark:text-gray-400">
-                    名称
+                    Name
                   </h4>
                   <p>{model.name}</p>
                 </div>
                 <div>
                   <h4 className="text-sm text-gray-500 dark:text-gray-400">
-                    标签
+                    Tag
                   </h4>
                   <p>{model.tag}</p>
                 </div>
                 <div>
                   <h4 className="text-sm text-gray-500 dark:text-gray-400">
-                    创建时间
+                    Created At
                   </h4>
                   <p>
-                    {model.created_at ? formatDate(model.created_at) : "未知"}
+                    {model.created_at ? formatDate(model.created_at) : "Unknown"}
                   </p>
                 </div>
                 <div>
                   <h4 className="text-sm text-gray-500 dark:text-gray-400">
-                    可用端点数
+                    Available Endpoints
                   </h4>
                   <p>
                     {model.avaliable_endpoint_count} /{" "}
@@ -212,17 +212,17 @@ const ModelDetailDrawer = ({ id, isOpen, onClose }: ModelDetailProps) => {
             </CardBody>
           </Card>
 
-          {/* 可用端点列表卡片 */}
+          {/* Available endpoints card */}
           <Card>
             <CardHeader className="p-4">
-              <h3 className="text-xl font-bold">可用端点</h3>
+              <h3 className="text-xl font-bold">Available Endpoints</h3>
             </CardHeader>
             <Divider />
             <CardBody className="p-4">
               {model.endpoints.items.length === 0 ? (
                 <div className="py-8 text-center">
                   <p className="text-gray-500 dark:text-gray-400">
-                    没有可用的端点
+                    No available endpoints
                   </p>
                 </div>
               ) : (
@@ -231,7 +231,7 @@ const ModelDetailDrawer = ({ id, isOpen, onClose }: ModelDetailProps) => {
                   data={model.endpoints.items}
                   emptyContent={
                     <p className="text-gray-500 dark:text-gray-400">
-                      没有可用的端点
+                      No available endpoints
                     </p>
                   }
                   isLoading={isLoading}
@@ -242,7 +242,7 @@ const ModelDetailDrawer = ({ id, isOpen, onClose }: ModelDetailProps) => {
                   selectedSize={size}
                   setSize={setSize}
                   showCustomPageSize={false}
-                  title="可用端点"
+                  title="Available Endpoints"
                   total={model.endpoints.total}
                   onPageChange={handlePageChange}
                 />
@@ -269,7 +269,7 @@ const ModelDetailDrawer = ({ id, isOpen, onClose }: ModelDetailProps) => {
         {() => (
           <>
             <DrawerHeader className="absolute top-0 inset-x-0 z-50 flex flex-row gap-2 px-2 py-2 border-b border-default-200/50 justify-between bg-content1/50 backdrop-saturate-150 backdrop-blur-lg">
-              <Tooltip content="关闭">
+              <Tooltip content="Close">
                 <Button
                   isIconOnly
                   className="text-default-400 active:opacity-50 text-lg"

@@ -1,6 +1,6 @@
 import { AIModelStatusEnum } from "./common";
 
-// AI 模型性能信息
+// AI Models Performance Information
 export interface AIModelPerformance {
   id: number;
   status: AIModelStatusEnum;
@@ -10,7 +10,7 @@ export interface AIModelPerformance {
   created_at: string;
 }
 
-// 带端点信息的模型信息
+// Model Info with Endpoint Info
 export interface ModelFromEndpointInfo {
   id: number;
   url: string;
@@ -22,7 +22,7 @@ export interface ModelFromEndpointInfo {
   model_performances: AIModelPerformance[];
 }
 
-// 带端点数量的 AI 模型信息
+// AI Models Info with Endpoint Count
 export interface AIModelInfoWithEndpointCount {
   id?: number;
   name: string;
@@ -32,7 +32,7 @@ export interface AIModelInfoWithEndpointCount {
   avaliable_endpoint_count: number;
 }
 
-// 带端点的 AI 模型详情
+// AI Models details with Endpoints
 export interface AIModelInfoWithEndpoint {
   id?: number;
   name: string;

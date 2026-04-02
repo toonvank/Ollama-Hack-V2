@@ -65,7 +65,7 @@ const ApiKeysPage = () => {
   const { isAdmin } = useAuth();
   const { confirm } = useDialog();
 
-  // 验证配置
+  // Validation config
   const [validationConfig, setValidationConfig] =
     useState<PaginationValidationConfig>({
       page: { min: 1 },
@@ -77,7 +77,7 @@ const ApiKeysPage = () => {
       },
     });
 
-  // 使用URL参数管理状态，替代多个单独的useState
+  // Use URL params for state management instead of multiple useState
   const {
     page,
     pageSize: size,
@@ -108,12 +108,12 @@ const ApiKeysPage = () => {
   const [isCreating, setIsCreating] = useState(false);
   const [isHelpDrawerOpen, setIsHelpDrawerOpen] = useState(false);
 
-  // 统计抽屉状态
+  // Stats drawer state
   const [isStatsDrawerOpen, setIsStatsDrawerOpen] = useState(false);
   const [selectedApiKeyId, setSelectedApiKeyId] = useState<number | null>(null);
   const [selectedApiKeyName, setSelectedApiKeyName] = useState<string>("");
 
-  // 排序状态
+  // Sort state
   const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
     column: orderBy || "id",
     direction:
@@ -124,7 +124,7 @@ const ApiKeysPage = () => {
           : "ascending",
   });
 
-  // 处理排序
+  // Handle sort
   const handleSort = (descriptor: SortDescriptor) => {
     setSortDescriptor(descriptor);
     setOrderBy(descriptor.column?.toString());
@@ -133,7 +133,7 @@ const ApiKeysPage = () => {
     );
   };
 
-  // 获取 API 密钥列表
+  // Fetch API key list
   const {
     data: apiKeys,
     isLoading,
@@ -152,7 +152,7 @@ const ApiKeysPage = () => {
     { staleTime: 30000 },
   );
 
-  // 当总页数变化时，更新验证配置
+  // Update validation config when total pages change
   useEffect(() => {
     if (apiKeys?.pages) {
       setValidationConfig((prev) => ({
@@ -162,7 +162,7 @@ const ApiKeysPage = () => {
     }
   }, [apiKeys?.pages]);
 
-  // 创建 API 密钥
+  // Create API Key
   const createApiKeyMutation = useCustomMutation<ApiKeyResponse, ApiKeyCreate>(
     (data) => apiKeyApi.createApiKey(data),
     {
@@ -177,73 +177,73 @@ const ApiKeysPage = () => {
     },
   );
 
-  // 处理搜索
+  // Handle search
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    // 搜索时重置页码
+    // Reset page on search
     setPage(1);
     refetch();
   };
 
-  // 处理页码变化
+  // Handle page change
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
   };
 
-  // 处理创建 API 密钥
+  // Handle create API key
   const handleCreateApiKey = () => {
     setIsCreating(true);
     createApiKeyMutation.mutate({ name: newApiKeyName });
   };
 
-  // 处理关闭创建成功对话框
+  // Handle close success dialog
   const handleCloseSuccessModal = () => {
     setCreatedApiKey(null);
     setNewApiKeyName("");
     setIsCreateModalOpen(false);
   };
 
-  // 处理删除 API 密钥
+  // Handle delete API key
   const handleDeleteApiKey = (id: number) => {
-    confirm("确定要删除此 API 密钥吗？此操作不可逆。", async () => {
+    confirm("Are you sure you want to delete this API key? This action is irreversible.", async () => {
       try {
         await apiKeyApi.deleteApiKey(id);
         refetch();
       } catch (err) {
         addToast({
-          title: "删除 API 密钥失败",
-          description: (err as Error).message || "请重试",
+          title: "Failed to delete API key",
+          description: (err as Error).message || "Please try again",
           color: "danger",
         });
       }
     });
   };
 
-  // 打开API密钥统计抽屉
+  // Open API key stats drawer
   const openApiKeyStats = (apiKey: ApiKeyInfo) => {
     setSelectedApiKeyId(apiKey.id);
     setSelectedApiKeyName(apiKey.name);
     setIsStatsDrawerOpen(true);
   };
 
-  // 关闭API密钥统计抽屉
+  // Close API key stats drawer
   const closeApiKeyStats = () => {
     setIsStatsDrawerOpen(false);
   };
 
-  // 定义表格列
+  // Define table columns
   const columns = [
     { key: "id", label: "ID", allowsSorting: true },
-    { key: "name", label: "名称", allowsSorting: true },
-    { key: "created_at", label: "创建时间", allowsSorting: true },
-    { key: "last_used_at", label: "最后使用时间", allowsSorting: true },
+    { key: "name", label: "Name", allowsSorting: true },
+    { key: "created_at", label: "Created At", allowsSorting: true },
+    { key: "last_used_at", label: "Last Used", allowsSorting: true },
     ...(isAdmin
-      ? [{ key: "user_id", label: "用户", allowsSorting: true }]
+      ? [{ key: "user_id", label: "User", allowsSorting: true }]
       : []),
-    { key: "actions", label: "操作" },
+    { key: "actions", label: "Actions" },
   ];
 
-  // 渲染单元格内容
+  // Render cell content
   const renderCell = (apiKey: ApiKeyInfo, columnKey: string) => {
     switch (columnKey) {
       case "id":
@@ -259,13 +259,13 @@ const ApiKeysPage = () => {
       case "last_used_at":
         return apiKey.last_used_at
           ? new Date(apiKey.last_used_at).toLocaleString()
-          : "从未使用";
+          : "Never used";
       case "user_id":
         return apiKey.user_name || "-";
       case "actions":
         return (
           <div className="relative flex items-center gap-2">
-            <Tooltip content="查看密钥用量">
+            <Tooltip content="View Key Usage">
               <Button
                 isIconOnly
                 className="text-default-400 active:opacity-50 text-lg"
@@ -275,7 +275,7 @@ const ApiKeysPage = () => {
                 <StatisticsIcon />
               </Button>
             </Tooltip>
-            <Tooltip color="danger" content="删除密钥">
+            <Tooltip color="danger" content="Delete Key">
               <Button
                 isIconOnly
                 className="text-default-400 active:opacity-50 text-lg"
@@ -300,7 +300,7 @@ const ApiKeysPage = () => {
     <DashboardLayout current_root_href="/apikeys">
       <DataTable<ApiKeyInfo>
         addButtonProps={{
-          tooltip: "创建 API 密钥",
+          tooltip: "Create API Key",
           onClick: () => setIsCreateModalOpen(true),
           isIconOnly: true,
         }}
@@ -310,11 +310,11 @@ const ApiKeysPage = () => {
         emptyContent={
           <>
             <p className="text-xl text-gray-600 dark:text-gray-400">
-              暂无 API 密钥数据
+              No API key data
             </p>
             <Tooltip
               color="primary"
-              content="创建第一个 API 密钥"
+              content="Create your first API key"
               placement="bottom"
             >
               <Button
@@ -334,15 +334,15 @@ const ApiKeysPage = () => {
         pageSize={size}
         pages={apiKeys?.pages}
         renderCell={renderCell}
-        searchPlaceholder="搜索 API 密钥..."
+        searchPlaceholder="Search API keys..."
         searchTerm={searchTerm}
         selectedSize={size}
         setSearchTerm={setSearchTerm}
         setSize={setSize}
         sortDescriptor={sortDescriptor}
-        title="API 密钥列表"
+        title="API Key List"
         topActionContent={
-          <Tooltip color="default" content="使用方法">
+          <Tooltip color="default" content="Usage Guide">
             <Button
               isIconOnly
               color="default"
@@ -359,7 +359,7 @@ const ApiKeysPage = () => {
         onSortChange={handleSort}
       />
 
-      {/* 创建 API 密钥对话框 */}
+      {/* Create API KeyDialog */}
       <Modal
         isOpen={isCreateModalOpen}
         placement="center"
@@ -369,13 +369,13 @@ const ApiKeysPage = () => {
           {(onClose) => (
             <Form className="w-full" onSubmit={handleCreateApiKey}>
               <ModalHeader>
-                {createdApiKey ? "密钥创建成功" : "创建 API 密钥"}
+                {createdApiKey ? "Key Created Successfully" : "Create API Key"}
               </ModalHeader>
               <ModalBody className="w-full">
                 {createdApiKey ? (
                   <div>
                     <p className="mb-2">
-                      请保存好您的 API 密钥，这是唯一可以看到它的机会：
+                      Please save your API key now. This is the only time you will be able to see it:
                     </p>
                     <Snippet color="primary" symbol="">
                       {createdApiKey.key}
@@ -388,10 +388,10 @@ const ApiKeysPage = () => {
                     errorMessage={({ validationErrors }) => {
                       return validationErrors;
                     }}
-                    label="API 密钥名称"
+                    label="API Key Name"
                     maxLength={128}
                     minLength={3}
-                    placeholder="输入 API 密钥名称"
+                    placeholder="Enter API key name"
                     value={newApiKeyName}
                     onChange={(e) => setNewApiKeyName(e.target.value)}
                   />
@@ -400,7 +400,7 @@ const ApiKeysPage = () => {
               <ModalFooter className="w-full">
                 {createdApiKey ? (
                   <Button color="primary" onPress={handleCloseSuccessModal}>
-                    确定
+                    OK
                   </Button>
                 ) : (
                   <>
@@ -409,7 +409,7 @@ const ApiKeysPage = () => {
                       variant="light"
                       onPress={onClose}
                     >
-                      取消
+                      Cancel
                     </Button>
                     <Button
                       color="primary"
@@ -417,7 +417,7 @@ const ApiKeysPage = () => {
                       isLoading={isCreating}
                       onPress={handleCreateApiKey}
                     >
-                      创建
+                      Create
                     </Button>
                   </>
                 )}
@@ -427,7 +427,7 @@ const ApiKeysPage = () => {
         </ModalContent>
       </Modal>
 
-      {/* API密钥统计抽屉 */}
+      {/* APIKey statistics drawer */}
       {selectedApiKeyId && (
         <StatsDrawer
           apiKeyName={selectedApiKeyName}
@@ -437,7 +437,7 @@ const ApiKeysPage = () => {
         />
       )}
 
-      {/* 使用方法抽屉 */}
+      {/* Usage GuideDrawer */}
       <Drawer
         backdrop="blur"
         classNames={{
@@ -450,7 +450,7 @@ const ApiKeysPage = () => {
       >
         <DrawerContent>
           <DrawerHeader className="absolute top-0 inset-x-0 z-50 flex flex-row gap-2 px-2 py-2 border-b border-default-200/50 justify-between bg-content1/50 backdrop-saturate-150 backdrop-blur-lg">
-            <Tooltip content="关闭">
+            <Tooltip content="Close">
               <Button
                 isIconOnly
                 className="text-default-400 active:opacity-50 text-lg"
@@ -467,41 +467,41 @@ const ApiKeysPage = () => {
             </div>
             <div className="flex flex-col gap-2 py-4">
               <h1 className="text-2xl font-bold leading-7">
-                聚合 API 使用方法
+                Aggregated API Usage Guide
               </h1>
               <div className="flex flex-col mt-4 gap-3 items-start">
-                <h2 className="text-medium font-medium">什么是聚合 API ?</h2>
+                <h2 className="text-medium font-medium">What is the Aggregated API?</h2>
                 <div className="text-medium text-default-500 flex flex-col gap-2">
                   <p>
-                    聚合 API 是 <i>Ollama Hack</i> 的核心功能，旨在通过一个仿
-                    Ollama 的 OpenAI 兼容 API，智能访问扫描到的高可用模型。
+                    The Aggregated API is the core feature of <i>Ollama Hack</i>.
+                    It provides smart access to discovered high-availability models through an Ollama-compatible OpenAI API.
                   </p>
                 </div>
               </div>
               <div className="flex flex-col mt-4 gap-3 items-start w-full">
-                <h2 className="text-medium font-medium">如何使用聚合 API ?</h2>
+                <h2 className="text-medium font-medium">How to use the Aggregated API?</h2>
                 <div className="text-medium text-default-500 flex flex-col gap-2">
                   <p>
-                    首先，你需要生成一个 API 密钥。注意，你只会在创建时看到 API
-                    密钥，生成后将无法再次查看，请妥善保管。
+                    First, you need to generate an API key. Note that you will only see
+                    the API key once upon creation — it cannot be viewed again, so keep it safe.
                   </p>
                   <div className="flex flex-col gap-2 w-full justify-center items-center">
                     <Image
-                      alt="API 密钥创建"
+                      alt="API Key Creation"
                       className="h-full"
                       src="/images/apikeys/apikey-create.png"
                     />
                     <Image
-                      alt="API 密钥创建"
+                      alt="API Key Creation"
                       className="h-full"
                       src="/images/apikeys/apikey-created.png"
                     />
                   </div>
                   <p>
-                    接下来你就可以使用这个 API 密钥来访问聚合 API 了。API
-                    密钥可以通过请求头传递。
+                    You can now use this API key to access the Aggregated API.
+                    The API key is passed via request headers.
                   </p>
-                  <p>例如，你可以这样访问聚合 API：</p>
+                  <p>For example, you can access the Aggregated API like this:</p>
                   <SyntaxHighlighter
                     language="bash"
                     style={theme === "light" ? oneLight : oneDark}
@@ -510,21 +510,21 @@ const ApiKeysPage = () => {
                   >
                     {`curl -X POST http://localhost:3000/v1/chat/completions \\
   -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer <你的 API 密钥>" \\
+  -H "Authorization: Bearer <your-api-key>" \\
   -d '{
     "model": "qwq:latest",
     "messages": [
-      {"role": "system", "content": "你是一个有帮助的助手"},
-      {"role": "user", "content": "你好，请介绍一下自己"}
+      {"role": "system", "content": "You are a helpful assistant"},
+      {"role": "user", "content": "Hello, please introduce yourself"}
     ]
   }'`}
                   </SyntaxHighlighter>
                   <p>
-                    聚合 API
-                    会智能检测你使用的模型，并按照生成速度顺序尝试最优端点转发你的请求。所有的
-                    API 都和 Ollama 的 API
-                    兼容，包括流式生成等功能。你只需要按照 Ollama 的 API
-                    文档来调用即可，下面提供了 Ollama 官方 API 文档以供参考。
+                    Aggregated API
+                    Intelligently detects the models you use and forwards your requests to optimal endpoints based on generation speed. All
+                    APIs are compatible with Ollama APIs
+                    , including streaming generation. Simply follow the Ollama API
+                    documentation to make calls. Official Ollama API documentation is provided below for reference.
                   </p>
                   <div className="flex justify-around w-full mt-4">
                     <div className="flex gap-3 items-center">
@@ -540,10 +540,10 @@ const ApiKeysPage = () => {
                           href="https://github.com/ollama/ollama/blob/main/docs/api.md"
                           rel="noreferrer noopener"
                         >
-                          Ollama API 文档
+                          Ollama API Docs
                         </Link>
                         <p className="text-small text-default-500">
-                          Ollama 原生 API 文档
+                          Ollama Native API Docs
                         </p>
                       </div>
                     </div>
@@ -560,10 +560,10 @@ const ApiKeysPage = () => {
                           href="https://github.com/ollama/ollama/blob/main/docs/openai.md"
                           rel="noreferrer noopener"
                         >
-                          OpenAI 兼容 API 文档
+                          OpenAI Compatible API Docs
                         </Link>
                         <p className="text-small text-default-500">
-                          OpenAI 兼容 API 文档
+                          OpenAI Compatible API Docs
                         </p>
                       </div>
                     </div>

@@ -12,9 +12,9 @@ import DashboardLayout from "@/layouts/Main";
 import ModelTable from "@/components/models/Table";
 import ModelDetailDrawer from "@/components/models/DetailDrawer";
 
-// 模型列表页面
+// Model list page
 export const ModelListPage = () => {
-  // 验证配置
+  // Validation config
   const [validationConfig, setValidationConfig] =
     useState<PaginationValidationConfig>({
       page: { min: 1 },
@@ -26,7 +26,7 @@ export const ModelListPage = () => {
       },
     });
 
-  // 使用URL参数管理状态，替代多个单独的useState
+  // Use URL params for state management instead of multiple useState
   const {
     page,
     pageSize,
@@ -49,11 +49,11 @@ export const ModelListPage = () => {
     validationConfig,
   );
 
-  // 详情抽屉状态
+  // Detail drawer state
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
   const [selectedModelId, setSelectedModelId] = useState<number | null>(null);
 
-  // 获取模型列表
+  // Fetch model list
   const {
     data: models,
     isLoading,
@@ -72,7 +72,7 @@ export const ModelListPage = () => {
     { staleTime: 30000 },
   );
 
-  // 当总页数变化时，更新验证配置
+  // Update validation config when total pages change
   useEffect(() => {
     if (models?.pages) {
       setValidationConfig((prev) => ({
@@ -82,25 +82,25 @@ export const ModelListPage = () => {
     }
   }, [models?.pages]);
 
-  // 处理搜索
+  // Handle search
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
     refetch();
   };
 
-  // 处理页码变化
+  // Handle page change
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
   };
 
-  // 打开模型详情抽屉
+  // Open model detail drawer
   const openModelDetail = (modelId: number) => {
     setSelectedModelId(modelId);
     setIsDetailDrawerOpen(true);
   };
 
-  // 关闭模型详情抽屉
+  // Close model detail drawer
   const closeModelDetail = () => {
     setIsDetailDrawerOpen(false);
   };
@@ -127,7 +127,7 @@ export const ModelListPage = () => {
         onSearch={handleSearch}
       />
 
-      {/* 模型详情抽屉 */}
+      {/* ModelDetails drawer */}
       {selectedModelId && (
         <ModelDetailDrawer
           id={selectedModelId}
@@ -139,7 +139,7 @@ export const ModelListPage = () => {
   );
 };
 
-// 模型路由入口
+// Model router entry
 const ModelsPage = () => {
   return (
     <Routes>

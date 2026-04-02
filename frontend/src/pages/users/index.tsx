@@ -41,7 +41,7 @@ const UsersPage = () => {
   const { user: currentUser, isAdmin } = useAuth();
   const { confirm } = useDialog();
 
-  // 验证配置
+  // Validation config
   const [validationConfig, setValidationConfig] =
     useState<PaginationValidationConfig>({
       page: { min: 1 },
@@ -53,7 +53,7 @@ const UsersPage = () => {
       },
     });
 
-  // 使用URL参数管理状态，替代多个单独的useState
+  // Use URL params for state management instead of multiple useState
   const {
     page,
     pageSize,
@@ -84,7 +84,7 @@ const UsersPage = () => {
   });
   const [isCreating, setIsCreating] = useState(false);
 
-  // 编辑Modal相关状态
+  // Edit modal state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserUpdate>({
     username: "",
@@ -94,7 +94,7 @@ const UsersPage = () => {
   const [editingUserId, setEditingUserId] = useState<number | undefined>();
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // 排序状态
+  // Sort state
   const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
     column: orderBy || "id",
     direction:
@@ -105,7 +105,7 @@ const UsersPage = () => {
           : "ascending",
   });
 
-  // 处理排序
+  // Handle sort
   const handleSort = (descriptor: SortDescriptor) => {
     setSortDescriptor(descriptor);
     setOrderBy(descriptor.column?.toString());
@@ -114,7 +114,7 @@ const UsersPage = () => {
     );
   };
 
-  // 获取用户列表
+  // Fetch user list
   const {
     data: users,
     isLoading,
@@ -136,7 +136,7 @@ const UsersPage = () => {
     },
   );
 
-  // 当总页数变化时，更新验证配置
+  // Update validation config when total pages change
   useEffect(() => {
     if (users?.pages) {
       setValidationConfig((prev) => ({
@@ -146,7 +146,7 @@ const UsersPage = () => {
     }
   }, [users?.pages]);
 
-  // 获取所有计划列表（用于编辑用户时选择计划）
+  // Fetch all plans (for plan selection when editing users)
   const { data: plans, isLoading: isLoadingPlans } = useCustomQuery<
     PageResponse<PlanResponse>
   >(
@@ -162,7 +162,7 @@ const UsersPage = () => {
     },
   );
 
-  // 创建用户
+  // Create User
   const createUserMutation = useCustomMutation<UserInfo, UserAuth>(
     (data) => {
       return authApi.createUser(data);
@@ -176,8 +176,8 @@ const UsersPage = () => {
       },
       onError: (err) => {
         addToast({
-          title: "创建用户失败",
-          description: (err as EnhancedAxiosError).detail || "创建用户失败",
+          title: "Failed to create user",
+          description: (err as EnhancedAxiosError).detail || "Failed to create user",
           color: "danger",
         });
         setIsCreating(false);
@@ -185,7 +185,7 @@ const UsersPage = () => {
     },
   );
 
-  // 更新用户
+  // UpdateUser
   const updateUserMutation = useCustomMutation<
     UserInfo,
     { id: number; data: UserUpdate }
@@ -201,41 +201,41 @@ const UsersPage = () => {
       setEditingUserId(undefined);
       setIsUpdating(false);
       addToast({
-        title: "更新用户成功",
-        description: "用户信息已成功更新",
+        title: "User Updated",
+        description: "User information has been updated successfully",
         color: "success",
       });
     },
     onError: (err) => {
       addToast({
-        title: "更新用户失败",
-        description: (err as EnhancedAxiosError).detail || "更新用户失败",
+        title: "Failed to update user",
+        description: (err as EnhancedAxiosError).detail || "Failed to update user",
         color: "danger",
       });
       setIsUpdating(false);
     },
   });
 
-  // 处理搜索
+  // Handle search
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
     refetch();
   };
 
-  // 处理页码变化
+  // Handle page change
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
   };
 
-  // 处理创建用户
+  // Handle create user
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!newUser.username || !newUser.password) {
       addToast({
-        title: "创建用户失败",
-        description: "用户名和密码不能为空",
+        title: "Failed to create user",
+        description: "Username and password cannot be empty",
         color: "danger",
       });
 
@@ -251,20 +251,20 @@ const UsersPage = () => {
 
   const handleDeleteUser = async (userId: number) => {
     confirm(
-      "确定要删除此用户吗？此操作不可逆，且可能影响使用此用户的服务。",
+      "Are you sure you want to delete this user? This action is irreversible.",
       async () => {
         await authApi.deleteUser(userId);
         refetch();
         addToast({
-          title: "删除用户成功",
-          description: "用户已成功删除",
+          title: "User Deleted",
+          description: "The user has been deleted successfully",
           color: "success",
         });
       },
     );
   };
 
-  // 打开编辑模态框
+  // Open edit modal
   const openEditModal = (user: UserInfo) => {
     setEditingUser({
       username: user.username,
@@ -275,7 +275,7 @@ const UsersPage = () => {
     setIsEditModalOpen(true);
   };
 
-  // 处理表单输入变化
+  // Handle form input change
   const handleEditInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
 
@@ -285,7 +285,7 @@ const UsersPage = () => {
     }));
   };
 
-  // 处理复选框变化
+  // Handle checkbox change
   const handleCheckboxChange = (isSelected: boolean) => {
     setEditingUser((prev) => ({
       ...prev,
@@ -293,7 +293,7 @@ const UsersPage = () => {
     }));
   };
 
-  // 处理计划选择变化
+  // Handle plan selection change
   const handlePlanChange = (planId: string) => {
     const numericPlanId = planId === "" ? undefined : Number(planId);
 
@@ -303,16 +303,16 @@ const UsersPage = () => {
     }));
   };
 
-  // 处理编辑表单提交
+  // Handle edit form submit
   const handleUpdateUser = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUserId) return;
 
-    // 验证表单
+    // Validate form
     if (!editingUser.username) {
       addToast({
-        title: "更新用户失败",
-        description: "用户名不能为空",
+        title: "Failed to update user",
+        description: "Username cannot be empty",
         color: "danger",
       });
 
@@ -326,7 +326,7 @@ const UsersPage = () => {
       plan_id: editingUser.plan_id,
     };
 
-    // 只有当密码字段有值时才包含密码
+    // Only include password if field has a value
     if (editingUser.password) {
       updateData.password = editingUser.password;
     }
@@ -337,7 +337,7 @@ const UsersPage = () => {
     });
   };
 
-  // 关闭编辑模态框
+  // Close edit modal
   const handleCloseEditModal = () => {
     if (!isUpdating) {
       setIsEditModalOpen(false);
@@ -350,16 +350,16 @@ const UsersPage = () => {
     }
   };
 
-  // 定义表格列
+  // Define table columns
   const columns = [
     { key: "id", label: "ID", allowsSorting: true },
-    { key: "username", label: "用户名", allowsSorting: true },
-    { key: "is_admin", label: "角色", allowsSorting: true },
-    { key: "plan_id", label: "计划", allowsSorting: true },
-    { key: "actions", label: "操作" },
+    { key: "username", label: "Username", allowsSorting: true },
+    { key: "is_admin", label: "Role", allowsSorting: true },
+    { key: "plan_id", label: "Plan", allowsSorting: true },
+    { key: "actions", label: "Actions" },
   ];
 
-  // 渲染单元格内容
+  // Render cell content
   const renderCell = (user: UserInfo, columnKey: string) => {
     switch (columnKey) {
       case "id":
@@ -369,11 +369,11 @@ const UsersPage = () => {
       case "is_admin":
         return user.is_admin ? (
           <Chip color="primary" variant="flat">
-            管理员
+            Admin
           </Chip>
         ) : (
           <Chip color="default" variant="flat">
-            普通用户
+            User
           </Chip>
         );
       case "plan_id":
@@ -381,7 +381,7 @@ const UsersPage = () => {
       case "actions":
         return (
           <div className="relative flex items-center gap-2">
-            <Tooltip content="编辑用户">
+            <Tooltip content="Edit User">
               <Button
                 isIconOnly
                 className="text-default-400 active:opacity-50 text-lg"
@@ -392,7 +392,7 @@ const UsersPage = () => {
               </Button>
             </Tooltip>
             {user?.id !== currentUser?.id && isAdmin && (
-              <Tooltip content="删除用户">
+              <Tooltip content="DeleteUser">
                 <Button
                   isIconOnly
                   className="text-default-400 active:opacity-50 text-lg"
@@ -414,9 +414,9 @@ const UsersPage = () => {
     return (
       <DashboardLayout current_root_href="/users">
         <div className="p-8 text-center">
-          <h2 className="text-xl font-semibold mb-4">权限不足</h2>
+          <h2 className="text-xl font-semibold mb-4">Insufficient Permissions</h2>
           <p className="text-gray-600 dark:text-gray-400">
-            您没有权限访问此页面
+            You do not have permission to access this page
           </p>
         </div>
       </DashboardLayout>
@@ -427,7 +427,7 @@ const UsersPage = () => {
     <DashboardLayout current_root_href="/users">
       <DataTable<UserInfo>
         addButtonProps={{
-          tooltip: "创建用户",
+          tooltip: "Create User",
           onClick: () => setIsCreateModalOpen(true),
           isIconOnly: true,
         }}
@@ -437,11 +437,11 @@ const UsersPage = () => {
         emptyContent={
           <>
             <p className="text-xl text-gray-600 dark:text-gray-400">
-              暂无用户数据
+              No user data
             </p>
             <Tooltip
               color="primary"
-              content="创建第一个用户"
+              content="Create your first user"
               placement="bottom"
             >
               <Button
@@ -461,20 +461,20 @@ const UsersPage = () => {
         pageSize={pageSize}
         pages={Math.ceil((users?.total || 0) / pageSize)}
         renderCell={renderCell}
-        searchPlaceholder="搜索用户..."
+        searchPlaceholder="Search users..."
         searchTerm={searchTerm}
         selectedSize={pageSize}
         setSearchTerm={setSearchTerm}
         setSize={setPageSize}
         sortDescriptor={sortDescriptor}
-        title="用户列表"
+        title="User List"
         total={users?.total}
         onPageChange={handlePageChange}
         onSearch={handleSearch}
         onSortChange={handleSort}
       />
 
-      {/* 创建用户对话框 */}
+      {/* Create UserDialog */}
       <Modal
         isOpen={isCreateModalOpen}
         placement="center"
@@ -483,15 +483,15 @@ const UsersPage = () => {
         <ModalContent>
           {(onClose) => (
             <Form className="w-full" onSubmit={handleCreateUser}>
-              <ModalHeader>创建新用户</ModalHeader>
+              <ModalHeader>Create New User</ModalHeader>
               <ModalBody className="w-full">
                 <Input
                   fullWidth
                   isRequired
-                  label="用户名"
+                  label="Username"
                   maxLength={128}
                   minLength={3}
-                  placeholder="输入用户名"
+                  placeholder="Enter username"
                   value={newUser.username}
                   onChange={(e) =>
                     setNewUser({
@@ -504,10 +504,10 @@ const UsersPage = () => {
                   fullWidth
                   isRequired
                   errorMessage={({ validationErrors }) => validationErrors}
-                  label="密码"
+                  label="Password"
                   maxLength={128}
                   minLength={8}
-                  placeholder="输入密码"
+                  placeholder="Enter password"
                   type="password"
                   value={newUser.password}
                   onChange={(e) =>
@@ -526,15 +526,15 @@ const UsersPage = () => {
                     })
                   }
                 >
-                  设为管理员
+                  Set as Admin
                 </Checkbox>
               </ModalBody>
               <ModalFooter className="w-full">
                 <Button disabled={isCreating} variant="light" onPress={onClose}>
-                  取消
+                  Cancel
                 </Button>
                 <Button color="primary" isLoading={isCreating} type="submit">
-                  创建
+                  Create
                 </Button>
               </ModalFooter>
             </Form>
@@ -542,7 +542,7 @@ const UsersPage = () => {
         </ModalContent>
       </Modal>
 
-      {/* 编辑用户对话框 */}
+      {/* Edit UserDialog */}
       <Modal
         isOpen={isEditModalOpen}
         placement="center"
@@ -550,35 +550,35 @@ const UsersPage = () => {
       >
         <ModalContent>
           <Form className="w-full" onSubmit={handleUpdateUser}>
-            <ModalHeader>编辑用户</ModalHeader>
+            <ModalHeader>Edit User</ModalHeader>
             <ModalBody className="w-full">
               <div className="space-y-4">
                 <Input
                   fullWidth
                   isRequired
-                  label="用户名"
+                  label="Username"
                   maxLength={128}
                   minLength={3}
                   name="username"
-                  placeholder="输入用户名"
+                  placeholder="Enter username"
                   value={editingUser.username}
                   onChange={handleEditInputChange}
                 />
                 <Input
                   fullWidth
-                  description="留空则不修改密码"
-                  label="密码"
+                  description="Leave empty to keep current password"
+                  label="Password"
                   maxLength={128}
                   minLength={8}
                   name="password"
-                  placeholder="输入新密码"
+                  placeholder="Enter new password"
                   type="password"
                   value={editingUser.password || ""}
                   onChange={handleEditInputChange}
                 />
                 <Select
-                  label="关联计划"
-                  placeholder="选择计划"
+                  label="Associated Plan"
+                  placeholder="Select a plan"
                   selectedKeys={
                     editingUser.plan_id ? [editingUser.plan_id.toString()] : []
                   }
@@ -586,7 +586,7 @@ const UsersPage = () => {
                 >
                   {isLoadingPlans ? (
                     <SelectItem key="loading" value="loading">
-                      加载中...
+                      Loading...
                     </SelectItem>
                   ) : (
                     plans?.items?.map((plan) => (
@@ -603,7 +603,7 @@ const UsersPage = () => {
                   isSelected={editingUser.is_admin}
                   onValueChange={handleCheckboxChange}
                 >
-                  设为管理员
+                  Set as Admin
                 </Checkbox>
               </div>
             </ModalBody>
@@ -613,7 +613,7 @@ const UsersPage = () => {
                 variant="light"
                 onPress={handleCloseEditModal}
               >
-                取消
+                Cancel
               </Button>
               <Button
                 color="primary"
@@ -623,10 +623,10 @@ const UsersPage = () => {
               >
                 {isUpdating ? (
                   <>
-                    <span className="ml-2">保存中...</span>
+                    <span className="ml-2">Saving...</span>
                   </>
                 ) : (
-                  "保存更改"
+                  "Save Changes"
                 )}
               </Button>
             </ModalFooter>

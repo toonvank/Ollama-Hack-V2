@@ -15,10 +15,10 @@ const NotFoundPage = () => {
               <LogoIcon />
               404
             </h1>
-            <p className="mt-2">您访问的页面不存在或已被移除。</p>
+            <p className="mt-2">The page you are looking for does not exist or has been removed.</p>
             <div className="mt-6 flex gap-2 w-full justify-center items-center">
               <Link className="inline-block" href="/">
-                <Button color="primary">返回首页</Button>
+                <Button color="primary">Back to Home</Button>
               </Link>
             </div>
           </CardBody>

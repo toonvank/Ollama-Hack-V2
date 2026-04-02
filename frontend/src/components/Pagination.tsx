@@ -9,7 +9,7 @@ interface PaginationProps {
   onPageChange: (page: number) => void;
   className?: string;
   props?: PaginationProps;
-  showJumper?: boolean; // 是否显示跳转输入框
+  showJumper?: boolean; // Whether to show the page jump input
 }
 
 const Pagination = ({
@@ -17,18 +17,18 @@ const Pagination = ({
   totalPages,
   onPageChange,
   props,
-  showJumper = true, // 默认显示跳转输入框
+  showJumper = true, // Show jump input by default
 }: PaginationProps) => {
-  // 页码输入状态
+  // Page input state
   const [jumpValue, setJumpValue] = useState<number | null>(null);
 
-  // 如果只有一页，不显示分页
+  // Don't show pagination if only one page
   if (totalPages <= 1) return null;
 
-  // 处理跳转
+  // Handle jump
   const handleJump = () => {
     if (jumpValue !== null) {
-      // NumberInput已经确保了值在范围内
+      // NumberInput already ensures value is in range
       if (
         jumpValue >= 1 &&
         jumpValue <= totalPages &&
@@ -36,12 +36,12 @@ const Pagination = ({
       ) {
         onPageChange(jumpValue);
       }
-      // 跳转后清空输入框
+      // Clear input after jump
       setJumpValue(null);
     }
   };
 
-  // 处理回车键跳转
+  // Handle enter key to jump
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       handleJump();
@@ -71,11 +71,11 @@ const Pagination = ({
           }
         />
 
-        {/* 页码跳转输入框 */}
+        {/* Page jump input */}
         {showJumper && totalPages > 5 && (
           <div className="items-center ml-2 gap-1 hidden sm:flex">
             <span className="text-sm text-gray-500 dark:text-gray-400">
-              前往
+              Go to
             </span>
             <NumberInput
               hideStepper
@@ -94,14 +94,14 @@ const Pagination = ({
               onKeyDown={handleKeyDown}
               onValueChange={(value) => setJumpValue(value)}
             />
-            <span className="text-sm text-gray-500 dark:text-gray-400">页</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">page</span>
             <Button
               color="primary"
               size="sm"
               variant="light"
               onClick={handleJump}
             >
-              跳转
+              Go
             </Button>
           </div>
         )}

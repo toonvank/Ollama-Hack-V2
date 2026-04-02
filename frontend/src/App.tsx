@@ -4,7 +4,7 @@ import { Suspense, lazy } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import LoadingFallback from "@/components/LoadingFallback";
 
-// 使用 React.lazy 动态导入页面组件
+// Lazy-load page components with React.lazy
 const LoginPage = lazy(() => import("@/pages/login"));
 const InitPage = lazy(() => import("@/pages/init"));
 const DashboardPage = lazy(() => import("@/pages/dashboard"));
@@ -22,32 +22,32 @@ function App() {
   return (
     <Suspense fallback={<LoadingFallback />}>
       <Routes>
-        {/* 公共路由 */}
+        {/* Public routes */}
         <Route element={<LoginPage />} path="/login" />
         <Route element={<InitPage />} path="/init" />
         <Route element={<UnauthorizedPage />} path="/unauthorized" />
 
-        {/* 受保护路由 */}
+        {/* Protected routes */}
         <Route element={<ProtectedRoute />}>
           <Route element={<DashboardPage />} path="/" />
-          {/* 端点相关路由 */}
+          {/* Endpoint routes */}
           <Route element={<EndpointsPage />} path="/endpoints/*" />
-          {/* 模型相关路由 */}
+          {/* Model routes */}
           <Route element={<ModelsPage />} path="/models/*" />
-          {/* API 密钥相关路由 */}
+          {/* API Key routes */}
           <Route element={<ApiKeysPage />} path="/apikeys/*" />
-          {/* 用户个人资料和设置路由 */}
+          {/* Profile and Settings routes */}
           <Route element={<ProfilePage />} path="/profile" />
           <Route element={<SettingsPage />} path="/settings" />
         </Route>
 
-        {/* 管理员路由 */}
+        {/* Admin routes */}
         <Route element={<ProtectedRoute requireAdmin={true} />}>
           <Route element={<UsersPage />} path="/users/*" />
           <Route element={<PlansPage />} path="/plans/*" />
         </Route>
 
-        {/* 404 页面 */}
+        {/* 404 page */}
         <Route element={<NotFoundPage />} path="*" />
       </Routes>
     </Suspense>

@@ -1,9 +1,9 @@
-// API 密钥创建请求
+// API Key creation request
 export interface ApiKeyCreate {
   name: string;
 }
 
-// API 密钥信息
+// API Key info
 export interface ApiKeyInfo {
   id: number;
   name: string;
@@ -13,12 +13,12 @@ export interface ApiKeyInfo {
   user_name?: string;
 }
 
-// API 密钥响应（包含密钥值）
+// API Key response (includes key value)
 export interface ApiKeyResponse extends ApiKeyInfo {
   key: string;
 }
 
-// API 密钥使用统计
+// API KeysUsage Statistics
 export interface ApiKeyUsageStats {
   total_requests: number;
   last_30_days_requests: number;

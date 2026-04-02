@@ -12,6 +12,6 @@ def get_token_count(text: str, model: str = "gpt-4") -> int:
 
 if __name__ == "__main__":
     # Example usage
-    text = "Hello, how are you? 你好"
+    text = "Hello, how are you?"
     token_count = get_token_count(text)
     print(f"Token count for '{text}': {token_count}")

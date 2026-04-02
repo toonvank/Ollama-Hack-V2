@@ -9,7 +9,7 @@ import {
 } from "@/types";
 
 export const planApi = {
-  // 获取所有计划
+  // Get all plans
   getPlans: (params: QueryParams = {}) => {
     const queryString = buildQueryString({
       page: params.page || 1,
@@ -24,27 +24,27 @@ export const planApi = {
     );
   },
 
-  // 创建新计划
+  // Create New Plan
   createPlan: (data: PlanCreate) => {
     return apiClient.post<PlanResponse>("/api/v2/plan/", data);
   },
 
-  // 根据 ID 获取计划
+  // Get plan by ID
   getPlanById: (planId: number) => {
     return apiClient.get<PlanResponse>(`/api/v2/plan/${planId}`);
   },
 
-  // 获取当前用户的计划
+  // Get current user plan
   getCurrentUserPlan: () => {
     return apiClient.get<PlanResponse>("/api/v2/plan/me");
   },
 
-  // 更新计划
+  // Update plan
   updatePlan: (planId: number, data: PlanUpdate) => {
     return apiClient.patch<PlanResponse>(`/api/v2/plan/${planId}`, data);
   },
 
-  // 删除计划
+  // Delete plan
   deletePlan: (planId: number) => {
     return apiClient.delete<void>(`/api/v2/plan/${planId}`);
   },

@@ -5,7 +5,7 @@ interface LoadingFallbackProps {
 }
 
 /**
- * 用于代码分割加载状态的通用加载组件
+ * Generic loading component for code-split loading states
  */
 const LoadingFallback: React.FC<LoadingFallbackProps> = ({
   fullScreen = true,

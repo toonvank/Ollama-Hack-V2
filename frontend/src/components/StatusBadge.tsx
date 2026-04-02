@@ -8,7 +8,7 @@ interface StatusBadgeProps {
 }
 
 const StatusBadge = ({ status }: StatusBadgeProps) => {
-  // // 根据状态类型设置颜色
+  // // Set color based on status type
   // const getBadgeStyle = () => {
   //     switch (status) {
   //         case "available":
@@ -24,17 +24,17 @@ const StatusBadge = ({ status }: StatusBadgeProps) => {
   //     }
   // };
 
-  // 获取状态文本
+  // Get status text
   const getStatusText = () => {
     switch (status) {
       case "available":
-        return "可用";
+        return "Available";
       case "unavailable":
-        return "不可用";
+        return "Unavailable";
       case "fake":
-        return "蜜罐";
+        return "Honeypot";
       case "missing":
-        return "已删除";
+        return "Deleted";
       default:
         return status;
     }

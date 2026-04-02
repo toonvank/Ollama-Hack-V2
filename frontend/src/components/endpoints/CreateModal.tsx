@@ -30,16 +30,16 @@ const CreateEndpointModal: React.FC<CreateEndpointModalProps> = ({
   const [selectedTab, setSelectedTab] = useState("single");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 创建端点表单状态
+  // Create endpoint form state
   const [formData, setFormData] = useState<EndpointCreate>({
     url: "",
     name: "",
   });
 
-  // 批量创建端点表单状态
+  // Batch create endpoint form state
   const [urls, setUrls] = useState("");
 
-  // 处理表单输入变化
+  // Handle form input change
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
 
@@ -49,47 +49,47 @@ const CreateEndpointModal: React.FC<CreateEndpointModalProps> = ({
     }));
   };
 
-  // 处理批量创建文本区域变化
+  // Handle batch create textarea change
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setUrls(e.target.value);
   };
 
-  // 处理创建端点表单提交
+  // Handle create endpoint form submit
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     try {
-      // 表单验证
+      // Form validation
       if (!formData.url) {
-        throw new Error("URL 不能为空");
+        throw new Error("URL cannot be empty");
       }
 
-      // 确保 URL 格式正确
+      // Ensure URL format is correct
       let url = formData.url;
 
       if (!url.startsWith("http://") && !url.startsWith("https://")) {
         url = `http://${url}`;
       }
 
-      // 如果名称为空，使用 URL 作为名称
+      // If name is empty, use URL as name
       let name = formData.name;
 
       if (!name) {
         name = new URL(url).hostname;
       }
 
-      // 提交创建请求
+      // Submit create request
       await endpointApi.createEndpoint({
         url,
         name,
       });
 
-      // 创建成功，关闭模态框并刷新列表
+      // Success, close modal and refresh list
       handleClose();
       onSuccess();
 
-      // 重置表单
+      // Reset form
       setFormData({
         url: "",
         name: "",
@@ -97,8 +97,8 @@ const CreateEndpointModal: React.FC<CreateEndpointModalProps> = ({
       setSelectedTab("single");
     } catch (err) {
       addToast({
-        title: "创建端点失败",
-        description: (err as Error)?.message || "请重试",
+        title: "Failed to create endpoint",
+        description: (err as Error)?.message || "Please try again",
         color: "danger",
       });
     } finally {
@@ -106,32 +106,32 @@ const CreateEndpointModal: React.FC<CreateEndpointModalProps> = ({
     }
   };
 
-  // 处理批量创建表单提交
+  // Handle batch create form submit
   const handleBatchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     try {
-      // 分割 URL 并过滤空行
+      // Split URLs and filter empty lines
       const urlLines = urls
         .split("\n")
         .map((line) => line.trim())
         .filter((line) => line);
 
       if (urlLines.length === 0) {
-        throw new Error("请输入至少一个有效的端点 URL");
+        throw new Error("Please enter at least one valid endpoint URL");
       }
 
-      // 处理批量创建
+      // Handle batch create
       const endpoints: EndpointCreate[] = urlLines.map((url) => {
-        // 确保 URL 格式正确
+        // Ensure URL format is correct
         let processedUrl = url;
 
         if (!url.startsWith("http://") && !url.startsWith("https://")) {
           processedUrl = `http://${url}`;
         }
 
-        // 自动生成名称
+        // Auto-generate name
         let name: string;
 
         try {
@@ -146,14 +146,14 @@ const CreateEndpointModal: React.FC<CreateEndpointModalProps> = ({
         };
       });
 
-      // 提交批量创建请求
+      // Submit batch create request
       await endpointApi.batchCreateEndpoints({
         endpoints,
       });
 
-      // 设置成功消息并清空表单
+      // Set success message and clear form
       addToast({
-        title: `成功创建 ${endpoints.length} 个端点`,
+        title: `Successfully created ${endpoints.length} endpoints`,
         color: "success",
       });
       setUrls("");
@@ -161,8 +161,8 @@ const CreateEndpointModal: React.FC<CreateEndpointModalProps> = ({
       onSuccess();
     } catch (err) {
       addToast({
-        title: "批量创建端点失败",
-        description: (err as Error)?.message || "请重试",
+        title: "Failed to batch create endpoints",
+        description: (err as Error)?.message || "Please try again",
         color: "danger",
       });
     } finally {
@@ -170,7 +170,7 @@ const CreateEndpointModal: React.FC<CreateEndpointModalProps> = ({
     }
   };
 
-  // 关闭模态框并重置表单
+  // Close modal and reset form
   const handleClose = () => {
     if (!isSubmitting) {
       onClose();
@@ -194,7 +194,7 @@ const CreateEndpointModal: React.FC<CreateEndpointModalProps> = ({
               selectedTab === "single" ? handleCreateSubmit : handleBatchSubmit
             }
           >
-            <ModalHeader>创建新端点</ModalHeader>
+            <ModalHeader>Create New Endpoint</ModalHeader>
             <ModalBody className="w-full">
               <Tabs
                 classNames={{
@@ -203,17 +203,17 @@ const CreateEndpointModal: React.FC<CreateEndpointModalProps> = ({
                 selectedKey={selectedTab}
                 onSelectionChange={setSelectedTab as (key: string) => void}
               >
-                <Tab key="single" title="单个创建">
+                <Tab key="single" title="Single">
                   <div className="space-y-4">
                     <div className="mb-4">
                       <Input
                         isRequired
                         className="w-full"
-                        description="输入 Ollama 服务的完整 URL，包括协议和端口"
+                        description="Enter the full Ollama service URL, including protocol and port"
                         id="url"
-                        label="端点 URL"
+                        label="Endpoint URL"
                         name="url"
-                        placeholder="例如: http://localhost:11434"
+                        placeholder="e.g. http://localhost:11434"
                         value={formData.url}
                         onChange={handleInputChange}
                       />
@@ -222,26 +222,26 @@ const CreateEndpointModal: React.FC<CreateEndpointModalProps> = ({
                     <div className="mb-6">
                       <Input
                         className="w-full"
-                        description="可选，如不填写将使用 URL 主机名"
+                        description="Optional. If left empty, the URL hostname will be used"
                         id="name"
-                        label="端点名称"
+                        label="Endpoint Name"
                         name="name"
-                        placeholder="给端点起个名字"
+                        placeholder="Give this endpoint a name"
                         value={formData.name}
                         onChange={handleInputChange}
                       />
                     </div>
                   </div>
                 </Tab>
-                <Tab key="batch" title="批量创建">
+                <Tab key="batch" title="Batch Create">
                   <div className="mb-6">
                     <Textarea
                       isRequired
                       className="w-full min-h-[200px]"
-                      description="每行输入一个 URL。如果没有指定协议，将默认使用 http://。系统会自动以主机名作为端点名称。"
+                      description="Enter one URL per line. If no protocol is specified, http:// will be used by default. Hostnames will be used as endpoint names automatically."
                       id="urls"
-                      label="端点 URLs"
-                      placeholder={`每行输入一个 URL，例如: \nhttp://localhost:11434 \n192.168.1.100:11434 \nollama-server-2:11434`}
+                      label="Endpoint URLs"
+                      placeholder={`Enter one URL per line, e.g.: \nhttp://localhost:11434 \n192.168.1.100:11434 \nollama-server-2:11434`}
                       value={urls}
                       onChange={handleTextChange}
                     />
@@ -255,7 +255,7 @@ const CreateEndpointModal: React.FC<CreateEndpointModalProps> = ({
                 variant="light"
                 onPress={handleClose}
               >
-                取消
+                Cancel
               </Button>
               {selectedTab === "single" ? (
                 <Button
@@ -264,7 +264,7 @@ const CreateEndpointModal: React.FC<CreateEndpointModalProps> = ({
                   isLoading={isSubmitting}
                   type="submit"
                 >
-                  创建
+                  Create
                 </Button>
               ) : (
                 <Button
@@ -275,10 +275,10 @@ const CreateEndpointModal: React.FC<CreateEndpointModalProps> = ({
                 >
                   {isSubmitting ? (
                     <>
-                      <span className="ml-2">创建中...</span>
+                      <span className="ml-2">Creating...</span>
                     </>
                   ) : (
-                    "批量创建"
+                    "Batch Create"
                   )}
                 </Button>
               )}

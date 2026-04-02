@@ -36,7 +36,7 @@ import { DataTable } from "@/components/DataTable";
 const PlansPage = () => {
   const { confirm } = useDialog();
 
-  // 验证配置
+  // Validation config
   const [validationConfig, setValidationConfig] =
     useState<PaginationValidationConfig>({
       page: { min: 1 },
@@ -48,7 +48,7 @@ const PlansPage = () => {
       },
     });
 
-  // 分页和搜索状态
+  // Pagination and search state
   const {
     page,
     pageSize,
@@ -71,12 +71,12 @@ const PlansPage = () => {
     validationConfig,
   );
 
-  // 模态框状态
+  // Modal state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<PlanResponse | null>(null);
 
-  // 表单状态
+  // Form state
   const [newPlan, setNewPlan] = useState<PlanCreate>({
     name: "",
     description: "",
@@ -86,13 +86,13 @@ const PlansPage = () => {
   });
   const [isLoading, setIsLoading] = useState(false);
 
-  // 排序状态
+  // Sort state
   const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
     column: orderBy,
     direction: order === SortOrder.ASC ? "ascending" : "descending",
   });
 
-  // 处理排序
+  // Handle sort
   const handleSort = (descriptor: SortDescriptor) => {
     setSortDescriptor(descriptor);
     setOrderBy(descriptor.column?.toString() || "id");
@@ -101,7 +101,7 @@ const PlansPage = () => {
     );
   };
 
-  // 获取计划列表
+  // Fetch plan list
   const {
     data: plans,
     isLoading: isLoadingPlans,
@@ -120,7 +120,7 @@ const PlansPage = () => {
     { staleTime: 30000 },
   );
 
-  // 当总页数变化时，更新验证配置
+  // Update validation config when total pages change
   useEffect(() => {
     if (plans?.pages) {
       setValidationConfig((prev) => ({
@@ -130,7 +130,7 @@ const PlansPage = () => {
     }
   }, [plans?.pages]);
 
-  // 创建计划
+  // Create Plan
   const createPlanMutation = useCustomMutation<PlanResponse, PlanCreate>(
     (data) => planApi.createPlan(data),
     {
@@ -148,8 +148,8 @@ const PlansPage = () => {
       },
       onError: (err) => {
         addToast({
-          title: "创建计划失败",
-          description: (err as EnhancedAxiosError).detail || "创建计划失败",
+          title: "Failed to create plan",
+          description: (err as EnhancedAxiosError).detail || "Failed to create plan",
           color: "danger",
         });
         setIsLoading(false);
@@ -157,7 +157,7 @@ const PlansPage = () => {
     },
   );
 
-  // 更新计划
+  // Update plan
   const updatePlanMutation = useCustomMutation<
     PlanResponse,
     { id: number; data: PlanUpdate }
@@ -170,15 +170,15 @@ const PlansPage = () => {
     },
     onError: (err) => {
       addToast({
-        title: "更新计划失败",
-        description: (err as EnhancedAxiosError).detail || "更新计划失败",
+        title: "Failed to update plan",
+        description: (err as EnhancedAxiosError).detail || "Failed to update plan",
         color: "danger",
       });
       setIsLoading(false);
     },
   });
 
-  // 删除计划
+  // Delete plan
   const deletePlanMutation = useCustomMutation<void, number>(
     (id) => planApi.deletePlan(id),
     {
@@ -188,26 +188,26 @@ const PlansPage = () => {
     },
   );
 
-  // 处理搜索
+  // Handle search
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setPage(1);
     refetch();
   };
 
-  // 处理页码变化
+  // Handle page change
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
   };
 
-  // 处理创建计划
+  // Handle create plan
   const handleCreatePlan = (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     createPlanMutation.mutate(newPlan);
   };
 
-  // 处理更新计划
+  // Handle update plan
   const handleUpdatePlan = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -226,33 +226,33 @@ const PlansPage = () => {
     });
   };
 
-  // 处理删除计划
+  // Handle delete plan
   const handleDeletePlan = (id: number) => {
     confirm(
-      "确定要删除此计划吗？此操作不可逆，且可能影响使用此计划的用户。",
+      "Are you sure you want to delete this plan? This action is irreversible and may affect users on this plan.",
       () => {
         deletePlanMutation.mutate(id);
       },
     );
   };
 
-  // 打开编辑模态框
+  // Open edit modal
   const openEditModal = (plan: PlanResponse) => {
     setEditingPlan(plan);
     setIsEditModalOpen(true);
   };
 
-  // 定义表格列
+  // Define table columns
   const columns = [
     { key: "id", label: "ID", allowsSorting: true },
-    { key: "name", label: "名称", allowsSorting: true },
-    { key: "rpm", label: "每分钟请求数", allowsSorting: true },
-    { key: "rpd", label: "每天请求数", allowsSorting: true },
-    { key: "is_default", label: "默认计划", allowsSorting: true },
-    { key: "actions", label: "操作" },
+    { key: "name", label: "Name", allowsSorting: true },
+    { key: "rpm", label: "RPM", allowsSorting: true },
+    { key: "rpd", label: "RPD", allowsSorting: true },
+    { key: "is_default", label: "Default Plan", allowsSorting: true },
+    { key: "actions", label: "Actions" },
   ];
 
-  // 渲染单元格内容
+  // Render cell content
   const renderCell = (plan: PlanResponse, columnKey: string) => {
     switch (columnKey) {
       case "id":
@@ -270,17 +270,17 @@ const PlansPage = () => {
       case "is_default":
         return plan.is_default ? (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100">
-            是
+            Yes
           </span>
         ) : (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-100">
-            否
+            No
           </span>
         );
       case "actions":
         return (
           <div className="relative flex items-center gap-2">
-            <Tooltip content="编辑">
+            <Tooltip content="Edit">
               <Button
                 isIconOnly
                 className="text-default-400 active:opacity-50 text-lg"
@@ -290,7 +290,7 @@ const PlansPage = () => {
                 <EditIcon />
               </Button>
             </Tooltip>
-            <Tooltip color="danger" content="删除">
+            <Tooltip color="danger" content="Delete">
               <Button
                 isIconOnly
                 className="text-default-400 active:opacity-50 text-lg"
@@ -311,7 +311,7 @@ const PlansPage = () => {
     <DashboardLayout current_root_href="/plans">
       <DataTable<PlanResponse>
         addButtonProps={{
-          tooltip: "创建计划",
+          tooltip: "Create Plan",
           onClick: () => setIsCreateModalOpen(true),
           isIconOnly: true,
         }}
@@ -321,11 +321,11 @@ const PlansPage = () => {
         emptyContent={
           <>
             <p className="text-xl text-gray-600 dark:text-gray-400">
-              暂无计划数据
+              No plan data
             </p>
             <Tooltip
               color="primary"
-              content="创建第一个计划"
+              content="Create your first plan"
               placement="bottom"
             >
               <Button
@@ -345,20 +345,20 @@ const PlansPage = () => {
         pageSize={pageSize}
         pages={Math.ceil((plans?.total || 0) / pageSize)}
         renderCell={renderCell}
-        searchPlaceholder="搜索计划..."
+        searchPlaceholder="Search plans..."
         searchTerm={searchTerm}
         selectedSize={pageSize}
         setSearchTerm={setSearchTerm}
         setSize={setPageSize}
         sortDescriptor={sortDescriptor}
-        title="计划列表"
+        title="Plan List"
         total={plans?.total}
         onPageChange={handlePageChange}
         onSearch={handleSearch}
         onSortChange={handleSort}
       />
 
-      {/* 创建计划对话框 */}
+      {/* Create PlanDialog */}
       <Modal
         isOpen={isCreateModalOpen}
         placement="center"
@@ -367,13 +367,13 @@ const PlansPage = () => {
         <ModalContent>
           {(onClose) => (
             <Form className="w-full" onSubmit={handleCreatePlan}>
-              <ModalHeader>创建新计划</ModalHeader>
+              <ModalHeader>Create New Plan</ModalHeader>
               <ModalBody className="w-full">
                 <Input
                   fullWidth
                   isRequired
-                  label="计划名称"
-                  placeholder="输入计划名称"
+                  label="Plan Name"
+                  placeholder="Enter plan name"
                   value={newPlan.name}
                   onChange={(e) =>
                     setNewPlan({
@@ -385,8 +385,8 @@ const PlansPage = () => {
                 <Input
                   fullWidth
                   isRequired
-                  label="描述"
-                  placeholder="输入计划描述"
+                  label="Description"
+                  placeholder="Enter plan description"
                   value={newPlan.description}
                   onChange={(e) =>
                     setNewPlan({
@@ -401,10 +401,10 @@ const PlansPage = () => {
                   errorMessage={({ validationErrors }) => {
                     return validationErrors;
                   }}
-                  label="每分钟请求数 (RPM)"
+                  label="Requests Per Minute (RPM)"
                   max={1000000}
                   min={0}
-                  placeholder="输入每分钟请求数限制"
+                  placeholder="Enter requests per minute limit"
                   type="number"
                   value={newPlan.rpm.toString()}
                   onChange={(e) =>
@@ -420,10 +420,10 @@ const PlansPage = () => {
                   errorMessage={({ validationErrors }) => {
                     return validationErrors;
                   }}
-                  label="每天请求数 (RPD)"
+                  label="Requests Per Day (RPD)"
                   max={1000000}
                   min={0}
-                  placeholder="输入每天请求数限制"
+                  placeholder="Enter requests per day limit"
                   type="number"
                   value={newPlan.rpd.toString()}
                   onChange={(e) =>
@@ -442,15 +442,15 @@ const PlansPage = () => {
                     })
                   }
                 >
-                  设为默认计划
+                  Set as Default Plan
                 </Checkbox>
               </ModalBody>
               <ModalFooter className="w-full">
                 <Button disabled={isLoading} variant="light" onPress={onClose}>
-                  取消
+                  Cancel
                 </Button>
                 <Button color="primary" isLoading={isLoading} type="submit">
-                  创建
+                  Create
                 </Button>
               </ModalFooter>
             </Form>
@@ -458,7 +458,7 @@ const PlansPage = () => {
         </ModalContent>
       </Modal>
 
-      {/* 编辑计划对话框 */}
+      {/* Edit PlanDialog */}
       <Modal
         isOpen={isEditModalOpen}
         placement="center"
@@ -467,15 +467,15 @@ const PlansPage = () => {
         <ModalContent>
           {(onClose) => (
             <Form className="w-full" onSubmit={handleUpdatePlan}>
-              <ModalHeader>编辑计划</ModalHeader>
+              <ModalHeader>Edit Plan</ModalHeader>
               <ModalBody className="w-full">
                 {editingPlan && (
                   <div className="space-y-4">
                     <Input
                       fullWidth
                       isRequired
-                      label="计划名称"
-                      placeholder="输入计划名称"
+                      label="Plan Name"
+                      placeholder="Enter plan name"
                       value={editingPlan.name}
                       onChange={(e) =>
                         setEditingPlan({
@@ -487,8 +487,8 @@ const PlansPage = () => {
                     <Input
                       fullWidth
                       isRequired
-                      label="描述"
-                      placeholder="输入计划描述"
+                      label="Description"
+                      placeholder="Enter plan description"
                       value={editingPlan.description || ""}
                       onChange={(e) =>
                         setEditingPlan({
@@ -503,10 +503,10 @@ const PlansPage = () => {
                       errorMessage={({ validationErrors }) => {
                         return validationErrors;
                       }}
-                      label="每分钟请求数 (RPM)"
+                      label="Requests Per Minute (RPM)"
                       max={1000000}
                       min={0}
-                      placeholder="输入每分钟请求数限制"
+                      placeholder="Enter requests per minute limit"
                       type="number"
                       value={editingPlan.rpm.toString()}
                       onChange={(e) =>
@@ -522,10 +522,10 @@ const PlansPage = () => {
                       errorMessage={({ validationErrors }) => {
                         return validationErrors;
                       }}
-                      label="每天请求数 (RPD)"
+                      label="Requests Per Day (RPD)"
                       max={1000000}
                       min={0}
-                      placeholder="输入每天请求数限制"
+                      placeholder="Enter requests per day limit"
                       type="number"
                       value={editingPlan.rpd.toString()}
                       onChange={(e) =>
@@ -544,17 +544,17 @@ const PlansPage = () => {
                         })
                       }
                     >
-                      设为默认计划
+                      Set as Default Plan
                     </Checkbox>
                   </div>
                 )}
               </ModalBody>
               <ModalFooter className="w-full">
                 <Button disabled={isLoading} variant="light" onPress={onClose}>
-                  取消
+                  Cancel
                 </Button>
                 <Button color="primary" isLoading={isLoading} type="submit">
-                  保存
+                  Save
                 </Button>
               </ModalFooter>
             </Form>

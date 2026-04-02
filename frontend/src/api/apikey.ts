@@ -10,7 +10,7 @@ import {
 } from "@/types";
 
 export const apiKeyApi = {
-  // 获取当前用户的所有 API 密钥
+  // Get all API keys for current user
   getApiKeys: (params: QueryParams = {}) => {
     const queryString = buildQueryString({
       page: params.page || 1,
@@ -25,17 +25,17 @@ export const apiKeyApi = {
     );
   },
 
-  // 创建新的 API 密钥
+  // Create new API key
   createApiKey: (data: ApiKeyCreate) => {
     return apiClient.post<ApiKeyResponse>("/api/v2/apikey/", data);
   },
 
-  // 删除 API 密钥
+  // Delete API Keys
   deleteApiKey: (apiKeyId: number) => {
     return apiClient.delete<void>(`/api/v2/apikey/${apiKeyId}`);
   },
 
-  // 获取 API 密钥使用统计
+  // Get API key usage statistics
   getApiKeyStats: (apiKeyId: number) => {
     return apiClient.get<ApiKeyUsageStats>(`/api/v2/apikey/${apiKeyId}/stats`);
   },

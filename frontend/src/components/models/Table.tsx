@@ -51,7 +51,7 @@ const ModelTable: React.FC<ModelTableProps> = ({
   totalPages,
   totalItems,
 }) => {
-  // 获取模型状态
+  // Get model status
   const getModelStatus = (
     model: AIModelInfoWithEndpointCount,
   ): AIModelStatusEnum => {
@@ -62,7 +62,7 @@ const ModelTable: React.FC<ModelTableProps> = ({
     return AIModelStatusEnum.AVAILABLE;
   };
 
-  // 排序状态
+  // Sort state
   const [sortDescriptor, setSortDescriptor] = React.useState<SortDescriptor>({
     column: orderBy || "id",
     direction:
@@ -73,18 +73,18 @@ const ModelTable: React.FC<ModelTableProps> = ({
           : "ascending",
   });
 
-  // 定义表格列
+  // Define table columns
   const columns = [
     { key: "id", label: "ID", allowsSorting: true },
-    { key: "name", label: "名称", allowsSorting: true },
-    { key: "tag", label: "标签", allowsSorting: true },
-    { key: "endpoint_count", label: "端点数量" },
-    { key: "status", label: "状态" },
-    { key: "created_at", label: "创建时间", allowsSorting: true },
-    { key: "actions", label: "操作" },
+    { key: "name", label: "Name", allowsSorting: true },
+    { key: "tag", label: "Tag", allowsSorting: true },
+    { key: "endpoint_count", label: "Endpoint Count" },
+    { key: "status", label: "Status" },
+    { key: "created_at", label: "Created At", allowsSorting: true },
+    { key: "actions", label: "Actions" },
   ];
 
-  // 处理排序
+  // Handle sort
   const handleSort = (descriptor: SortDescriptor) => {
     setSortDescriptor(descriptor);
     if (descriptor.column) {
@@ -92,7 +92,7 @@ const ModelTable: React.FC<ModelTableProps> = ({
       const newOrder =
         descriptor.direction === "ascending" ? SortOrder.ASC : SortOrder.DESC;
 
-      // 更新父组件中的排序状态
+      // Update parent sort state
       if (orderBy !== newOrderBy || order !== newOrder) {
         setOrderBy &&
           typeof setOrderBy === "function" &&
@@ -102,7 +102,7 @@ const ModelTable: React.FC<ModelTableProps> = ({
     }
   };
 
-  // 渲染单元格内容
+  // Render cell content
   const renderCell = (
     model: AIModelInfoWithEndpointCount,
     columnKey: string,
@@ -137,7 +137,7 @@ const ModelTable: React.FC<ModelTableProps> = ({
       case "actions":
         return (
           <div className="relative flex items-center gap-2">
-            <Tooltip content="查看模型">
+            <Tooltip content="View Model">
               <Button
                 isIconOnly
                 className="text-default-400 active:opacity-50 text-lg"
@@ -164,20 +164,20 @@ const ModelTable: React.FC<ModelTableProps> = ({
       columns={columns}
       data={models || []}
       emptyContent={
-        <p className="text-xl text-gray-600 dark:text-gray-400">暂无模型数据</p>
+        <p className="text-xl text-gray-600 dark:text-gray-400">No model data</p>
       }
       error={error}
       isLoading={isLoading}
       page={page}
       pages={totalPages}
       renderCell={renderCell}
-      searchPlaceholder="搜索模型..."
+      searchPlaceholder="Search models..."
       searchTerm={searchTerm}
       selectedSize={pageSize}
       setSearchTerm={setSearchTerm}
       setSize={setPageSize}
       sortDescriptor={sortDescriptor}
-      title="模型列表"
+      title="Model List"
       total={totalItems}
       onPageChange={onPageChange}
       onSearch={onSearch}

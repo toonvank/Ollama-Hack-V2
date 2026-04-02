@@ -19,16 +19,16 @@ const UnauthorizedPage = () => {
               403
             </h1>
             <p className="mt-2">
-              您没有权限访问此页面，此页面需要管理员权限才能访问。
+              You do not have permission to access this page. Admin privileges are required.
             </p>
             <div className="mt-6 flex gap-2 w-full justify-center items-center">
               {isAuthenticated ? (
                 <Link className="inline-block" href="/">
-                  <Button color="primary">返回首页</Button>
+                  <Button color="primary">Back to Home</Button>
                 </Link>
               ) : (
                 <Link className="inline-block" href="/login">
-                  <Button color="primary">登录</Button>
+                  <Button color="primary">Sign In</Button>
                 </Link>
               )}
             </div>

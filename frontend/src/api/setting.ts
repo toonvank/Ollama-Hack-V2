@@ -3,17 +3,17 @@ import apiClient from "./client";
 import { SystemSettingKey, SystemSettings } from "@/types";
 
 export const settingApi = {
-  // 获取所有设置
+  // Get all settings
   getSettings: () => {
     return apiClient.get<Record<SystemSettingKey, string>>(`/api/v2/setting/`);
   },
 
-  // 根据 key 获取设置
+  // Get setting by key
   getSettingByKey: (key: SystemSettingKey) => {
     return apiClient.get<SystemSettings>(`/api/v2/setting/${key}`);
   },
 
-  // 更新设置
+  // UpdateSettings
   updateSetting: (key: SystemSettingKey, value: string) => {
     return apiClient.patch<SystemSettings>(
       `/api/v2/setting/${key}?value=${value}`,

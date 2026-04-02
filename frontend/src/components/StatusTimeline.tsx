@@ -4,7 +4,7 @@ import { Tooltip } from "@heroui/tooltip";
 
 import { EndpointStatusEnum, AIModelStatusEnum } from "@/types";
 
-// 通用状态接口
+// Generic status interface
 interface PerformanceStatus {
   status: EndpointStatusEnum | AIModelStatusEnum;
   created_at: string;
@@ -19,10 +19,10 @@ const StatusTimeline = <T extends PerformanceStatus>({
   performanceTests,
   type = "endpoint",
 }: StatusTimelineProps<T>) => {
-  // 最多显示10个状态
+  // Show at most 10 statuses
   const maxStatus = 10;
 
-  // 获取胶囊颜色
+  // Get chip color
   const getStatusColor = (
     status: EndpointStatusEnum | AIModelStatusEnum | undefined,
   ) => {
@@ -43,7 +43,7 @@ const StatusTimeline = <T extends PerformanceStatus>({
     }
   };
 
-  // 格式化日期时间
+  // Format date time
   const formatDateTime = (dateTimeStr: string) => {
     const date = new Date(dateTimeStr + "Z");
 
@@ -57,9 +57,9 @@ const StatusTimeline = <T extends PerformanceStatus>({
     });
   };
 
-  // 创建显示的状态数组
+  // Create the displayed status array
   const getStatusList = () => {
-    // 复制并限制到最多10个项目
+    // Copy and limit to at most 10 items
     const statusItems = [...performanceTests]
       .slice(0, maxStatus)
       .sort((a, b) => {
@@ -68,7 +68,7 @@ const StatusTimeline = <T extends PerformanceStatus>({
         );
       });
 
-    // 如果不足10个，用空状态填充
+    // Fill with empty statuses if less than 10
     const fillerCount = maxStatus - statusItems.length;
     const fillerItems = Array(fillerCount > 0 ? fillerCount : 0).fill(null);
 
@@ -95,7 +95,7 @@ const StatusTimeline = <T extends PerformanceStatus>({
                     <span>{formatDateTime(test.created_at)}</span>
                   </div>
                 ) : (
-                  "无数据"
+                  "No data"
                 )
               }
               placement="top"

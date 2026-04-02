@@ -1,4 +1,4 @@
-// 计划创建请求
+// Plan Create Request
 export interface PlanCreate {
   name: string;
   description?: string;
@@ -7,12 +7,12 @@ export interface PlanCreate {
   is_default?: boolean;
 }
 
-// 计划响应
+// Plan Response
 export interface PlanResponse extends PlanCreate {
   id: number;
 }
 
-// 计划更新请求
+// Plan Update Request
 export interface PlanUpdate {
   name?: string;
   description?: string;
