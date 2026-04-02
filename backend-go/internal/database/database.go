@@ -31,7 +31,11 @@ func Connect(cfg *config.DatabaseConfig) (*DB, error) {
 		return nil, fmt.Errorf("unsupported database engine: %s", cfg.Engine)
 	}
 
-	db, err := sqlx.Connect(cfg.Engine, dsn)
+	engine := cfg.Engine
+	if engine == "postgresql" {
+		engine = "postgres"
+	}
+	db, err := sqlx.Connect(engine, dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
@@ -40,7 +44,7 @@ func Connect(cfg *config.DatabaseConfig) (*DB, error) {
 	db.SetMaxOpenConns(50)
 	db.SetMaxIdleConns(25)
 
-	log.Printf("Connected to %s database at %s:%d", cfg.Engine, cfg.Host, cfg.Port)
+	log.Printf("Connected to %s database at %s:%d", engine, cfg.Host, cfg.Port)
 
 	return &DB{db}, nil
 }
@@ -102,6 +106,7 @@ func (db *DB) CreateTables() error {
 		id SERIAL PRIMARY KEY,
 		name VARCHAR(255) NOT NULL,
 		tag VARCHAR(255) NOT NULL,
+		enabled BOOLEAN DEFAULT TRUE,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		UNIQUE(name, tag)
 	);
@@ -112,8 +117,19 @@ func (db *DB) CreateTables() error {
 		endpoint_id INTEGER NOT NULL REFERENCES endpoints(id) ON DELETE CASCADE,
 		ai_model_id INTEGER NOT NULL REFERENCES ai_models(id) ON DELETE CASCADE,
 		status VARCHAR(50) DEFAULT 'available',
+		token_per_second FLOAT,
+		max_connection_time FLOAT,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		UNIQUE(endpoint_id, ai_model_id)
+	);
+
+	-- Endpoint Performances table
+	CREATE TABLE IF NOT EXISTS endpoint_performances (
+		id SERIAL PRIMARY KEY,
+		endpoint_id INTEGER NOT NULL REFERENCES endpoints(id) ON DELETE CASCADE,
+		status VARCHAR(50) NOT NULL,
+		ollama_version VARCHAR(50),
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);
 
 	-- AI Model Performance table

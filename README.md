@@ -6,7 +6,7 @@
 
 > Many publicly exposed Ollama interfaces are available online without authentication. You want to use them, but testing their performance and checking available models one by one is too tedious. Plus, you might need to frequently switch between failing interfaces.
 >
-> Try Ollama-Hack! It's a Python-based aggregation platform that helps you easily manage, test, and seamlessly use multiple Ollama interfaces.
+> Try Ollama-Hack! It's a Go-based aggregation platform that helps you easily manage, test, and seamlessly use multiple Ollama interfaces.
 
 Ollama-Hack is a service for managing, testing, and forwarding Ollama APIs. It centrally manages multiple Ollama endpoints and automatically selects the optimal route based on performance, providing an OpenAI-compatible API. The platform offers a friendly web interface for managing endpoints, models, API keys, and usage plans.
 
@@ -31,7 +31,7 @@ Ollama-Hack is a service for managing, testing, and forwarding Ollama APIs. It c
 ## 🛠️ Requirements
 
 -   Docker and Docker Compose (recommended)
--   Or Python 3.12+ (for direct execution)
+-   Or Go 1.22+ and Node.js (for direct execution)
 
 ## 🚀 Installation & Deployment
 
@@ -57,13 +57,12 @@ After starting, visit http://localhost:3000/init to use the platform.
 #### Backend
 
 ```bash
-cd backend
-# Install dependencies using Poetry
-pip install poetry
-poetry install
+cd backend-go
+# Install dependencies
+go mod tidy
 
-# Start service
-poetry run uvicorn src.main:app --host 0.0.0.0 --port 8000
+# Start service (Make sure you set your env vars, e.g., DATABASE_HOST)
+go run ./cmd/server
 ```
 
 #### Frontend
@@ -128,16 +127,16 @@ In the docker-compose.yml file, you can customize the backend through these envi
 
 ```yaml
 environment:
-    - APP__ENV=prod # Environment type: dev or prod
-    - APP__LOG_LEVEL=INFO # Log level
-    - APP__SECRET_KEY=change_this_key # JWT secret key
-    - APP__ACCESS_TOKEN_EXPIRE_MINUTES=30 # Access token expiration time
-    - DATABASE__ENGINE=postgresql # Database engine (postgresql or mysql)
-    - DATABASE__HOST=db # Database host
-    - DATABASE__PORT=5432 # Database port (5432 for PostgreSQL, 3306 for MySQL)
-    - DATABASE__USERNAME=user # Database username
-    - DATABASE__PASSWORD=password # Database password
-    - DATABASE__DB=ollama_hack # Database name
+    - APP_ENV=prod # Environment type: dev or prod
+    - APP_LOG_LEVEL=INFO # Log level
+    - APP_SECRET_KEY=change_this_key # JWT secret key
+    - APP_ACCESS_TOKEN_EXPIRE_MINUTES=30 # Access token expiration time
+    - DATABASE_ENGINE=postgresql # Database engine (postgresql or mysql)
+    - DATABASE_HOST=db # Database host
+    - DATABASE_PORT=5432 # Database port (5432 for PostgreSQL, 3306 for MySQL)
+    - DATABASE_USERNAME=user # Database username
+    - DATABASE_PASSWORD=password # Database password
+    - DATABASE_DB=ollama_hack # Database name
 ```
 
 ## 👤 Author

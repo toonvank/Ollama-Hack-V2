@@ -36,8 +36,7 @@ func Load() (*Config, error) {
 	viper.AddConfigPath("./config")
 
 	// Environment variables
-	viper.SetEnvPrefix("app")
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "__"))
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 
 	// Defaults

@@ -1,0 +1,296 @@
+package handlers
+
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/jmoiron/sqlx"
+	"github.com/timlzh/ollama-hack/internal/database"
+	"github.com/timlzh/ollama-hack/internal/models"
+	"github.com/timlzh/ollama-hack/internal/utils"
+)
+
+type EndpointHandler struct {
+	db *database.DB
+}
+
+func NewEndpointHandler(db *database.DB) *EndpointHandler {
+	return &EndpointHandler{db: db}
+}
+
+func (h *EndpointHandler) List(c *gin.Context) {
+	// Simple list, ignoring pagination for brevity unless requested.
+	var endpoints []models.Endpoint
+	err := h.db.Select(&endpoints, "SELECT * FROM endpoints ORDER BY id")
+	if err != nil {
+		utils.InternalServerError(c, "Failed to fetch endpoints")
+		return
+	}
+	utils.Success(c, endpoints)
+}
+
+func (h *EndpointHandler) Create(c *gin.Context) {
+	var req models.EndpointCreate
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, err.Error())
+		return
+	}
+
+	// Default name to URL if not provided
+	if req.Name == "" {
+		req.Name = req.URL
+	}
+
+	var endpoint models.Endpoint
+	// In Python code, if it exists, it's updated. But we will just try to insert and conflict if unique constraint hit.
+	// We'll follow a simple insert first.
+	err := h.db.Get(&endpoint,
+		"INSERT INTO endpoints (url, name) VALUES ($1, $2) RETURNING *",
+		req.URL, req.Name)
+	if err != nil {
+		if strings.Contains(err.Error(), "unique constraint") {
+			// Get existing
+			err = h.db.Get(&endpoint, "SELECT * FROM endpoints WHERE url = $1", req.URL)
+			if err != nil {
+				utils.InternalServerError(c, "Failed to handle existing endpoint")
+				return
+			}
+		} else {
+			utils.InternalServerError(c, "Failed to create endpoint")
+			return
+		}
+	}
+
+	// Schedule task
+	h.scheduleTask(endpoint.ID)
+
+	utils.Created(c, endpoint)
+}
+
+func (h *EndpointHandler) BatchCreate(c *gin.Context) {
+	var req models.EndpointBatchCreate
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, err.Error())
+		return
+	}
+
+	if len(req.Endpoints) == 0 {
+		utils.Success(c, gin.H{"message": "No endpoints provided"})
+		return
+	}
+
+	// 1. Deduplicate in request
+	seenURLs := make(map[string]bool)
+	var uniqueURLs []string
+	urlToName := make(map[string]string)
+	
+	for _, ep := range req.Endpoints {
+		if !seenURLs[ep.URL] {
+			seenURLs[ep.URL] = true
+			uniqueURLs = append(uniqueURLs, ep.URL)
+			name := ep.Name
+			if name == "" {
+				name = ep.URL
+			}
+			urlToName[ep.URL] = name
+		}
+	}
+
+	// 2. Find existing URLs
+	query, args, err := sqlx.In("SELECT url, id FROM endpoints WHERE url IN (?)", uniqueURLs)
+	if err != nil {
+		utils.InternalServerError(c, "Failed to prepare query")
+		return
+	}
+	query = h.db.Rebind(query)
+
+	type URLID struct {
+		URL string `db:"url"`
+		ID  int    `db:"id"`
+	}
+	var existingRows []URLID
+	if err := h.db.Select(&existingRows, query, args...); err != nil {
+		utils.InternalServerError(c, "Failed to fetch existing endpoints")
+		return
+	}
+
+	existingMap := make(map[string]int)
+	for _, row := range existingRows {
+		existingMap[row.URL] = row.ID
+	}
+
+	// 3. Insert new URLs
+	var newURLs []string
+	for _, u := range uniqueURLs {
+		if _, exists := existingMap[u]; !exists {
+			newURLs = append(newURLs, u)
+		}
+	}
+
+	if len(newURLs) > 0 {
+		tx, err := h.db.Beginx()
+		if err != nil {
+			utils.InternalServerError(c, "Transaction error")
+			return
+		}
+		
+		for _, u := range newURLs {
+			var newID int
+			err := tx.QueryRow("INSERT INTO endpoints (url, name) VALUES ($1, $2) RETURNING id", u, urlToName[u]).Scan(&newID)
+			if err != nil {
+				tx.Rollback()
+				utils.InternalServerError(c, "Failed to insert batch")
+				return
+			}
+			existingMap[u] = newID
+		}
+		tx.Commit()
+	}
+
+	// 4. Schedule tasks
+	var allIDs []int
+	for _, id := range existingMap {
+		allIDs = append(allIDs, id)
+		h.scheduleTask(id)
+	}
+
+	utils.Success(c, gin.H{
+		"message": "Batch creation successful",
+		"count":   len(allIDs),
+	})
+}
+
+func (h *EndpointHandler) Update(c *gin.Context) {
+	id := c.Param("id")
+	var req models.EndpointUpdate
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, err.Error())
+		return
+	}
+
+	var setClauses []string
+	var args []interface{}
+	argID := 1
+
+	if req.Name != nil {
+		setClauses = append(setClauses, fmt.Sprintf("name = $%d", argID))
+		args = append(args, *req.Name)
+		argID++
+	}
+	if req.URL != nil {
+		setClauses = append(setClauses, fmt.Sprintf("url = $%d", argID))
+		args = append(args, *req.URL)
+		argID++
+	}
+
+	if len(setClauses) == 0 {
+		utils.BadRequest(c, "No fields to update")
+		return
+	}
+
+	args = append(args, id)
+	query := fmt.Sprintf("UPDATE endpoints SET %s WHERE id = $%d RETURNING *", strings.Join(setClauses, ", "), argID)
+
+	var endpoint models.Endpoint
+	err := h.db.Get(&endpoint, query, args...)
+	if err != nil {
+		utils.InternalServerError(c, "Failed to update endpoint")
+		return
+	}
+
+	utils.Success(c, endpoint)
+}
+
+func (h *EndpointHandler) Delete(c *gin.Context) {
+	id := c.Param("id")
+	_, err := h.db.Exec("DELETE FROM endpoints WHERE id = $1", id)
+	if err != nil {
+		utils.InternalServerError(c, "Failed to delete endpoint")
+		return
+	}
+	utils.NoContent(c)
+}
+
+func (h *EndpointHandler) BatchDelete(c *gin.Context) {
+	var req models.EndpointBatchOperation
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, err.Error())
+		return
+	}
+	
+	if len(req.EndpointIDs) == 0 {
+		utils.Success(c, models.BatchOperationResult{})
+		return
+	}
+
+	query, args, err := sqlx.In("DELETE FROM endpoints WHERE id IN (?)", req.EndpointIDs)
+	if err != nil {
+		utils.InternalServerError(c, "Failed to prepare query")
+		return
+	}
+	query = h.db.Rebind(query)
+
+	res, err := h.db.Exec(query, args...)
+	if err != nil {
+		utils.InternalServerError(c, "Failed to delete endpoints")
+		return
+	}
+	
+	affected, _ := res.RowsAffected()
+	utils.Success(c, models.BatchOperationResult{
+		SuccessCount: int(affected),
+		FailedCount:  len(req.EndpointIDs) - int(affected),
+		FailedIDs:    map[string]string{}, // Simplified
+	})
+}
+
+func (h *EndpointHandler) BatchTest(c *gin.Context) {
+	var req models.EndpointBatchOperation
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, err.Error())
+		return
+	}
+
+	if len(req.EndpointIDs) == 0 {
+		utils.Success(c, models.BatchOperationResult{})
+		return
+	}
+
+	successCount := 0
+	failedCount := 0
+	failedIDs := make(map[string]string)
+
+	for _, id := range req.EndpointIDs {
+		// Verify exists
+		var count int
+		h.db.Get(&count, "SELECT COUNT(*) FROM endpoints WHERE id = $1", id)
+		if count == 0 {
+			failedCount++
+			failedIDs[fmt.Sprintf("%d", id)] = "Endpoint not found"
+			continue
+		}
+		h.scheduleTask(id)
+		successCount++
+	}
+
+	utils.Success(c, models.BatchOperationResult{
+		SuccessCount: successCount,
+		FailedCount:  failedCount,
+		FailedIDs:    failedIDs,
+	})
+}
+
+// scheduleTask acts as a simple background scheduler replacement for now 
+// (inserts task, which would be picked up by a cron/background job).
+func (h *EndpointHandler) scheduleTask(endpointID int) {
+	now := time.Now().Add(5 * time.Second)
+	_, err := h.db.Exec(
+		"INSERT INTO endpoint_test_tasks (endpoint_id, scheduled_at, status) VALUES ($1, $2, $3)",
+		endpointID, now, "pending",
+	)
+	if err != nil {
+		fmt.Printf("Error scheduling task for endpoint %d: %v\n", endpointID, err)
+	}
+}

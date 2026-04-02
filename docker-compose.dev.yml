@@ -15,22 +15,21 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: ./backend-go
       dockerfile: Dockerfile
     environment:
-      - APP__ENV=prod
-      - APP__LOG_LEVEL=INFO
-      - APP__SECRET_KEY=change_this_to_a_secure_key
-      - APP__ALGORITHM=HS256
-      - APP__ACCESS_TOKEN_EXPIRE_MINUTES=10080
-      - DATABASE__ENGINE=postgresql
-      - DATABASE__HOST=db
-      - DATABASE__PORT=5432
-      - DATABASE__USERNAME=ollama_hack
-      - DATABASE__PASSWORD=change_this_password
-      - DATABASE__DB=ollama_hack
+      - APP_ENV=prod
+      - APP_SECRET_KEY=change_this_to_a_secure_key
+      - APP_ACCESS_TOKEN_EXPIRE_MINUTES=10080
+      - DATABASE_ENGINE=postgresql
+      - DATABASE_HOST=db
+      - DATABASE_PORT=5432
+      - DATABASE_USERNAME=ollama_hack
+      - DATABASE_PASSWORD=change_this_password
+      - DATABASE_DB=ollama_hack
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     restart: unless-stopped
     expose:
       - 8000
@@ -48,6 +47,11 @@ services:
     restart: unless-stopped
     expose:
       - 5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ollama_hack"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     networks:
       - app-network
 

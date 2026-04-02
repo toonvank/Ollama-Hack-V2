@@ -30,13 +30,23 @@ func main() {
 		log.Fatalf("Failed to create tables: %v", err)
 	}
 
+	// Start background endpoint tester
+	tester := services.NewTester(db)
+	tester.Start()
+	defer tester.Stop()
+
 	// Initialize services
 	authService := services.NewAuthService(db, cfg)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(authService, db)
+	userHandler := handlers.NewUserHandler(db)
+	apikeyHandler := handlers.NewAPIKeyHandler(db)
+	planHandler := handlers.NewPlanHandler(db)
+	endpointHandler := handlers.NewEndpointHandler(db)
+	modelHandler := handlers.NewAIModelHandler(db)
+	ollamaHandler := handlers.NewOllamaHandler(db)
 
-	// Setup Gin
 	if cfg.App.Env == "prod" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -64,58 +74,57 @@ func main() {
 		})
 	}
 
-	// Protected routes
+	// Protected routes (any authenticated user)
 	protected := r.Group("/api/v2")
 	protected.Use(middleware.AuthMiddleware(authService))
 	{
 		protected.GET("/auth/me", authHandler.GetCurrentUser)
 		protected.PUT("/auth/password", authHandler.ChangePassword)
+		// Own API keys (non-admin users manage their own)
+		protected.GET("/apikeys", apikeyHandler.List)
+		protected.POST("/apikeys", apikeyHandler.Create)
+		protected.DELETE("/apikeys/:id", apikeyHandler.Delete)
 
-		// User management (admin only)
+		// Admin-only routes
 		admin := protected.Group("")
 		admin.Use(middleware.AdminMiddleware())
 		{
-			// Add user CRUD routes here
-			// admin.GET("/users", userHandler.List)
-			// admin.POST("/users", userHandler.Create)
-			// admin.GET("/users/:id", userHandler.Get)
-			// admin.PUT("/users/:id", userHandler.Update)
-			// admin.DELETE("/users/:id", userHandler.Delete)
+			// User management
+			admin.GET("/users", userHandler.List)
+			admin.POST("/users", userHandler.Create)
+			admin.GET("/users/:id", userHandler.Get)
+			admin.PUT("/users/:id", userHandler.Update)
+			admin.DELETE("/users/:id", userHandler.Delete)
 
-			// Add API key routes here
-			// admin.GET("/apikeys", apikeyHandler.List)
-			// admin.POST("/apikeys", apikeyHandler.Create)
-			// admin.DELETE("/apikeys/:id", apikeyHandler.Delete)
+			// Plans
+			admin.GET("/plans", planHandler.List)
+			admin.POST("/plans", planHandler.Create)
+			admin.PUT("/plans/:id", planHandler.Update)
+			admin.DELETE("/plans/:id", planHandler.Delete)
 
-			// Add plan routes here
-			// admin.GET("/plans", planHandler.List)
-			// admin.POST("/plans", planHandler.Create)
-			// admin.PUT("/plans/:id", planHandler.Update)
-			// admin.DELETE("/plans/:id", planHandler.Delete)
+			// Endpoints
+			admin.GET("/endpoints", endpointHandler.List)
+			admin.POST("/endpoints", endpointHandler.Create)
+			admin.POST("/endpoints/batch", endpointHandler.BatchCreate)
+			admin.PUT("/endpoints/:id", endpointHandler.Update)
+			admin.DELETE("/endpoints/:id", endpointHandler.Delete)
+			admin.DELETE("/endpoints/batch", endpointHandler.BatchDelete)
+			admin.POST("/endpoints/batch-test", endpointHandler.BatchTest)
 
-			// Add endpoint routes here
-			// admin.GET("/endpoints", endpointHandler.List)
-			// admin.POST("/endpoints", endpointHandler.Create)
-			// admin.POST("/endpoints/batch", endpointHandler.BatchCreate)
-			// admin.PUT("/endpoints/:id", endpointHandler.Update)
-			// admin.DELETE("/endpoints/:id", endpointHandler.Delete)
-			// admin.DELETE("/endpoints/batch", endpointHandler.BatchDelete)
-			// admin.POST("/endpoints/batch-test", endpointHandler.BatchTest)
-
-			// Add AI model routes here
-			// admin.GET("/models", modelHandler.List)
-			// admin.GET("/models/:id", modelHandler.Get)
+			// AI models
+			admin.GET("/models", modelHandler.List)
+			admin.GET("/models/:id", modelHandler.Get)
+			admin.PATCH("/models/:id/toggle", modelHandler.Toggle) // enable/disable
 		}
 	}
 
-	// Ollama proxy routes (with API key auth)
+	// Ollama-compatible proxy (API-key or JWT auth)
 	v1 := r.Group("/v1")
 	v1.Use(middleware.AuthMiddleware(authService))
 	{
-		// Add Ollama proxy routes here
-		// v1.POST("/chat/completions", ollamaHandler.ChatCompletions)
-		// v1.POST("/completions", ollamaHandler.Completions)
-		// v1.GET("/models", ollamaHandler.Models)
+		v1.GET("/models", ollamaHandler.Models)
+		v1.POST("/chat/completions", ollamaHandler.ChatCompletions)
+		v1.POST("/completions", ollamaHandler.Completions)
 	}
 
 	log.Printf("Starting server on :8000 (env: %s)", cfg.App.Env)
