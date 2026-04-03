@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"log"
 	"net/http"
 	"strings"
@@ -61,6 +62,16 @@ type EndpointTestResult struct {
 }
 
 const testPrompt = "Explain the concept of recursion in computer science. Provide a simple example and describe how the call stack works during recursive function execution."
+
+// getModelLockID generates a deterministic lock ID for a model name+tag pair
+// to use with PostgreSQL advisory locks
+func getModelLockID(name, tag string) int64 {
+	h := fnv.New64a()
+	h.Write([]byte(name + ":" + tag))
+	// PostgreSQL advisory lock requires a signed 64-bit integer
+	// Use modulo to ensure it fits within int64 range safely
+	return int64(h.Sum64() & 0x7FFFFFFFFFFFFFFF)
+}
 
 // TestEndpoint fully tests an endpoint: version, lists models, tests each model
 func TestEndpoint(endpointURL string) *EndpointTestResult {
@@ -385,6 +396,14 @@ func (t *Tester) executeTask(task pendingTask) {
 
 	// Upsert models and their performances
 	for _, mr := range result.Models {
+		// Acquire advisory lock to prevent concurrent upserts of the same model
+		lockID := getModelLockID(mr.ModelName, mr.ModelTag)
+		_, err := tx.Exec("SELECT pg_advisory_xact_lock($1)", lockID)
+		if err != nil {
+			log.Printf("[tester] could not acquire advisory lock for %s:%s: %v", mr.ModelName, mr.ModelTag, err)
+			continue
+		}
+
 		// Upsert ai_model
 		var modelID int
 		err = tx.QueryRow(`

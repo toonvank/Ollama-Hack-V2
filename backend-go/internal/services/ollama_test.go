@@ -1193,3 +1193,48 @@ func TestEndpointResponseStreamingFormat(t *testing.T) {
 		t.Errorf("Expected EndpointStatus 'available', got '%s'", result.EndpointStatus)
 	}
 }
+
+func TestGetModelLockID(t *testing.T) {
+	tests := []struct {
+		name     string
+		model    string
+		tag      string
+		expected int64
+	}{
+		{"Same model and tag produces same ID", "llama3", "8b", getModelLockID("llama3", "8b")},
+		{"Different model produces different ID", "llama2", "7b", getModelLockID("llama2", "7b")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getModelLockID(tt.model, tt.tag)
+			if result != tt.expected {
+				t.Errorf("getModelLockID(%s, %s) = %d, want %d", tt.model, tt.tag, result, tt.expected)
+			}
+			// Verify the result is always positive (fits in int64 properly)
+			if result < 0 {
+				t.Errorf("getModelLockID(%s, %s) = %d, expected positive value", tt.model, tt.tag, result)
+			}
+		})
+	}
+
+	// Test consistency - same input should always produce same output
+	id1 := getModelLockID("deepseek-r1", "1.5b")
+	id2 := getModelLockID("deepseek-r1", "1.5b")
+	if id1 != id2 {
+		t.Errorf("getModelLockID is not deterministic: %d != %d", id1, id2)
+	}
+
+	// Test different inputs produce different outputs
+	id3 := getModelLockID("deepseek-r1", "7b")
+	if id1 == id3 {
+		t.Errorf("getModelLockID produced same ID for different models")
+	}
+
+	// Test that different name/tag combinations produce different IDs
+	id4 := getModelLockID("llama3", "8b")
+	id5 := getModelLockID("llama3.2", "3b")
+	if id4 == id5 {
+		t.Errorf("getModelLockID produced same ID for different model combinations")
+	}
+}
