@@ -2,7 +2,7 @@ import type { NavigateOptions } from "react-router-dom";
 
 import { HeroUIProvider } from "@nextui-org/system";
 import { useHref, useNavigate } from "react-router-dom";
-import { ToastProvider } from "@nextui-org/toast";
+import { ToastProvider } from "@/utils/toast";
 
 declare module "@react-types/shared" {
   interface RouterConfig {

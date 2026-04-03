@@ -9,7 +9,7 @@ import {
   ModalBody,
   ModalFooter,
 } from "@nextui-org/modal";
-import { addToast } from "@nextui-org/toast";
+import { addToast } from "@/utils/toast";
 import { Form } from "@nextui-org/form";
 
 import { endpointApi, EnhancedAxiosError } from "@/api";

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
-import { addToast } from "@nextui-org/toast";
+import { addToast } from "@/utils/toast";
 import { Key, Selection } from "@nextui-org/table";
 import { Button } from "@nextui-org/button";
 

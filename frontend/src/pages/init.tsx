@@ -4,7 +4,7 @@ import { Button } from "@nextui-org/button";
 import { Input } from "@nextui-org/input";
 import { Link } from "@nextui-org/link";
 import { Form } from "@nextui-org/form";
-import { addToast } from "@nextui-org/toast";
+import { addToast } from "@/utils/toast";
 import { Card, CardBody, CardFooter, CardHeader } from "@nextui-org/card";
 
 import { authApi, EnhancedAxiosError } from "@/api";

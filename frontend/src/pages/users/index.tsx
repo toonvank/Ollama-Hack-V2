@@ -12,7 +12,7 @@ import {
 import { SortDescriptor } from "@react-types/shared";
 import { Checkbox } from "@nextui-org/checkbox";
 import { Tooltip } from "@nextui-org/tooltip";
-import { addToast } from "@nextui-org/toast";
+import { addToast } from "@/utils/toast";
 import { Chip } from "@nextui-org/chip";
 import { Select, SelectItem } from "@nextui-org/select";
 

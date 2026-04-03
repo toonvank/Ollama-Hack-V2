@@ -11,7 +11,7 @@ import { AIModelInfoWithEndpointCount, PageResponse } from "@/types";
 import DashboardLayout from "@/layouts/Main";
 import ModelTable from "@/components/models/Table";
 import ModelDetailDrawer from "@/components/models/DetailDrawer";
-import { addToast } from "@nextui-org/toast";
+import { addToast } from "@/utils/toast";
 
 // Model list page
 export const ModelListPage = () => {

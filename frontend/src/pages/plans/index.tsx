@@ -11,7 +11,7 @@ import {
 import { SortDescriptor } from "@react-types/shared";
 import { Form } from "@nextui-org/form";
 import { Tooltip } from "@nextui-org/tooltip";
-import { addToast } from "@nextui-org/toast";
+import { addToast } from "@/utils/toast";
 import { Checkbox } from "@nextui-org/checkbox";
 
 import {

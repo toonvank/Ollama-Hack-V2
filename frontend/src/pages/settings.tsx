@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@nextui-org/button";
 import { Input } from "@nextui-org/input";
 import { Card } from "@nextui-org/card";
-import { addToast } from "@nextui-org/toast";
+import { addToast } from "@/utils/toast";
 
 import { authApi, settingApi } from "@/api";
 import { useAuth } from "@/contexts/AuthContext";

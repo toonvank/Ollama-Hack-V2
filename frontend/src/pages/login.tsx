@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@nextui-org/button";
 import { Input } from "@nextui-org/input";
-import { addToast } from "@nextui-org/toast";
+import { addToast } from "@/utils/toast";
 import { Card, CardBody, CardFooter, CardHeader } from "@nextui-org/card";
 import { Form } from "@nextui-org/form";
 
