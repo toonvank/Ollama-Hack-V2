@@ -1,0 +1,33 @@
+name: Backend Tests
+
+on:
+  push:
+    paths:
+      - 'backend-go/**'
+      - '.github/workflows/test.yml'
+  pull_request:
+    paths:
+      - 'backend-go/**'
+      - '.github/workflows/test.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    defaults:
+      run:
+        working-directory: ./backend-go
+        
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+        
+    - name: Install dependencies
+      run: go mod download
+      
+    - name: Run tests
+      run: go test -v ./...
