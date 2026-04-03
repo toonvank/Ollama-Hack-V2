@@ -75,7 +75,7 @@ func (db *DB) CreateTables() error {
 	-- API Keys table
 	CREATE TABLE IF NOT EXISTS api_keys (
 		id SERIAL PRIMARY KEY,
-		key VARCHAR(64) UNIQUE NOT NULL,
+		key VARCHAR(128) UNIQUE NOT NULL,
 		name VARCHAR(255) NOT NULL,
 		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 		last_used_at TIMESTAMP,
@@ -177,6 +177,28 @@ func (db *DB) CreateTables() error {
 	_, err := db.Exec(schema)
 	if err != nil {
 		return fmt.Errorf("failed to create tables: %w", err)
+	}
+
+	// Migrations for schema changes
+	migrations := `
+	-- Expand api_keys.key column from VARCHAR(64) to VARCHAR(128) to accommodate longer keys
+	DO $$
+	BEGIN
+		IF EXISTS (
+			SELECT 1 FROM information_schema.columns 
+			WHERE table_name = 'api_keys' 
+			AND column_name = 'key' 
+			AND character_maximum_length = 64
+		) THEN
+			ALTER TABLE api_keys ALTER COLUMN key TYPE VARCHAR(128);
+		END IF;
+	END $$;
+	`
+
+	_, err = db.Exec(migrations)
+	if err != nil {
+		log.Printf("Warning: Some migrations failed: %v", err)
+		// Don't return error, as tables are already created
 	}
 
 	log.Println("Database tables created successfully")
