@@ -3,6 +3,7 @@ import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
 import { Textarea } from "@heroui/input";
 import { Tabs, Tab } from "@heroui/tabs";
+import { RadioGroup, Radio } from "@heroui/radio";
 import {
   Modal,
   ModalContent,
@@ -34,6 +35,8 @@ const CreateEndpointModal: React.FC<CreateEndpointModalProps> = ({
   const [formData, setFormData] = useState<EndpointCreate>({
     url: "",
     name: "",
+    endpoint_type: "ollama",
+    api_key: "",
   });
 
   // Batch create endpoint form state
@@ -83,6 +86,8 @@ const CreateEndpointModal: React.FC<CreateEndpointModalProps> = ({
       await endpointApi.createEndpoint({
         url,
         name,
+        endpoint_type: formData.endpoint_type || "ollama",
+        api_key: formData.api_key || undefined,
       });
 
       // Success, close modal and refresh list
@@ -93,6 +98,8 @@ const CreateEndpointModal: React.FC<CreateEndpointModalProps> = ({
       setFormData({
         url: "",
         name: "",
+        endpoint_type: "ollama",
+        api_key: "",
       });
       setSelectedTab("single");
     } catch (err) {
@@ -178,6 +185,8 @@ const CreateEndpointModal: React.FC<CreateEndpointModalProps> = ({
       setFormData({
         url: "",
         name: "",
+        endpoint_type: "ollama",
+        api_key: "",
       });
       setUrls("");
     }
@@ -231,6 +240,43 @@ const CreateEndpointModal: React.FC<CreateEndpointModalProps> = ({
                         onChange={handleInputChange}
                       />
                     </div>
+
+                    <div className="mb-4">
+                      <RadioGroup
+                        label="Endpoint Type"
+                        description="Select the type of API endpoint"
+                        value={formData.endpoint_type}
+                        onValueChange={(value) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            endpoint_type: value,
+                          }))
+                        }
+                      >
+                        <Radio value="ollama">
+                          Ollama (Native API)
+                        </Radio>
+                        <Radio value="openai">
+                          OpenAI Compatible (e.g., /v1/models)
+                        </Radio>
+                      </RadioGroup>
+                    </div>
+
+                    {formData.endpoint_type === "openai" && (
+                      <div className="mb-4">
+                        <Input
+                          className="w-full"
+                          description="API key for authentication (e.g., sk-...)"
+                          id="api_key"
+                          label="API Key"
+                          name="api_key"
+                          placeholder="sk-..."
+                          type="password"
+                          value={formData.api_key}
+                          onChange={handleInputChange}
+                        />
+                      </div>
+                    )}
                   </div>
                 </Tab>
                 <Tab key="batch" title="Batch Create">

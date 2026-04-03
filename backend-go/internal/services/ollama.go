@@ -22,11 +22,28 @@ const (
 	StatusPending     = "pending"
 )
 
+// EndpointType constants
+const (
+	EndpointTypeOllama = "ollama"
+	EndpointTypeOpenAI = "openai"
+)
+
 // OllamaTagsResponse is the /api/tags response shape
 type OllamaTagsResponse struct {
 	Models []struct {
 		Model string `json:"model"`
 	} `json:"models"`
+}
+
+// OpenAIModelsResponse is the /v1/models response shape
+type OpenAIModelsResponse struct {
+	Object string `json:"object"`
+	Data   []struct {
+		ID      string `json:"id"`
+		Object  string `json:"object"`
+		Created int64  `json:"created"`
+		OwnedBy string `json:"owned_by"`
+	} `json:"data"`
 }
 
 // OllamaVersionResponse is the /api/version response shape
@@ -72,6 +89,77 @@ func getModelLockID(name, tag string) int64 {
 	// Use modulo to ensure it fits within int64 range safely
 	return int64(h.Sum64() & 0x7FFFFFFFFFFFFFFF)
 }
+
+// TestEndpointWithType tests an endpoint based on its type
+func TestEndpointWithType(endpointURL, endpointType string, apiKey *string) *EndpointTestResult {
+	if endpointType == EndpointTypeOpenAI {
+		return TestOpenAIEndpoint(endpointURL, apiKey)
+	}
+	return TestEndpoint(endpointURL)
+}
+
+// TestOpenAIEndpoint tests an OpenAI-compatible endpoint
+func TestOpenAIEndpoint(endpointURL string, apiKey *string) *EndpointTestResult {
+	result := &EndpointTestResult{
+		EndpointURL:    endpointURL,
+		EndpointStatus: StatusUnavailable,
+		OllamaVersion:  "OpenAI Compatible",
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+
+	// Test /v1/models endpoint
+	req, err := http.NewRequest("GET", endpointURL+"/v1/models", nil)
+	if err != nil {
+		log.Printf("[tester] failed to create request for %s: %v", endpointURL, err)
+		return result
+	}
+
+	// Add Bearer token if API key provided
+	if apiKey != nil && *apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+*apiKey)
+	}
+
+	modelsResp, err := client.Do(req)
+	if err != nil || modelsResp.StatusCode != http.StatusOK {
+		log.Printf("[tester] OpenAI endpoint %s unreachable or unauthorized: %v (status: %v)", 
+			endpointURL, err, modelsResp.StatusCode)
+		return result
+	}
+	defer modelsResp.Body.Close()
+
+	var modelsData OpenAIModelsResponse
+	if err := json.NewDecoder(modelsResp.Body).Decode(&modelsData); err != nil {
+		log.Printf("[tester] failed to decode models response: %v", err)
+		return result
+	}
+
+	result.EndpointStatus = StatusAvailable
+
+	// Convert OpenAI models to our format
+	// For OpenAI endpoints, we don't test each model individually (would be expensive)
+	// Just mark them as available
+	for _, model := range modelsData.Data {
+		// Split model ID into name:tag format
+		// For most services, the ID is the full model name
+		parts := strings.SplitN(model.ID, ":", 2)
+		name := parts[0]
+		tag := "latest"
+		if len(parts) == 2 {
+			tag = parts[1]
+		}
+
+		result.Models = append(result.Models, ModelTestResult{
+			ModelName:      name,
+			ModelTag:       tag,
+			Status:         StatusAvailable,
+			TokenPerSecond: 0, // Not tested for OpenAI endpoints
+		})
+	}
+
+	return result
+}
+
 
 // TestEndpoint fully tests an endpoint: version, lists models, tests each model
 func TestEndpoint(endpointURL string) *EndpointTestResult {
@@ -324,15 +412,17 @@ func (t *Tester) fetchExternalEndpoints() {
 }
 
 type pendingTask struct {
-	ID          int    `db:"id"`
-	EndpointID  int    `db:"endpoint_id"`
-	EndpointURL string `db:"url"`
+	ID           int     `db:"id"`
+	EndpointID   int     `db:"endpoint_id"`
+	EndpointURL  string  `db:"url"`
+	EndpointType string  `db:"endpoint_type"`
+	APIKey       *string `db:"api_key"`
 }
 
 func (t *Tester) runPendingTasks() {
 	var tasks []pendingTask
 	err := t.db.Select(&tasks, `
-		SELECT ett.id, ett.endpoint_id, e.url 
+		SELECT ett.id, ett.endpoint_id, e.url, e.endpoint_type, e.api_key
 		FROM endpoint_test_tasks ett
 		JOIN endpoints e ON e.id = ett.endpoint_id
 		WHERE ett.status = 'pending' AND ett.scheduled_at <= NOW()
@@ -371,7 +461,7 @@ func (t *Tester) runPendingTasks() {
 }
 
 func (t *Tester) executeTask(task pendingTask) {
-	result := TestEndpoint(task.EndpointURL)
+	result := TestEndpointWithType(task.EndpointURL, task.EndpointType, task.APIKey)
 
 	tx, err := t.db.Beginx()
 	if err != nil {

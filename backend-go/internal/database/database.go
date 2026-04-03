@@ -88,6 +88,8 @@ func (db *DB) CreateTables() error {
 		url VARCHAR(512) UNIQUE NOT NULL,
 		name VARCHAR(255) NOT NULL,
 		status VARCHAR(50) DEFAULT 'pending',
+		endpoint_type VARCHAR(50) DEFAULT 'ollama',
+		api_key TEXT,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);
 

@@ -160,12 +160,23 @@ func (h *EndpointHandler) Create(c *gin.Context) {
 		req.Name = req.URL
 	}
 
+	// Default endpoint type to "ollama" if not provided
+	if req.EndpointType == "" {
+		req.EndpointType = "ollama"
+	}
+
+	// Validate endpoint type
+	if req.EndpointType != "ollama" && req.EndpointType != "openai" {
+		utils.BadRequest(c, "endpoint_type must be either 'ollama' or 'openai'")
+		return
+	}
+
 	var endpoint models.Endpoint
 	// In Python code, if it exists, it's updated. But we will just try to insert and conflict if unique constraint hit.
 	// We'll follow a simple insert first.
 	err := h.db.Get(&endpoint,
-		"INSERT INTO endpoints (url, name) VALUES ($1, $2) RETURNING *",
-		req.URL, req.Name)
+		"INSERT INTO endpoints (url, name, endpoint_type, api_key) VALUES ($1, $2, $3, $4) RETURNING *",
+		req.URL, req.Name, req.EndpointType, req.APIKey)
 	if err != nil {
 		if strings.Contains(err.Error(), "unique constraint") {
 			// Get existing
@@ -302,6 +313,21 @@ func (h *EndpointHandler) Update(c *gin.Context) {
 	if req.URL != nil {
 		setClauses = append(setClauses, fmt.Sprintf("url = $%d", argID))
 		args = append(args, *req.URL)
+		argID++
+	}
+	if req.EndpointType != nil {
+		// Validate endpoint type
+		if *req.EndpointType != "ollama" && *req.EndpointType != "openai" {
+			utils.BadRequest(c, "endpoint_type must be either 'ollama' or 'openai'")
+			return
+		}
+		setClauses = append(setClauses, fmt.Sprintf("endpoint_type = $%d", argID))
+		args = append(args, *req.EndpointType)
+		argID++
+	}
+	if req.APIKey != nil {
+		setClauses = append(setClauses, fmt.Sprintf("api_key = $%d", argID))
+		args = append(args, *req.APIKey)
 		argID++
 	}
 

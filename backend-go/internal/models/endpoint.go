@@ -3,11 +3,13 @@ package models
 import "time"
 
 type Endpoint struct {
-	ID        int       `db:"id" json:"id"`
-	URL       string    `db:"url" json:"url"`
-	Name      string    `db:"name" json:"name"`
-	Status    string    `db:"status" json:"status"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	ID           int       `db:"id" json:"id"`
+	URL          string    `db:"url" json:"url"`
+	Name         string    `db:"name" json:"name"`
+	Status       string    `db:"status" json:"status"`
+	EndpointType string    `db:"endpoint_type" json:"endpoint_type"`
+	APIKey       *string   `db:"api_key" json:"api_key,omitempty"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
 }
 
 // EndpointPerformance represents a performance record
@@ -32,13 +34,17 @@ type EndpointWithAIModelCount struct {
 }
 
 type EndpointCreate struct {
-	URL  string `json:"url" binding:"required"`
-	Name string `json:"name"`
+	URL          string  `json:"url" binding:"required"`
+	Name         string  `json:"name"`
+	EndpointType string  `json:"endpoint_type"`
+	APIKey       *string `json:"api_key"`
 }
 
 type EndpointUpdate struct {
-	Name *string `json:"name"`
-	URL  *string `json:"url"`
+	Name         *string `json:"name"`
+	URL          *string `json:"url"`
+	EndpointType *string `json:"endpoint_type"`
+	APIKey       *string `json:"api_key"`
 }
 
 type EndpointBatchCreate struct {

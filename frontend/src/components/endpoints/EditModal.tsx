@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
+import { RadioGroup, Radio } from "@heroui/radio";
 import {
   Modal,
   ModalContent,
@@ -22,6 +23,8 @@ interface EndpointEditModalProps {
   endpointId: number | undefined;
   endpointName: string;
   endpointUrl: string;
+  endpointType?: string;
+  apiKey?: string;
   onDelete?: (id: number) => void;
 }
 
@@ -32,21 +35,27 @@ const EndpointEditModal = ({
   endpointId,
   endpointName,
   endpointUrl,
+  endpointType,
+  apiKey,
 }: EndpointEditModalProps) => {
   // Form state
   const [formData, setFormData] = useState<EndpointUpdate>({
     name: "",
+    endpoint_type: undefined,
+    api_key: undefined,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Update form data when props change
   useEffect(() => {
-    if (endpointName) {
+    if (isOpen) {
       setFormData({
         name: endpointName,
+        endpoint_type: endpointType,
+        api_key: apiKey || "",
       });
     }
-  }, [endpointName, isOpen]);
+  }, [endpointName, endpointType, apiKey, isOpen]);
 
   // Reset state on close
   const handleClose = () => {
@@ -125,6 +134,43 @@ const EndpointEditModal = ({
                   onChange={handleInputChange}
                 />
               </div>
+
+              <div className="mb-4">
+                <RadioGroup
+                  label="Endpoint Type"
+                  description="Select the type of API endpoint"
+                  value={formData.endpoint_type || "ollama"}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      endpoint_type: value,
+                    }))
+                  }
+                >
+                  <Radio value="ollama">
+                    Ollama (Native API)
+                  </Radio>
+                  <Radio value="openai">
+                    OpenAI Compatible (e.g., /v1/models)
+                  </Radio>
+                </RadioGroup>
+              </div>
+
+              {formData.endpoint_type === "openai" && (
+                <div className="mb-4">
+                  <Input
+                    className="w-full"
+                    description="API key for authentication (e.g., sk-...)"
+                    id="api_key"
+                    label="API Key"
+                    name="api_key"
+                    placeholder="sk-..."
+                    type="password"
+                    value={formData.api_key || ""}
+                    onChange={handleInputChange}
+                  />
+                </div>
+              )}
             </div>
           </ModalBody>
           <ModalFooter className="w-full">

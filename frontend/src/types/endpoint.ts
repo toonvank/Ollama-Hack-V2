@@ -9,6 +9,8 @@ export interface EndpointInfo {
   id?: number;
   url: string;
   name: string;
+  endpoint_type?: string;
+  api_key?: string;
   created_at?: string;
 }
 
@@ -55,11 +57,15 @@ export interface EndpointWithAIModels extends EndpointInfo {
 export interface EndpointCreate {
   url: string;
   name?: string;
+  endpoint_type?: string;
+  api_key?: string;
 }
 
 // Endpoint Update Request
 export interface EndpointUpdate {
   name?: string;
+  endpoint_type?: string;
+  api_key?: string;
 }
 
 // Batch Create Endpoints Request
