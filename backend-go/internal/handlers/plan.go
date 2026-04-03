@@ -30,7 +30,7 @@ func (h *PlanHandler) List(c *gin.Context) {
 
 func (h *PlanHandler) GetCurrentUserPlan(c *gin.Context) {
 	userID, _ := c.Get("user_id")
-	
+
 	var user models.User
 	if err := h.db.Get(&user, "SELECT plan_id FROM users WHERE id = $1", userID); err != nil {
 		utils.NotFound(c, "User not found")

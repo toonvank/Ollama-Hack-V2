@@ -195,7 +195,7 @@ func TestOllamaHandler_ProxyRequest_EmptyModel(t *testing.T) {
 	handler := NewOllamaHandler(nil)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	
+
 	body := map[string]interface{}{
 		"model": "",
 		"messages": []map[string]string{
@@ -217,9 +217,9 @@ func TestOllamaHandler_Completions_EmptyModel(t *testing.T) {
 	handler := NewOllamaHandler(nil)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	
+
 	body := map[string]interface{}{
-		"model": "",
+		"model":  "",
 		"prompt": "Hello",
 	}
 	jsonBytes, _ := json.Marshal(body)

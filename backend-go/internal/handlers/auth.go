@@ -39,7 +39,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 // GetCurrentUser returns the current logged-in user
 func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 	userID, _ := c.Get("user_id")
-	
+
 	user, err := h.authService.GetUserByID(userID.(int))
 	if err != nil {
 		utils.NotFound(c, "User not found")
@@ -70,7 +70,7 @@ func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 // ChangePassword handles password change
 func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	userID, _ := c.Get("user_id")
-	
+
 	var req models.ChangePasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.BadRequest(c, err.Error())

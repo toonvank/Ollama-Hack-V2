@@ -62,7 +62,7 @@ func (h *EndpointHandler) List(c *gin.Context) {
 	whereClause := ""
 	var countArgs []interface{}
 	var queryArgs []interface{}
-	
+
 	if statusFilter != "" {
 		whereClause = "WHERE status = $1"
 		countArgs = append(countArgs, statusFilter)
@@ -86,7 +86,7 @@ func (h *EndpointHandler) List(c *gin.Context) {
 	} else {
 		query = fmt.Sprintf("SELECT * FROM endpoints ORDER BY %s %s LIMIT $1 OFFSET $2", orderBy, order)
 	}
-	
+
 	var endpoints []models.Endpoint
 	if err := h.db.Select(&endpoints, query, queryArgs...); err != nil {
 		utils.InternalServerError(c, "Failed to fetch endpoints")
@@ -98,8 +98,8 @@ func (h *EndpointHandler) List(c *gin.Context) {
 	for _, ep := range endpoints {
 		// Get recent performances (last 5)
 		var performances []models.EndpointPerformance
-		h.db.Select(&performances, 
-			"SELECT id, status, ollama_version, created_at FROM endpoint_performances WHERE endpoint_id = $1 ORDER BY created_at DESC LIMIT 5", 
+		h.db.Select(&performances,
+			"SELECT id, status, ollama_version, created_at FROM endpoint_performances WHERE endpoint_id = $1 ORDER BY created_at DESC LIMIT 5",
 			ep.ID)
 		if performances == nil {
 			performances = []models.EndpointPerformance{}
@@ -202,7 +202,7 @@ func (h *EndpointHandler) BatchCreate(c *gin.Context) {
 	seenURLs := make(map[string]bool)
 	var uniqueURLs []string
 	urlToName := make(map[string]string)
-	
+
 	for _, ep := range req.Endpoints {
 		if !seenURLs[ep.URL] {
 			seenURLs[ep.URL] = true
@@ -252,7 +252,7 @@ func (h *EndpointHandler) BatchCreate(c *gin.Context) {
 			utils.InternalServerError(c, "Transaction error")
 			return
 		}
-		
+
 		for _, u := range newURLs {
 			var newID int
 			err := tx.QueryRow("INSERT INTO endpoints (url, name) VALUES ($1, $2) RETURNING id", u, urlToName[u]).Scan(&newID)
@@ -271,7 +271,7 @@ func (h *EndpointHandler) BatchCreate(c *gin.Context) {
 	for _, id := range existingMap {
 		allIDs = append(allIDs, id)
 	}
-	
+
 	if len(allIDs) > 0 {
 		h.bulkScheduleTasks(allIDs)
 	}
@@ -339,7 +339,7 @@ func (h *EndpointHandler) BatchDelete(c *gin.Context) {
 		utils.BadRequest(c, err.Error())
 		return
 	}
-	
+
 	if len(req.EndpointIDs) == 0 {
 		utils.Success(c, models.BatchOperationResult{})
 		return
@@ -357,7 +357,7 @@ func (h *EndpointHandler) BatchDelete(c *gin.Context) {
 		utils.InternalServerError(c, "Failed to delete endpoints")
 		return
 	}
-	
+
 	affected, _ := res.RowsAffected()
 	utils.Success(c, models.BatchOperationResult{
 		SuccessCount: int(affected),
@@ -407,7 +407,7 @@ func (h *EndpointHandler) BatchTest(c *gin.Context) {
 	})
 }
 
-// scheduleTask acts as a simple background scheduler replacement for now 
+// scheduleTask acts as a simple background scheduler replacement for now
 // (inserts task, which would be picked up by a cron/background job).
 func (h *EndpointHandler) scheduleTask(endpointID int) {
 	now := time.Now().Add(5 * time.Second)
@@ -426,7 +426,7 @@ func (h *EndpointHandler) bulkScheduleTasks(endpointIDs []int) {
 		return
 	}
 	now := time.Now().Add(5 * time.Second)
-	
+
 	query := "INSERT INTO endpoint_test_tasks (endpoint_id, scheduled_at, status) VALUES "
 	var args []interface{}
 	for i, id := range endpointIDs {
@@ -436,7 +436,7 @@ func (h *EndpointHandler) bulkScheduleTasks(endpointIDs []int) {
 		query += fmt.Sprintf("($%d, $%d, $%d)", i*3+1, i*3+2, i*3+3)
 		args = append(args, id, now, "pending")
 	}
-	
+
 	_, err := h.db.Exec(query, args...)
 	if err != nil {
 		fmt.Printf("Error bulk scheduling tasks: %v\n", err)

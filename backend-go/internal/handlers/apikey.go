@@ -101,8 +101,8 @@ func (h *APIKeyHandler) GetStats(c *gin.Context) {
 	// Dummy stats implementation for now
 	keyID := c.Param("id")
 	utils.Success(c, gin.H{
-		"id": keyID,
+		"id":                 keyID,
 		"usage_last_30_days": 1500,
-		"last_used_at": "2024-03-20T15:30:00Z",
+		"last_used_at":       "2024-03-20T15:30:00Z",
 	})
 }

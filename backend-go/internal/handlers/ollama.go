@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -16,11 +17,23 @@ import (
 )
 
 type OllamaHandler struct {
-	db *database.DB
+	db        *database.DB
+	fallbacks map[string]string
 }
 
 func NewOllamaHandler(db *database.DB) *OllamaHandler {
-	return &OllamaHandler{db: db}
+	fallbacks := make(map[string]string)
+	fallbackStr := os.Getenv("APP_FALLBACK_MODELS")
+	if fallbackStr != "" {
+		pairs := strings.Split(fallbackStr, ",")
+		for _, pair := range pairs {
+			kv := strings.Split(pair, "=")
+			if len(kv) == 2 {
+				fallbacks[strings.TrimSpace(kv[0])] = strings.TrimSpace(kv[1])
+			}
+		}
+	}
+	return &OllamaHandler{db: db, fallbacks: fallbacks}
 }
 
 // bestEndpointForModel returns the URL of the top-ranked endpoint for a model
@@ -126,12 +139,49 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 
 	name, tag := parseModel(modelRaw)
 	endpoints, err := h.bestEndpointsForModel(name, tag)
+
+	// Attempt blazing fast in-memory fallback route if unavailable
+	if err != nil || len(endpoints) == 0 {
+		lookupKey := fmt.Sprintf("%s:%s", name, tag)
+		if fallbackRaw, ok := h.fallbacks[lookupKey]; ok {
+			log.Printf("[proxy] Model %s unavailable, applying fallback to %s", lookupKey, fallbackRaw)
+
+			name, tag = parseModel(fallbackRaw)
+			endpoints, err = h.bestEndpointsForModel(name, tag)
+			if err == nil && len(endpoints) > 0 {
+				c.Header("X-Model-Fallback", fallbackRaw)
+
+				// Rewrite the model name in the payload to match the fallback
+				bodyMap["model"] = fallbackRaw
+				rawBody, _ = json.Marshal(bodyMap)
+			}
+		}
+	}
+
 	if err != nil || len(endpoints) == 0 {
 		c.JSON(404, gin.H{"error": fmt.Sprintf("No available endpoint found for model %s:%s", name, tag)})
 		return
 	}
 
 	stream, _ := bodyMap["stream"].(bool)
+	var cacheKey string
+
+	// Attempt Cache Hit for EXACT non-streaming requests
+	// We skip caching for massive payloads (e.g. >500KB base64 images) to preserve memory
+	if !stream && len(rawBody) < 500*1024 {
+		cacheKey = GenerateCacheKey(bodyMap)
+		if cachedData, cachedHeaders, ok := GlobalCache.Get(cacheKey); ok {
+			log.Printf("[proxy] Cache HIT for key %s", cacheKey)
+			for k, vs := range cachedHeaders {
+				for _, v := range vs {
+					c.Header(k, v)
+				}
+			}
+			c.Header("X-Cache-Hit", "true")
+			c.Data(200, "application/json", cachedData)
+			return
+		}
+	}
 
 	// Try each endpoint in priority order
 	for _, endpointURL := range endpoints {
@@ -187,9 +237,16 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 			}
 			resp.Body.Close()
 		} else {
-			// Non-streaming: copy full body
-			io.Copy(c.Writer, resp.Body)
+			// Non-streaming: copy full body and cache it
+			respBytes, bodyErr := io.ReadAll(resp.Body)
 			resp.Body.Close()
+			if bodyErr == nil {
+				// Cache successful responses for 10 minutes
+				if resp.StatusCode == 200 && cacheKey != "" {
+					GlobalCache.Set(cacheKey, respBytes, resp.Header, 10*time.Minute)
+				}
+				c.Writer.Write(respBytes)
+			}
 		}
 		return
 	}

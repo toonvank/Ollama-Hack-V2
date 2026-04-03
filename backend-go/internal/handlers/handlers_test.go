@@ -96,7 +96,7 @@ func TestUserHandler_Update_NoFields(t *testing.T) {
 	handler := NewUserHandler(nil)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	
+
 	body := map[string]interface{}{}
 	jsonBytes, _ := json.Marshal(body)
 	c.Request, _ = http.NewRequest("PUT", "/users/1", bytes.NewBuffer(jsonBytes))
@@ -194,7 +194,7 @@ func TestPlanHandler_Update_NoFields(t *testing.T) {
 	handler := NewPlanHandler(nil)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	
+
 	body := map[string]interface{}{}
 	jsonBytes, _ := json.Marshal(body)
 	c.Request, _ = http.NewRequest("PUT", "/plans/1", bytes.NewBuffer(jsonBytes))
@@ -248,7 +248,7 @@ func TestEndpointHandler_BatchCreate_Empty(t *testing.T) {
 	handler := NewEndpointHandler(nil)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	
+
 	body := map[string]interface{}{
 		"endpoints": []interface{}{},
 	}
@@ -282,7 +282,7 @@ func TestEndpointHandler_Update_NoFields(t *testing.T) {
 	handler := NewEndpointHandler(nil)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	
+
 	body := map[string]interface{}{}
 	jsonBytes, _ := json.Marshal(body)
 	c.Request, _ = http.NewRequest("PUT", "/endpoints/1", bytes.NewBuffer(jsonBytes))
@@ -370,7 +370,7 @@ func TestEndpointHandler_BatchGetTasks_Empty(t *testing.T) {
 	handler := NewEndpointHandler(nil)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	
+
 	body := map[string]interface{}{
 		"endpoint_ids": []int{},
 	}
@@ -422,7 +422,7 @@ func TestUserHandler_Create_EmptyUsername(t *testing.T) {
 	handler := NewUserHandler(nil)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	
+
 	body := map[string]interface{}{
 		"username": "",
 		"password": "password123",
@@ -442,7 +442,7 @@ func TestAuthHandler_Login_MissingUsername(t *testing.T) {
 	handler := NewAuthHandler(nil, nil)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	
+
 	body := map[string]interface{}{
 		"password": "password123",
 	}
@@ -462,7 +462,7 @@ func TestAuthHandler_ChangePassword_MissingOldPassword(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Set("user_id", 1)
-	
+
 	body := map[string]interface{}{
 		"new_password": "newpass123456789",
 	}
@@ -481,7 +481,7 @@ func TestEndpointHandler_BatchDelete_Empty(t *testing.T) {
 	handler := NewEndpointHandler(nil)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	
+
 	body := map[string]interface{}{
 		"endpoint_ids": []int{},
 	}
@@ -500,7 +500,7 @@ func TestEndpointHandler_BatchTest_Empty(t *testing.T) {
 	handler := NewEndpointHandler(nil)
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	
+
 	body := map[string]interface{}{
 		"endpoint_ids": []int{},
 	}
