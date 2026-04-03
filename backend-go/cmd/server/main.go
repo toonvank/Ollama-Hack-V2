@@ -72,7 +72,7 @@ func main() {
 		public.GET("/health", func(c *gin.Context) {
 			c.JSON(200, gin.H{"status": "healthy"})
 		})
-		
+
 		// Unprotected live stats endpoint for frontend dashboard EventSource
 		public.GET("/stats/live", handlers.LiveMetrics)
 	}
