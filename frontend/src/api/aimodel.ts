@@ -19,7 +19,7 @@ export const aiModelApi = {
     });
 
     return apiClient.get<PageResponse<AIModelInfoWithEndpointCount>>(
-      `/api/v2/ai_model/${queryString}`,
+      `/api/v2/ai_model${queryString}`,
     );
   },
 

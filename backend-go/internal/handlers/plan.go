@@ -38,16 +38,27 @@ func (h *PlanHandler) GetCurrentUserPlan(c *gin.Context) {
 	}
 
 	if user.PlanID == nil {
-		utils.NotFound(c, "Plan not found")
+		// Return null/empty plan instead of 404 - frontend expects this
+		utils.Success(c, nil)
 		return
 	}
 
 	var plan models.Plan
 	if err := h.db.Get(&plan, "SELECT * FROM plans WHERE id = $1", *user.PlanID); err != nil {
-		utils.NotFound(c, "Plan not found")
+		utils.Success(c, nil)
 		return
 	}
 
+	utils.Success(c, plan)
+}
+
+func (h *PlanHandler) Get(c *gin.Context) {
+	planID := c.Param("id")
+	var plan models.Plan
+	if err := h.db.Get(&plan, "SELECT * FROM plans WHERE id = $1", planID); err != nil {
+		utils.NotFound(c, "Plan not found")
+		return
+	}
 	utils.Success(c, plan)
 }
 

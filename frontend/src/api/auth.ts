@@ -18,16 +18,7 @@ export const authApi = {
 
   // UserSign In
   login: (username: string, password: string) => {
-    const formData = new URLSearchParams();
-
-    formData.append("username", username);
-    formData.append("password", password);
-
-    return apiClient.post<Token>("/api/v2/user/login", formData, {
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-    });
+    return apiClient.post<Token>("/api/v2/user/login", { username, password });
   },
 
   // Get current user info
@@ -44,7 +35,7 @@ export const authApi = {
 
   // Create new user (requires admin privileges)
   createUser: (data: UserAuth) => {
-    return apiClient.post<UserInfo>("/api/v2/user/", data);
+    return apiClient.post<UserInfo>("/api/v2/user", data);
   },
 
   // Get all users (requires admin privileges)
@@ -57,7 +48,7 @@ export const authApi = {
       order: params.order,
     });
 
-    return apiClient.get<PageResponse<UserInfo>>(`/api/v2/user/${queryString}`);
+    return apiClient.get<PageResponse<UserInfo>>(`/api/v2/user${queryString}`);
   },
 
   // Get user by ID (requires admin privileges)

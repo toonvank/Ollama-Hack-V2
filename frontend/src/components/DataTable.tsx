@@ -1,4 +1,4 @@
-import React, { ReactNode, useMemo, useState } from "react";
+import React, { ReactNode, useCallback, useMemo, useState } from "react";
 import {
   Table,
   TableHeader,
@@ -80,8 +80,8 @@ export interface DataTableProps<T> {
   pages?: number;
   pageSize?: number;
   onPageChange: (page: number) => void;
-  sortDescriptor: SortDescriptor;
-  onSortChange: (descriptor: SortDescriptor) => void;
+  sortDescriptor?: SortDescriptor;
+  onSortChange?: (descriptor: SortDescriptor) => void;
   isLoading?: boolean;
   error?: Error;
   searchTerm?: string;
@@ -98,9 +98,8 @@ export interface DataTableProps<T> {
   autoSearchDelay?: number;
   removeWrapper?: boolean;
   topActionContent?: ReactNode;
-  minPageSize?: number; // Minimum page size
-  maxPageSize?: number; // Maximum page size
-  // Multi-select related props
+  minPageSize?: number;
+  maxPageSize?: number;
   selectionMode?: "none" | "single" | "multiple";
   selectedKeys?: Selection;
   onSelectionChange?: (keys: Set<Key>) => void;
@@ -108,6 +107,8 @@ export interface DataTableProps<T> {
   showJumper?: boolean;
   showCustomPageSize?: boolean;
 }
+
+const PAGE_SIZE_OPTIONS = [5, 10, 15, 30, 50];
 
 // Generic DataTable component
 export const DataTable = <T extends { id?: number | string }>({
@@ -139,7 +140,6 @@ export const DataTable = <T extends { id?: number | string }>({
   topActionContent,
   minPageSize = 5,
   maxPageSize = 100,
-  // Multi-select related props
   selectionMode = "none",
   selectedKeys,
   onSelectionChange,
@@ -148,7 +148,7 @@ export const DataTable = <T extends { id?: number | string }>({
   showCustomPageSize = true,
 }: DataTableProps<T>) => {
   // Get header columns
-  const headerColumns = React.useMemo(() => {
+  const headerColumns = useMemo(() => {
     if (visibleColumns === "all") return columns;
 
     return columns.filter((column) =>
@@ -157,9 +157,8 @@ export const DataTable = <T extends { id?: number | string }>({
   }, [visibleColumns, columns]);
 
   // Rows per page
-  const pageSizeOptions = [5, 10, 15, 30, 50];
   const [pageSizeSelectedKeys, setPageSizeSelectedKeys] = useState(
-    pageSizeOptions.includes(selectedSize)
+    PAGE_SIZE_OPTIONS.includes(selectedSize)
       ? new Set([selectedSize.toString()])
       : new Set(["custom"]),
   );
@@ -170,75 +169,85 @@ export const DataTable = <T extends { id?: number | string }>({
   );
 
   // Validate custom page size
-  const validateCustomPageSize = (value: string): boolean => {
-    return (
-      value.match(/^\d+$/) &&
-      Number(value) >= minPageSize &&
-      Number(value) <= maxPageSize
-    );
-  };
-
-  // Check if custom page size is invalid
   const isInvalidCustomPageSize = useMemo(() => {
-    return !validateCustomPageSize(customPageSize);
+    return !(
+      customPageSize.match(/^\d+$/) &&
+      Number(customPageSize) >= minPageSize &&
+      Number(customPageSize) <= maxPageSize
+    );
   }, [customPageSize, minPageSize, maxPageSize]);
 
   // Handle apply custom page size
-  const applyCustomPageSize = () => {
-    if (isInvalidCustomPageSize) {
-      return;
-    }
+  const applyCustomPageSize = useCallback(() => {
+    if (isInvalidCustomPageSize) return;
 
     const customPageSizeNumber = Number(customPageSize);
 
     setSize?.(customPageSizeNumber);
-    if (pageSizeOptions.includes(customPageSizeNumber)) {
+    if (PAGE_SIZE_OPTIONS.includes(customPageSizeNumber)) {
       setPageSizeSelectedKeys(new Set([customPageSize]));
     } else {
       setPageSizeSelectedKeys(new Set(["custom"]));
     }
 
-    setCustomPageSize(customPageSize);
     onPageChange(1);
-  };
+  }, [isInvalidCustomPageSize, customPageSize, setSize, onPageChange]);
 
   // Handle enter key for custom page size
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      applyCustomPageSize();
-    }
-  };
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Enter") {
+        applyCustomPageSize();
+      }
+    },
+    [applyCustomPageSize],
+  );
+
+  // Handle page size dropdown change
+  const handlePageSizeChange = useCallback(
+    (e: { currentKey?: string }) => {
+      const key = e.currentKey;
+
+      if (key && key !== "custom") {
+        setSize?.(Number(key));
+        setPageSizeSelectedKeys(new Set([key]));
+        setCustomPageSize(key);
+        onPageChange(1);
+      }
+    },
+    [setSize, onPageChange],
+  );
+
+  // Handle selection change
+  const handleSelectionChange = useCallback(
+    (selection: Selection) => {
+      if (selection === "all") {
+        onSelectionChange?.(new Set(data.map((item) => item.id?.toString())));
+      } else {
+        onSelectionChange?.(selection);
+      }
+    },
+    [onSelectionChange, data],
+  );
 
   // Bottom content area
-  const bottomContent = React.useMemo(() => {
+  const bottomContent = useMemo(() => {
+    if (pages <= 1) return null;
+
     return (
       <div className="py-2 px-2 flex justify-between items-center flex-col gap-3">
-        {pages > 1 && (
-          <Pagination
-            currentPage={page}
-            showJumper={showJumper}
-            totalPages={pages}
-            onPageChange={onPageChange}
-          />
-        )}
+        <Pagination
+          currentPage={page}
+          showJumper={showJumper}
+          totalPages={pages}
+          onPageChange={onPageChange}
+        />
       </div>
     );
-  }, [
-    pages,
-    page,
-    onPageChange,
-    selectedSize,
-    setSize,
-    total,
-    data.length,
-    pageSize,
-    customPageSize,
-    minPageSize,
-    maxPageSize,
-  ]);
+  }, [pages, page, onPageChange, showJumper]);
 
   // Top content area
-  const topContent = React.useMemo(() => {
+  const topContent = useMemo(() => {
     return (
       <div className="flex justify-between flex-col gap-3 w-full">
         <div className="flex justify-between gap-3 items-end w-full">
@@ -300,13 +309,6 @@ export const DataTable = <T extends { id?: number | string }>({
             {setSize && (
               <Dropdown>
                 <DropdownTrigger>
-                  {/* <Button
-                    className="text-default-400 text-small"
-                    endContent={<ChevronDownIcon className="text-small" />}
-                    variant="light"
-                  >
-                    Rows per page: {selectedSize}
-                  </Button> */}
                   <div className="flex items-center gap-1 text-default-400 text-small ml-2 cursor-pointer">
                     <span>Rows per page: {selectedSize}</span>
                     <ChevronDownIcon />
@@ -318,20 +320,10 @@ export const DataTable = <T extends { id?: number | string }>({
                   closeOnSelect={true}
                   selectedKeys={pageSizeSelectedKeys}
                   selectionMode="single"
-                  onSelectionChange={(e) => {
-                    const key = e.currentKey;
-
-                    // No need to handle "custom" option, integrated into dropdown
-                    if (key && key !== "custom") {
-                      setSize(Number(key));
-                      setPageSizeSelectedKeys(new Set([key]));
-                      setCustomPageSize(key);
-                      onPageChange(1);
-                    }
-                  }}
+                  onSelectionChange={handlePageSizeChange}
                 >
                   <DropdownSection showDivider title="Preset Sizes">
-                    {pageSizeOptions.map((size) => (
+                    {PAGE_SIZE_OPTIONS.map((size) => (
                       <DropdownItem key={size}>{size}</DropdownItem>
                     ))}
                   </DropdownSection>
@@ -418,6 +410,11 @@ export const DataTable = <T extends { id?: number | string }>({
     maxPageSize,
     applyCustomPageSize,
     handleKeyDown,
+    handlePageSizeChange,
+    topActionContent,
+    total,
+    data.length,
+    showCustomPageSize,
   ]);
 
   // Render table
@@ -427,22 +424,13 @@ export const DataTable = <T extends { id?: number | string }>({
       aria-label={title}
       bottomContent={bottomContent}
       bottomContentPlacement="outside"
-      // classNames={{
-      //   wrapper: "max-h-[600px]",
-      // }}
       removeWrapper={removeWrapper}
       selectedKeys={selectedKeys}
       selectionMode={selectionMode}
       sortDescriptor={sortDescriptor}
       topContent={topContent}
       topContentPlacement="outside"
-      onSelectionChange={(selection) => {
-        if (selection === "all") {
-          onSelectionChange?.(new Set(data.map((item) => item.id?.toString())));
-        } else {
-          onSelectionChange?.(selection);
-        }
-      }}
+      onSelectionChange={handleSelectionChange}
       onSortChange={onSortChange}
     >
       <TableHeader columns={headerColumns}>
@@ -477,7 +465,7 @@ export const DataTable = <T extends { id?: number | string }>({
   return (
     <div className="w-full">
       {error ? (
-        <ErrorDisplay error={new Error(error?.message || `Loading${title}failed`)} />
+        <ErrorDisplay error={new Error(error?.message || `Loading ${title} failed`)} />
       ) : (
         renderTable()
       )}

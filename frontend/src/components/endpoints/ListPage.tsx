@@ -272,17 +272,17 @@ const EndpointListPage = () => {
           setTestingEndpointIds((prev) => {
             if (prev.includes(id)) {
               addToast({
-                title: "Test triggered",
-                description: `Endpoint ${id} test started. Please wait for results.`,
-                color: "primary",
+                title: "Already Testing",
+                description: `Endpoint ${id} is already being tested. Please wait for results.`,
+                color: "warning",
               });
 
               return prev;
             }
             endpointApi.triggerEndpointTest(id);
             addToast({
-              title: "Test triggered",
-              description: `Endpoints ${id} Test started，Please wait for results`,
+              title: "Test Triggered",
+              description: `Endpoint ${id} test started. Please wait for results.`,
               color: "primary",
             });
 
@@ -359,13 +359,13 @@ const EndpointListPage = () => {
               if (task.status === TaskStatusEnum.FAILED) {
                 addToast({
                   title: "Test Failed",
-                  description: `Endpoints ${endpointId} Test Failed，Please try again`,
+                  description: `Endpoint ${endpointId} test failed. Please try again.`,
                   color: "danger",
                 });
               } else if (task.status === TaskStatusEnum.DONE) {
                 addToast({
                   title: "Test Successful",
-                  description: `Endpoints ${endpointId} Test Successful`,
+                  description: `Endpoint ${endpointId} test completed successfully.`,
                   color: "success",
                 });
               }

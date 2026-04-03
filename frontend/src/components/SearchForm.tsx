@@ -1,5 +1,5 @@
 import { Input } from "@heroui/input";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { SearchIcon } from "./icons";
 
@@ -8,7 +8,7 @@ interface SearchInputProps {
   placeholder: string;
   setSearchTerm: (value: string) => void;
   handleSearch: (e: React.FormEvent) => void;
-  autoSearchDelay?: number; // Auto-search delay (ms)
+  autoSearchDelay?: number;
 }
 
 const SearchForm = ({
@@ -16,33 +16,53 @@ const SearchForm = ({
   searchTerm,
   setSearchTerm,
   handleSearch,
-  autoSearchDelay = 0, // No auto-search by default
+  autoSearchDelay = 0,
 }: SearchInputProps) => {
   const [localSearchTerm, setLocalSearchTerm] = useState(searchTerm);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Store latest callbacks in refs to avoid dependency churn
+  const handleSearchRef = useRef(handleSearch);
+  const setSearchTermRef = useRef(setSearchTerm);
 
-  // When external searchTerm changes, update local searchTerm
+  handleSearchRef.current = handleSearch;
+  setSearchTermRef.current = setSearchTerm;
+
+  // Sync from external searchTerm changes (e.g. URL state reset)
   useEffect(() => {
     setLocalSearchTerm(searchTerm);
   }, [searchTerm]);
 
-  // Handle search input change with auto-search support
-  const handleSearchChange = (value: string) => {
-    setLocalSearchTerm(value);
-    setSearchTerm(value);
+  // Debounced auto-search
+  useEffect(() => {
+    if (autoSearchDelay <= 0) return;
+    if (localSearchTerm === searchTerm) return;
 
-    // If auto-search delay is set, enable debounced auto-search
-    if (autoSearchDelay > 0) {
-      const timer = setTimeout(() => {
-        const syntheticEvent = {
-          preventDefault: () => {},
-        } as React.FormEvent;
+    timerRef.current = setTimeout(() => {
+      setSearchTermRef.current(localSearchTerm);
+      handleSearchRef.current({ preventDefault: () => {} } as React.FormEvent);
+    }, autoSearchDelay);
 
-        handleSearch(syntheticEvent);
-      }, autoSearchDelay);
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [localSearchTerm, autoSearchDelay, searchTerm]);
 
-      return () => clearTimeout(timer);
-    }
-  };
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      setLocalSearchTerm(value);
+
+      // If no auto search delay, update external immediately
+      if (autoSearchDelay <= 0) {
+        setSearchTermRef.current(value);
+      }
+    },
+    [autoSearchDelay],
+  );
+
+  const handleClear = useCallback(() => {
+    setLocalSearchTerm("");
+    setSearchTermRef.current("");
+  }, []);
 
   return (
     <form className="w-full sm:w-auto flex" onSubmit={handleSearch}>
@@ -57,10 +77,7 @@ const SearchForm = ({
         value={localSearchTerm}
         variant="bordered"
         onChange={(e) => handleSearchChange(e.target.value)}
-        onClear={() => {
-          setLocalSearchTerm("");
-          setSearchTerm("");
-        }}
+        onClear={handleClear}
       />
     </form>
   );

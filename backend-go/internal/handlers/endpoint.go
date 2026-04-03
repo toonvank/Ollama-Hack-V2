@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,14 +22,130 @@ func NewEndpointHandler(db *database.DB) *EndpointHandler {
 }
 
 func (h *EndpointHandler) List(c *gin.Context) {
-	// Simple list, ignoring pagination for brevity unless requested.
+	// Parse pagination and sorting parameters
+	page := 1
+	pageSize := 50
+	orderBy := "id"
+	order := "asc"
+	statusFilter := ""
+
+	if p := c.Query("page"); p != "" {
+		if val, err := strconv.Atoi(p); err == nil && val > 0 {
+			page = val
+		}
+	}
+	if ps := c.Query("size"); ps != "" {
+		if val, err := strconv.Atoi(ps); err == nil && val > 0 {
+			pageSize = val
+		}
+	}
+	if ob := c.Query("order_by"); ob != "" {
+		// Validate order_by field to prevent SQL injection
+		allowedFields := map[string]bool{"id": true, "name": true, "url": true, "status": true, "created_at": true}
+		if allowedFields[ob] {
+			orderBy = ob
+		}
+	}
+	if o := c.Query("order"); o != "" {
+		if o == "asc" || o == "desc" {
+			order = o
+		}
+	}
+	if s := c.Query("status"); s != "" {
+		statusFilter = s
+	}
+
+	// Calculate offset
+	offset := (page - 1) * pageSize
+
+	// Build WHERE clause
+	whereClause := ""
+	var countArgs []interface{}
+	var queryArgs []interface{}
+	
+	if statusFilter != "" {
+		whereClause = "WHERE status = $1"
+		countArgs = append(countArgs, statusFilter)
+		queryArgs = append(queryArgs, statusFilter, pageSize, offset)
+	} else {
+		queryArgs = append(queryArgs, pageSize, offset)
+	}
+
+	// Get total count
+	var total int
+	countQuery := "SELECT COUNT(*) FROM endpoints " + whereClause
+	if err := h.db.Get(&total, countQuery, countArgs...); err != nil {
+		utils.InternalServerError(c, "Failed to count endpoints")
+		return
+	}
+
+	// Fetch paginated and sorted data
+	var query string
+	if statusFilter != "" {
+		query = fmt.Sprintf("SELECT * FROM endpoints WHERE status = $1 ORDER BY %s %s LIMIT $2 OFFSET $3", orderBy, order)
+	} else {
+		query = fmt.Sprintf("SELECT * FROM endpoints ORDER BY %s %s LIMIT $1 OFFSET $2", orderBy, order)
+	}
+	
 	var endpoints []models.Endpoint
-	err := h.db.Select(&endpoints, "SELECT * FROM endpoints ORDER BY id")
-	if err != nil {
+	if err := h.db.Select(&endpoints, query, queryArgs...); err != nil {
 		utils.InternalServerError(c, "Failed to fetch endpoints")
 		return
 	}
-	utils.SuccessPage(c, endpoints, len(endpoints), 1, 50, 1)
+
+	// Build response with additional data for each endpoint
+	result := make([]models.EndpointWithAIModelCount, 0, len(endpoints))
+	for _, ep := range endpoints {
+		// Get recent performances (last 5)
+		var performances []models.EndpointPerformance
+		h.db.Select(&performances, 
+			"SELECT id, status, ollama_version, created_at FROM endpoint_performances WHERE endpoint_id = $1 ORDER BY created_at DESC LIMIT 5", 
+			ep.ID)
+		if performances == nil {
+			performances = []models.EndpointPerformance{}
+		}
+
+		// Get AI model counts
+		var totalCount int
+		var availableCount int
+		h.db.Get(&totalCount, "SELECT COUNT(*) FROM endpoint_ai_models WHERE endpoint_id = $1", ep.ID)
+		h.db.Get(&availableCount, "SELECT COUNT(*) FROM endpoint_ai_models WHERE endpoint_id = $1 AND status = 'available'", ep.ID)
+
+		// Get latest task status
+		var taskStatus *string
+		var status string
+		err := h.db.Get(&status, "SELECT status FROM endpoint_test_tasks WHERE endpoint_id = $1 ORDER BY created_at DESC LIMIT 1", ep.ID)
+		if err == nil {
+			taskStatus = &status
+		}
+
+		result = append(result, models.EndpointWithAIModelCount{
+			ID:                    ep.ID,
+			URL:                   ep.URL,
+			Name:                  ep.Name,
+			Status:                ep.Status,
+			CreatedAt:             ep.CreatedAt,
+			RecentPerformances:    performances,
+			TotalAIModelCount:     totalCount,
+			AvailableAIModelCount: availableCount,
+			TaskStatus:            taskStatus,
+		})
+	}
+
+	// Calculate total pages
+	pages := (total + pageSize - 1) / pageSize
+
+	utils.SuccessPage(c, result, total, page, pageSize, pages)
+}
+
+func (h *EndpointHandler) Get(c *gin.Context) {
+	id := c.Param("id")
+	var endpoint models.Endpoint
+	if err := h.db.Get(&endpoint, "SELECT * FROM endpoints WHERE id = $1", id); err != nil {
+		utils.NotFound(c, "Endpoint not found")
+		return
+	}
+	utils.Success(c, endpoint)
 }
 
 func (h *EndpointHandler) Create(c *gin.Context) {

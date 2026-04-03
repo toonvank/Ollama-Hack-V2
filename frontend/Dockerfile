@@ -19,7 +19,7 @@ ENV VITE_API_BASE_URL=/
 RUN yarn build
 
 # Production stage
-FROM nginx:stable-alpine
+FROM nginx:alpine-slim
 
 # Copy built files from build stage
 COPY --from=build /app/dist /usr/share/nginx/html

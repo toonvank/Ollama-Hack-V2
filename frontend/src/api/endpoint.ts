@@ -27,13 +27,13 @@ export const endpointApi = {
     });
 
     return apiClient.get<PageResponse<EndpointWithAIModelCount>>(
-      `/api/v2/endpoint/${queryString}`,
+      `/api/v2/endpoint${queryString}`,
     );
   },
 
   // Create New Endpoint
   createEndpoint: (data: EndpointCreate) => {
-    return apiClient.post<EndpointInfo>("/api/v2/endpoint/", data);
+    return apiClient.post<EndpointInfo>("/api/v2/endpoint", data);
   },
 
   // Get single endpoint details (with AI models)

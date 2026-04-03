@@ -20,13 +20,13 @@ export const planApi = {
     });
 
     return apiClient.get<PageResponse<PlanResponse>>(
-      `/api/v2/plan/${queryString}`,
+      `/api/v2/plan${queryString}`,
     );
   },
 
   // Create New Plan
   createPlan: (data: PlanCreate) => {
-    return apiClient.post<PlanResponse>("/api/v2/plan/", data);
+    return apiClient.post<PlanResponse>("/api/v2/plan", data);
   },
 
   // Get plan by ID

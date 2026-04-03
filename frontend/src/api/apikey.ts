@@ -21,13 +21,13 @@ export const apiKeyApi = {
     });
 
     return apiClient.get<PageResponse<ApiKeyInfo>>(
-      `/api/v2/apikey/${queryString}`,
+      `/api/v2/apikey${queryString}`,
     );
   },
 
   // Create new API key
   createApiKey: (data: ApiKeyCreate) => {
-    return apiClient.post<ApiKeyResponse>("/api/v2/apikey/", data);
+    return apiClient.post<ApiKeyResponse>("/api/v2/apikey", data);
   },
 
   // Delete API Keys

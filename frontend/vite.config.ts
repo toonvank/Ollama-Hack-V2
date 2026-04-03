@@ -6,14 +6,14 @@ import tsconfigPaths from "vite-tsconfig-paths";
 export default defineConfig({
   plugins: [react(), tsconfigPaths()],
   build: {
-    chunkSizeWarningLimit: 700, // 适当提高警告阈值
+    chunkSizeWarningLimit: 700,
     rollupOptions: {
       output: {
         manualChunks: {
-          // React 核心库
+          // React core
           "react-core": ["react", "react-dom", "react-router-dom"],
 
-          // UI 组件库
+          // UI component library
           "ui-components": [
             "@heroui/number-input",
             "@heroui/button",
@@ -45,10 +45,10 @@ export default defineConfig({
 
           "ui-support": ["@heroui/theme", "framer-motion", "tailwind-variants"],
 
-          // 图表相关库
+          // Chart libraries
           charts: ["apexcharts", "react-apexcharts"],
 
-          // 工具库
+          // Utility libraries
           utils: [
             "axios",
             "date-fns",
@@ -59,7 +59,7 @@ export default defineConfig({
             "react-syntax-highlighter",
           ],
 
-          // 图标库
+          // Icon libraries
           icons: [
             "@fortawesome/fontawesome-svg-core",
             "@fortawesome/free-regular-svg-icons",

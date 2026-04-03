@@ -24,6 +24,7 @@ export interface QueryParams extends PaginationParams {
   search?: string;
   order_by?: string;
   order?: SortOrder;
+  status?: string;
 }
 
 // API error response

@@ -11,6 +11,7 @@ import { AIModelInfoWithEndpointCount, PageResponse } from "@/types";
 import DashboardLayout from "@/layouts/Main";
 import ModelTable from "@/components/models/Table";
 import ModelDetailDrawer from "@/components/models/DetailDrawer";
+import { addToast } from "@heroui/toast";
 
 // Model list page
 export const ModelListPage = () => {
@@ -109,9 +110,19 @@ export const ModelListPage = () => {
   const handleToggleModel = async (modelId: number, enabled: boolean) => {
     try {
       await aiModelApi.toggleModel(modelId, enabled);
+      addToast({
+        title: "Success",
+        description: `Model ${enabled ? "enabled" : "disabled"} successfully`,
+        color: "success",
+      });
       refetch();
     } catch (e) {
       console.error("Failed to toggle model:", e);
+      addToast({
+        title: "Error",
+        description: "Failed to update model status",
+        color: "danger",
+      });
     }
   };
 
