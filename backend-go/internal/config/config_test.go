@@ -125,28 +125,28 @@ func TestLoadWithMissingDatabaseEngine(t *testing.T) {
 
 func TestLoadWithInvalidPortNumber(t *testing.T) {
 	testCases := []struct {
-		name     string
-		portStr  string
+		name      string
+		portStr   string
 		expectErr bool
 	}{
 		{
-			name:     "Valid port",
-			portStr:  "5432",
+			name:      "Valid port",
+			portStr:   "5432",
 			expectErr: false,
 		},
 		{
-			name:     "Port zero",
-			portStr:  "0",
+			name:      "Port zero",
+			portStr:   "0",
 			expectErr: false, // viper will parse it as 0, but app should handle
 		},
 		{
-			name:     "Negative port",
-			portStr:  "-1",
+			name:      "Negative port",
+			portStr:   "-1",
 			expectErr: false, // viper will parse negative numbers
 		},
 		{
-			name:     "Port exceeding max",
-			portStr:  "65536",
+			name:      "Port exceeding max",
+			portStr:   "65536",
 			expectErr: false, // viper parses it, validation is app's responsibility
 		},
 	}

@@ -257,7 +257,7 @@ func TestOllamaGenerateResponseFinal(t *testing.T) {
 
 func TestTesterStop(t *testing.T) {
 	tester := NewTester(nil)
-	
+
 	// Check stop channel is open
 	select {
 	case <-tester.stop:
@@ -265,10 +265,10 @@ func TestTesterStop(t *testing.T) {
 	default:
 		// Expected - channel is open
 	}
-	
+
 	// Stop the tester
 	tester.Stop()
-	
+
 	// Check stop channel is now closed
 	select {
 	case <-tester.stop:
@@ -313,7 +313,7 @@ func TestEndpointTestResultFakeStatus(t *testing.T) {
 func TestTestEndpoint_Unreachable(t *testing.T) {
 	// Test with an unreachable endpoint
 	result := TestEndpoint("http://192.0.2.1:11434") // TEST-NET-1, guaranteed unreachable
-	
+
 	if result.EndpointStatus != StatusUnavailable {
 		t.Errorf("Expected status 'unavailable', got '%s'", result.EndpointStatus)
 	}
@@ -863,28 +863,26 @@ func TestTestModelConnectionTime(t *testing.T) {
 // The JSON unmarshaling error handling is tested implicitly through other tests
 
 // TestTestModelEmptyLines tests handling of empty lines in stream
-// Note: Removed complex streaming test due to httptest limitations with streaming responses  
+// Note: Removed complex streaming test due to httptest limitations with streaming responses
 // The empty line handling is verified through direct stream tests
-
-
 
 // TestTesterStart tests that Tester.Start() initializes properly
 func TestTesterStart(t *testing.T) {
 	tester := NewTester(nil)
-	
+
 	// Start the tester
 	doneChan := make(chan bool, 1)
 	go func() {
 		tester.Start()
 		doneChan <- true
 	}()
-	
+
 	// Give it a moment to start
 	time.Sleep(100 * time.Millisecond)
-	
+
 	// Stop the tester
 	tester.Stop()
-	
+
 	// Wait for goroutine to finish
 	select {
 	case <-doneChan:
@@ -897,7 +895,7 @@ func TestTesterStart(t *testing.T) {
 // TestTesterInterval verifies Tester interval is set correctly
 func TestTesterInterval(t *testing.T) {
 	tester := NewTester(nil)
-	
+
 	expectedInterval := 10 * time.Second
 	if tester.interval != expectedInterval {
 		t.Errorf("Expected interval %v, got %v", expectedInterval, tester.interval)
@@ -907,7 +905,7 @@ func TestTesterInterval(t *testing.T) {
 // TestNewTesterInitialization tests NewTester creates a properly initialized Tester
 func TestNewTesterInitialization(t *testing.T) {
 	tester := NewTester(nil)
-	
+
 	if tester == nil {
 		t.Fatal("Expected Tester to be created, got nil")
 	}
@@ -920,7 +918,7 @@ func TestNewTesterInitialization(t *testing.T) {
 	if tester.stop == nil {
 		t.Error("Expected stop channel to be initialized")
 	}
-	
+
 	// Verify stop channel is open (can receive from it would block)
 	select {
 	case <-tester.stop:
@@ -934,7 +932,7 @@ func TestNewTesterInitialization(t *testing.T) {
 func TestModelParsingValid(t *testing.T) {
 	// Test the parsing logic from TestEndpoint
 	models := []string{"llama2:7b", "mistral:7b", "neural-chat:7b"}
-	
+
 	for _, modelStr := range models {
 		parts := strings.SplitN(modelStr, ":", 2)
 		if len(parts) != 2 {
@@ -942,7 +940,7 @@ func TestModelParsingValid(t *testing.T) {
 		}
 		name := parts[0]
 		tag := parts[1]
-		
+
 		if name == "" || tag == "" {
 			t.Errorf("Empty name or tag for model '%s'", modelStr)
 		}
@@ -952,7 +950,7 @@ func TestModelParsingValid(t *testing.T) {
 // TestModelParsingInvalid tests model name parsing with invalid format
 func TestModelParsingInvalid(t *testing.T) {
 	invalidModels := []string{"llama2", "no-tag", "model-without-separator"}
-	
+
 	for _, modelStr := range invalidModels {
 		parts := strings.SplitN(modelStr, ":", 2)
 		if len(parts) == 2 {
@@ -971,7 +969,7 @@ func TestModelParsingWithMultipleColons(t *testing.T) {
 	// Using SplitN with n=2 should only split on first colon
 	modelStr := "model:name:extra"
 	parts := strings.SplitN(modelStr, ":", 2)
-	
+
 	if len(parts) != 2 {
 		t.Errorf("Expected 2 parts, got %d", len(parts))
 	}
@@ -1011,11 +1009,11 @@ func TestEndpointStatusTransition(t *testing.T) {
 // TestTokensPerSecondCalculation tests TPS calculation with zero time
 func TestTokensPerSecondCalculation(t *testing.T) {
 	tests := []struct {
-		name           string
-		tokens         int
-		totalTime      float64
-		expectedTPS    float64
-		shouldBeZero   bool
+		name         string
+		tokens       int
+		totalTime    float64
+		expectedTPS  float64
+		shouldBeZero bool
 	}{
 		{"Normal calculation", 100, 10.0, 10.0, false},
 		{"High speed", 500, 5.0, 100.0, false},
@@ -1195,4 +1193,3 @@ func TestEndpointResponseStreamingFormat(t *testing.T) {
 		t.Errorf("Expected EndpointStatus 'available', got '%s'", result.EndpointStatus)
 	}
 }
-

@@ -72,6 +72,9 @@ func main() {
 		public.GET("/health", func(c *gin.Context) {
 			c.JSON(200, gin.H{"status": "healthy"})
 		})
+		
+		// Unprotected live stats endpoint for frontend dashboard EventSource
+		public.GET("/stats/live", handlers.LiveMetrics)
 	}
 
 	// Protected routes (any authenticated user)
@@ -80,7 +83,7 @@ func main() {
 	{
 		protected.GET("/user/me", authHandler.GetCurrentUser)
 		protected.PATCH("/user/me/change-password", authHandler.ChangePassword)
-		
+
 		// Plans for self
 		protected.GET("/plan/me", planHandler.GetCurrentUserPlan)
 

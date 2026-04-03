@@ -14,6 +14,7 @@ import {
 import DashboardLayout from "@/layouts/Main";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorDisplay from "@/components/ErrorDisplay";
+import { LiveStats } from "@/components/LiveStats";
 
 const DashboardPage = () => {
   const { user } = useAuth();
@@ -148,6 +149,9 @@ const DashboardPage = () => {
           Welcome to the Ollama Hack platform. Manage your Ollama endpoints and AI models here.
         </p>
       </Card>
+
+      {/* Live Command Center Visualizations */}
+      <LiveStats />
 
       {/* Statistics cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">

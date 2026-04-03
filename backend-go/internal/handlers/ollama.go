@@ -118,6 +118,10 @@ func (h *OllamaHandler) Completions(c *gin.Context) {
 // proxyRequest reads the model from the request body, finds the best endpoint,
 // and streams or forwards the response.
 func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
+	utils.TotalRequests.Add(1)
+	utils.ActiveRequests.Add(1)
+	defer utils.ActiveRequests.Add(-1)
+
 	rawBody, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		utils.BadRequest(c, "Failed to read request body")
@@ -171,6 +175,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 	if !stream && len(rawBody) < 500*1024 {
 		cacheKey = GenerateCacheKey(bodyMap)
 		if cachedData, cachedHeaders, ok := GlobalCache.Get(cacheKey); ok {
+			utils.CacheHits.Add(1)
 			log.Printf("[proxy] Cache HIT for key %s", cacheKey)
 			for k, vs := range cachedHeaders {
 				for _, v := range vs {
@@ -207,6 +212,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 		client := &http.Client{Timeout: 120 * time.Second}
 		resp, err := client.Do(req)
 		if err != nil {
+			utils.FailedRequests.Add(1)
 			log.Printf("[proxy] endpoint %s failed: %v", endpointURL, err)
 			continue
 		}
@@ -251,5 +257,6 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 		return
 	}
 
+	utils.FailedRequests.Add(1)
 	c.JSON(502, gin.H{"error": "All available endpoints failed to respond"})
 }

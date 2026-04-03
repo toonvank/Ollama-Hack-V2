@@ -24,9 +24,9 @@ type AIModelToggle struct {
 }
 
 type AIModelPerformance struct {
-	EndpointID        int     `json:"endpoint_id"`
-	EndpointName      string  `json:"endpoint_name"`
-	Status            string  `json:"status"`
+	EndpointID        int      `json:"endpoint_id"`
+	EndpointName      string   `json:"endpoint_name"`
+	Status            string   `json:"status"`
 	TokenPerSecond    *float64 `json:"token_per_second"`
 	MaxConnectionTime *float64 `json:"max_connection_time"`
 }

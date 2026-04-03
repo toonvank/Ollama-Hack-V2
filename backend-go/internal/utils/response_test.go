@@ -267,9 +267,9 @@ func TestSuccessWithComplexData(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 
 	data := struct {
-		ID       int      `json:"id"`
-		Name     string   `json:"name"`
-		Tags     []string `json:"tags"`
+		ID       int                    `json:"id"`
+		Name     string                 `json:"name"`
+		Tags     []string               `json:"tags"`
 		Metadata map[string]interface{} `json:"metadata"`
 	}{
 		ID:       1,

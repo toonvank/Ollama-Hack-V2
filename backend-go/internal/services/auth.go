@@ -51,7 +51,7 @@ func (s *AuthService) Login(username, password string) (*models.TokenResponse, e
 
 func (s *AuthService) GenerateToken(user *models.User) (string, error) {
 	expirationTime := time.Now().Add(time.Duration(s.cfg.App.AccessTokenExpireMinutes) * time.Minute)
-	
+
 	claims := &Claims{
 		UserID:   user.ID,
 		Username: user.Username,

@@ -35,9 +35,9 @@ type OllamaVersionResponse struct {
 
 // OllamaGenerateResponse is one streaming chunk from /api/generate
 type OllamaGenerateResponse struct {
-	Response string `json:"response"`
-	Done     bool   `json:"done"`
-	EvalCount int   `json:"eval_count"`
+	Response  string `json:"response"`
+	Done      bool   `json:"done"`
+	EvalCount int    `json:"eval_count"`
 }
 
 // ModelTestResult holds results for a single model test
@@ -103,11 +103,11 @@ func TestEndpoint(endpointURL string) *EndpointTestResult {
 		if len(parts) != 2 {
 			continue
 		}
-		
+
 		wg.Add(1)
 		go func(name, tag string) {
 			defer wg.Done()
-			
+
 			// If already identified as fake, don't start new tests
 			mu.Lock()
 			fake := isFake
@@ -115,12 +115,12 @@ func TestEndpoint(endpointURL string) *EndpointTestResult {
 			if fake {
 				return
 			}
-			
+
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
-			
+
 			mr := testModel(endpointURL, name, tag)
-			
+
 			mu.Lock()
 			if mr.Status == StatusFake {
 				isFake = true
@@ -128,7 +128,7 @@ func TestEndpoint(endpointURL string) *EndpointTestResult {
 			}
 			result.Models = append(result.Models, mr)
 			mu.Unlock()
-			
+
 		}(parts[0], parts[1])
 	}
 	wg.Wait()
@@ -433,5 +433,3 @@ func (t *Tester) executeTask(task pendingTask) {
 	log.Printf("[tester] finished task %d for endpoint %d — status: %s, models tested: %d",
 		task.ID, task.EndpointID, result.EndpointStatus, len(result.Models))
 }
-
-

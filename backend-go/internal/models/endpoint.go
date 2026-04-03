@@ -20,15 +20,15 @@ type EndpointPerformance struct {
 
 // EndpointWithAIModelCount is the response for list endpoint
 type EndpointWithAIModelCount struct {
-	ID                     int                   `json:"id"`
-	URL                    string                `json:"url"`
-	Name                   string                `json:"name"`
-	Status                 string                `json:"status,omitempty"`
-	CreatedAt              time.Time             `json:"created_at"`
-	RecentPerformances     []EndpointPerformance `json:"recent_performances"`
-	TotalAIModelCount      int                   `json:"total_ai_model_count"`
-	AvailableAIModelCount  int                   `json:"avaliable_ai_model_count"` // Note: frontend typo "avaliable"
-	TaskStatus             *string               `json:"task_status"`
+	ID                    int                   `json:"id"`
+	URL                   string                `json:"url"`
+	Name                  string                `json:"name"`
+	Status                string                `json:"status,omitempty"`
+	CreatedAt             time.Time             `json:"created_at"`
+	RecentPerformances    []EndpointPerformance `json:"recent_performances"`
+	TotalAIModelCount     int                   `json:"total_ai_model_count"`
+	AvailableAIModelCount int                   `json:"avaliable_ai_model_count"` // Note: frontend typo "avaliable"
+	TaskStatus            *string               `json:"task_status"`
 }
 
 type EndpointCreate struct {

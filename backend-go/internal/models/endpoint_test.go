@@ -55,15 +55,15 @@ func TestEndpointWithAIModelCount(t *testing.T) {
 	now := time.Now()
 	taskStatus := "done"
 	ep := EndpointWithAIModelCount{
-		ID:                     1,
-		URL:                    "http://example.com:11434",
-		Name:                   "Example",
-		Status:                 "available",
-		CreatedAt:              now,
-		RecentPerformances:     []EndpointPerformance{},
-		TotalAIModelCount:      10,
-		AvailableAIModelCount:  8,
-		TaskStatus:             &taskStatus,
+		ID:                    1,
+		URL:                   "http://example.com:11434",
+		Name:                  "Example",
+		Status:                "available",
+		CreatedAt:             now,
+		RecentPerformances:    []EndpointPerformance{},
+		TotalAIModelCount:     10,
+		AvailableAIModelCount: 8,
+		TaskStatus:            &taskStatus,
 	}
 
 	if ep.TotalAIModelCount != 10 {

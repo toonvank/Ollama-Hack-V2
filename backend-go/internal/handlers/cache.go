@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 )
@@ -23,6 +25,16 @@ type ResponseCache struct {
 // GlobalCache stores exact match responses for a limited time.
 var GlobalCache = &ResponseCache{
 	m: make(map[string]cacheEntry),
+}
+
+var normalizeRegexp = regexp.MustCompile(`[^\w\s]+`)
+
+// normalizeText trims, strips punctuation, and lowercases to maximize fuzzy caching
+func normalizeText(s string) string {
+	s = strings.ToLower(s)
+	s = normalizeRegexp.ReplaceAllString(s, "")
+	s = strings.Join(strings.Fields(s), " ")
+	return s
 }
 
 // Get attempts to retrieve a cache entry by key.
@@ -65,7 +77,8 @@ func GenerateCacheKey(bodyMap map[string]interface{}) string {
 	temp, _ := bodyMap["temperature"]
 	topP, _ := bodyMap["top_p"]
 
-	str := fmt.Sprintf("%v|%s|%s|%v|%v", model, msgs, prompt, temp, topP)
+	fuzzyContent := normalizeText(fmt.Sprintf("%s|%s", string(msgs), string(prompt)))
+	str := fmt.Sprintf("%v|%s|%v|%v", model, fuzzyContent, temp, topP)
 	hash := sha256.Sum256([]byte(str))
 	return hex.EncodeToString(hash[:])
 }

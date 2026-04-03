@@ -7,15 +7,15 @@ import (
 func TestHashPassword(t *testing.T) {
 	password := "mysecretpassword"
 	hash, err := HashPassword(password)
-	
+
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
-	
+
 	if hash == "" {
 		t.Fatalf("Expected hash to not be empty")
 	}
-	
+
 	if hash == password {
 		t.Fatalf("Expected hash to be different from password")
 	}
@@ -24,11 +24,11 @@ func TestHashPassword(t *testing.T) {
 func TestCheckPassword(t *testing.T) {
 	password := "mysecretpassword"
 	hash, _ := HashPassword(password)
-	
+
 	if !CheckPassword(password, hash) {
 		t.Fatalf("Expected CheckPassword to return true for matching password")
 	}
-	
+
 	if CheckPassword("wrongpassword", hash) {
 		t.Fatalf("Expected CheckPassword to return false for incorrect password")
 	}
@@ -36,22 +36,22 @@ func TestCheckPassword(t *testing.T) {
 
 func TestHashPasswordUnique(t *testing.T) {
 	password := "samepassword"
-	
+
 	hash1, err := HashPassword(password)
 	if err != nil {
 		t.Fatalf("Failed to hash password: %v", err)
 	}
-	
+
 	hash2, err := HashPassword(password)
 	if err != nil {
 		t.Fatalf("Failed to hash password: %v", err)
 	}
-	
+
 	// Each hash should be unique due to bcrypt's salt
 	if hash1 == hash2 {
 		t.Error("Expected different hashes for same password (bcrypt salt)")
 	}
-	
+
 	// But both should verify correctly
 	if !CheckPassword(password, hash1) {
 		t.Error("Expected hash1 to verify correctly")
@@ -73,7 +73,7 @@ func TestCheckPasswordEmptyPassword(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to hash password: %v", err)
 	}
-	
+
 	result := CheckPassword("", hash)
 	if result {
 		t.Error("Expected CheckPassword to return false for empty password")
@@ -103,7 +103,7 @@ func TestHashPasswordSpecialCharacters(t *testing.T) {
 			t.Errorf("Failed to hash password '%s': %v", password, err)
 			continue
 		}
-		
+
 		if !CheckPassword(password, hash) {
 			t.Errorf("Expected CheckPassword to return true for '%s'", password)
 		}
@@ -116,7 +116,7 @@ func TestHashPasswordMinimumLength(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to hash single character: %v", err)
 	}
-	
+
 	if !CheckPassword("a", hash) {
 		t.Error("Expected CheckPassword to return true for single character")
 	}
@@ -128,12 +128,12 @@ func TestCheckPasswordCaseSensitive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to hash password: %v", err)
 	}
-	
+
 	// Same password should work
 	if !CheckPassword("CaseSensitive", hash) {
 		t.Error("Expected exact password to match")
 	}
-	
+
 	// Different case should fail
 	if CheckPassword("casesensitive", hash) {
 		t.Error("Expected different case to not match")

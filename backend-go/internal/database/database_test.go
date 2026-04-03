@@ -36,7 +36,7 @@ func TestConnect_PostgreSQLConfigFormat(t *testing.T) {
 		DB:       "testdb",
 	}
 
-	// Since we can't connect to a real DB in unit tests, 
+	// Since we can't connect to a real DB in unit tests,
 	// we verify the config is parsed correctly
 	if cfg.Engine != "postgresql" {
 		t.Errorf("Expected engine 'postgresql', got '%s'", cfg.Engine)
@@ -153,7 +153,7 @@ func TestConnect_InvalidMySQLHost(t *testing.T) {
 
 func TestDatabaseConfigDefaults(t *testing.T) {
 	cfg := &config.DatabaseConfig{}
-	
+
 	// Verify zero values
 	if cfg.Engine != "" {
 		t.Errorf("Expected empty engine, got '%s'", cfg.Engine)
@@ -212,9 +212,9 @@ func TestConnect_EmptyDatabaseConfig(t *testing.T) {
 
 func TestConnect_UnsupportedEngineVariations(t *testing.T) {
 	testCases := []struct {
-		name         string
-		engine       string
-		expectedErr  string
+		name        string
+		engine      string
+		expectedErr string
 	}{
 		{
 			name:        "SQLite engine",

@@ -78,7 +78,7 @@ func TestUserUpdate(t *testing.T) {
 	username := "updateduser"
 	password := "newpassword"
 	isAdmin := true
-	
+
 	update := UserUpdate{
 		Username: &username,
 		Password: &password,
