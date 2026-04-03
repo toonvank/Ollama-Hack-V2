@@ -1,7 +1,7 @@
 ![logo](./assets/favicon.svg)
 
 # Ollama-Hack V2 🚀
-*The Next-Generation, High-Performance Go Backend for Ollama Endpoint Aggregation!*
+*The Next-Generation, High-Performance Go Backend for Ollama Endpoint Aggregation with AI-Powered Smart Routing!*
 
 ---
 
@@ -13,7 +13,7 @@ Ollama-Hack V2 is a complete rewrite of the original Ollama aggregator, specific
 > 
 > **Ollama-Hack V2** is your unified command center. It seamlessly manages, categorizes, tests, and load-balances public or private Ollama endpoints under one ultra-fast API roof. 
 
-It acts as an intelligent proxy that provides a 100% **OpenAI-compatible API**, while automatically funneling your requests to the best performing underlying Ollama endpoints.
+It acts as an intelligent proxy that provides a 100% **OpenAI-compatible API**, while automatically funneling your requests to the best performing underlying Ollama endpoints—now with **AI-powered smart routing**, **semantic caching**, and **zero-latency racing**.
 
 ## ✨ Why V2 in Go?
 
@@ -23,6 +23,7 @@ V2 doesn't just proxy—it's smart, robust, and designed for heavy production us
 
 ## 🚀 Core Features
 
+### 🔧 Foundation
 -   ⚡ **Go-Powered Backend**: Rewritten from the ground up in Go for extreme scalability and efficiency.
 -   🔄 **Unified Endpoint Aggregation**: Centrally manage multiple Ollama endpoints. Supports batch importing!
 -   ⚖️ **Smart Load Balancing**: The proxy evaluates underlying token-per-second (`token/s`) metrics to automatically select the optimal route for your OpenAI requests.
@@ -31,6 +32,14 @@ V2 doesn't just proxy—it's smart, robust, and designed for heavy production us
 -   💰 **Custom Usage Plans**: Create tiered plans (Limits for RPM & RPD), including unlimited request plans (-1 limit)!
 -   📊 **Background Performance Testing**: Built-in background polling continuously tests the health and speed of your managed nodes.
 -   🎨 **Stunning React Frontend**: Polished, dark-mode ready UI built with Vite and NextUI for effortless administration.
+
+### 🧠 V2 Advanced Intelligence
+-   🎯 **Smart Routing**: AI-powered prompt classification automatically routes requests to the optimal model based on task type (coding → CodeLlama, creative → Mistral, math → DeepSeek, etc.)
+-   💾 **Semantic Cache**: Similarity-based caching using embeddings—get instant responses for semantically similar prompts even if not exact matches.
+-   🏥 **Health Tracking**: Real-time endpoint health monitoring with automatic disable/re-enable based on failure patterns.
+-   🚀 **Zero-Latency Racer**: Launches parallel requests to all available endpoints simultaneously—first response wins!
+-   🔪 **Map-Reduce Proxy**: Automatically splits large documents across multiple GPUs for parallel processing.
+-   🔥 **Never-Sleep Mode**: Injects infinite `keep_alive` to lock models in VRAM, eliminating cold-start latency.
 
 ## 🛠️ Stack & Requirements
 
@@ -97,6 +106,7 @@ Configure the backend behavior via environment variables in `docker-compose.yml`
 
 ```yaml
 environment:
+    # Core Settings
     - APP_ENV=prod # "dev" or "prod"
     - APP_SECRET_KEY=change_this_key # Security signing key
     - APP_ACCESS_TOKEN_EXPIRE_MINUTES=10080 # Token TTL
@@ -106,7 +116,36 @@ environment:
     - DATABASE_USERNAME=ollama_hack
     - DATABASE_PASSWORD=change_this_password
     - DATABASE_DB=ollama_hack
+    
+    # 🧠 Smart Routing (auto-route prompts to optimal models)
+    - SMART_ROUTER_ENABLED=true
+    - SMART_ROUTER_RULES='[{"category":"coding","keywords":["code","debug"],"prefer_model":"codellama"}]'
+    
+    # 💾 Semantic Cache (similarity-based caching)
+    - SEMANTIC_CACHE_ENABLED=true
+    - SEMANTIC_CACHE_THRESHOLD=0.95 # Similarity threshold (0-1)
+    - SEMANTIC_CACHE_MODEL=nomic-embed-text # Embedding model
+    - SEMANTIC_CACHE_OLLAMA_URL=http://localhost:11434
+    
+    # 🏥 Health Tracking (auto-disable failing endpoints)
+    - HEALTH_TRACKER_ENABLED=true
+    - HEALTH_TRACKER_DISABLE_THRESHOLD=3 # Failures before disable
+    - HEALTH_TRACKER_DISABLE_DURATION=5m # How long to disable
+    - HEALTH_TRACKER_PROBE_INTERVAL=30s # Health check interval
 ```
+
+### 🎯 Smart Routing Categories
+
+The smart router classifies prompts into categories and routes to specialized models:
+
+| Category | Keywords | Default Model |
+|----------|----------|---------------|
+| Coding | code, debug, python, javascript, api... | codellama |
+| Creative | story, poem, fiction, narrative... | mistral |
+| Analysis | analyze, compare, evaluate, research... | llama3 |
+| Math | calculate, equation, solve, proof... | deepseek-math |
+| Translation | translate, language, convert... | llama3 |
+| General | (fallback) | llama3 |
 
 ## 👤 Author & License
 
