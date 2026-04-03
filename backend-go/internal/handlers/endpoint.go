@@ -266,11 +266,14 @@ func (h *EndpointHandler) BatchCreate(c *gin.Context) {
 		tx.Commit()
 	}
 
-	// 4. Schedule tasks
+	// 4. Schedule tasks in bulk
 	var allIDs []int
 	for _, id := range existingMap {
 		allIDs = append(allIDs, id)
-		h.scheduleTask(id)
+	}
+	
+	if len(allIDs) > 0 {
+		h.bulkScheduleTasks(allIDs)
 	}
 
 	utils.Success(c, gin.H{
@@ -379,6 +382,7 @@ func (h *EndpointHandler) BatchTest(c *gin.Context) {
 	failedCount := 0
 	failedIDs := make(map[string]string)
 
+	var validIDs []int
 	for _, id := range req.EndpointIDs {
 		// Verify exists
 		var count int
@@ -388,8 +392,12 @@ func (h *EndpointHandler) BatchTest(c *gin.Context) {
 			failedIDs[fmt.Sprintf("%d", id)] = "Endpoint not found"
 			continue
 		}
-		h.scheduleTask(id)
+		validIDs = append(validIDs, id)
 		successCount++
+	}
+
+	if len(validIDs) > 0 {
+		h.bulkScheduleTasks(validIDs)
 	}
 
 	utils.Success(c, models.BatchOperationResult{
@@ -410,4 +418,106 @@ func (h *EndpointHandler) scheduleTask(endpointID int) {
 	if err != nil {
 		fmt.Printf("Error scheduling task for endpoint %d: %v\n", endpointID, err)
 	}
+}
+
+// bulkScheduleTasks schedules multiple tasks with a single bulk insert
+func (h *EndpointHandler) bulkScheduleTasks(endpointIDs []int) {
+	if len(endpointIDs) == 0 {
+		return
+	}
+	now := time.Now().Add(5 * time.Second)
+	
+	query := "INSERT INTO endpoint_test_tasks (endpoint_id, scheduled_at, status) VALUES "
+	var args []interface{}
+	for i, id := range endpointIDs {
+		if i > 0 {
+			query += ", "
+		}
+		query += fmt.Sprintf("($%d, $%d, $%d)", i*3+1, i*3+2, i*3+3)
+		args = append(args, id, now, "pending")
+	}
+	
+	_, err := h.db.Exec(query, args...)
+	if err != nil {
+		fmt.Printf("Error bulk scheduling tasks: %v\n", err)
+	}
+}
+
+func (h *EndpointHandler) TriggerTest(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		utils.BadRequest(c, "Invalid endpoint ID")
+		return
+	}
+	var count int
+	h.db.Get(&count, "SELECT COUNT(*) FROM endpoints WHERE id = $1", id)
+	if count == 0 {
+		utils.NotFound(c, "Endpoint not found")
+		return
+	}
+	h.scheduleTask(id)
+	utils.Success(c, gin.H{"message": "Test triggered"})
+}
+
+func (h *EndpointHandler) GetTask(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		utils.BadRequest(c, "Invalid endpoint ID")
+		return
+	}
+	var task models.EndpointTestTask
+	err = h.db.Get(&task, "SELECT * FROM endpoint_test_tasks WHERE endpoint_id = $1 ORDER BY created_at DESC LIMIT 1", id)
+	if err != nil {
+		utils.NotFound(c, "Task not found")
+		return
+	}
+	utils.Success(c, task)
+}
+
+func (h *EndpointHandler) BatchGetTasks(c *gin.Context) {
+	var req models.EndpointBatchOperation
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.BadRequest(c, err.Error())
+		return
+	}
+
+	if len(req.EndpointIDs) == 0 {
+		utils.Success(c, make(map[int]string))
+		return
+	}
+
+	query, args, err := sqlx.In(`
+		SELECT endpoint_id, status 
+		FROM (
+			SELECT endpoint_id, status, 
+				   ROW_NUMBER() OVER(PARTITION BY endpoint_id ORDER BY created_at DESC) as rn 
+			FROM endpoint_test_tasks 
+			WHERE endpoint_id IN (?)
+		) sub 
+		WHERE rn = 1`, req.EndpointIDs)
+	if err != nil {
+		utils.InternalServerError(c, "Failed to prepare query")
+		return
+	}
+	query = h.db.Rebind(query)
+
+	type TaskStatusRow struct {
+		EndpointID int    `db:"endpoint_id"`
+		Status     string `db:"status"`
+	}
+
+	var rows []TaskStatusRow
+	if err := h.db.Select(&rows, query, args...); err != nil {
+		utils.InternalServerError(c, "Failed to fetch task statuses")
+		return
+	}
+
+	statuses := make(map[int]string)
+	for _, r := range rows {
+		statuses[r.EndpointID] = r.Status
+	}
+
+	utils.Success(c, statuses)
 }

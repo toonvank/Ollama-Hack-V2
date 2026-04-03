@@ -54,3 +54,12 @@ type BatchOperationResult struct {
 type EndpointBatchOperation struct {
 	EndpointIDs []int `json:"endpoint_ids" binding:"required"`
 }
+
+type EndpointTestTask struct {
+	ID          int        `db:"id" json:"id"`
+	EndpointID  int        `db:"endpoint_id" json:"endpoint_id"`
+	Status      string     `db:"status" json:"status"`
+	ScheduledAt time.Time  `db:"scheduled_at" json:"scheduled_at"`
+	LastTried   *time.Time `db:"last_tried" json:"last_tried,omitempty"`
+	CreatedAt   time.Time  `db:"created_at" json:"created_at"`
+}

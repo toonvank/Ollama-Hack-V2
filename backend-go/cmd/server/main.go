@@ -117,6 +117,9 @@ func main() {
 			admin.DELETE("/endpoint/:id", endpointHandler.Delete)
 			admin.DELETE("/endpoint/batch", endpointHandler.BatchDelete)
 			admin.POST("/endpoint/batch-test", endpointHandler.BatchTest)
+			admin.POST("/endpoint/:id/test", endpointHandler.TriggerTest)
+			admin.GET("/endpoint/:id/task", endpointHandler.GetTask)
+			admin.POST("/endpoint/batch/task-status", endpointHandler.BatchGetTasks)
 
 			// AI models
 			admin.GET("/ai_model", modelHandler.List)

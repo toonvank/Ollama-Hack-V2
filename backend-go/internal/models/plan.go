@@ -15,15 +15,15 @@ type Plan struct {
 type PlanCreate struct {
 	Name        string `json:"name" binding:"required"`
 	Description string `json:"description"`
-	RPM         int    `json:"rpm" binding:"required,min=0"`
-	RPD         int    `json:"rpd" binding:"required,min=0"`
+	RPM         int    `json:"rpm" binding:"min=-1"`
+	RPD         int    `json:"rpd" binding:"min=-1"`
 	IsDefault   bool   `json:"is_default"`
 }
 
 type PlanUpdate struct {
 	Name        *string `json:"name"`
 	Description *string `json:"description"`
-	RPM         *int    `json:"rpm" binding:"omitempty,min=0"`
-	RPD         *int    `json:"rpd" binding:"omitempty,min=0"`
+	RPM         *int    `json:"rpm" binding:"omitempty,min=-1"`
+	RPD         *int    `json:"rpd" binding:"omitempty,min=-1"`
 	IsDefault   *bool   `json:"is_default"`
 }

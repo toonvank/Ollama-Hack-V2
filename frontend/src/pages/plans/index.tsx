@@ -402,8 +402,9 @@ const PlansPage = () => {
                     return validationErrors;
                   }}
                   label="Requests Per Minute (RPM)"
+                  description="Use -1 for unlimited requests"
                   max={1000000}
-                  min={0}
+                  min={-1}
                   placeholder="Enter requests per minute limit"
                   type="number"
                   value={newPlan.rpm.toString()}
@@ -421,8 +422,9 @@ const PlansPage = () => {
                     return validationErrors;
                   }}
                   label="Requests Per Day (RPD)"
+                  description="Use -1 for unlimited requests"
                   max={1000000}
-                  min={0}
+                  min={-1}
                   placeholder="Enter requests per day limit"
                   type="number"
                   value={newPlan.rpd.toString()}
@@ -504,8 +506,9 @@ const PlansPage = () => {
                         return validationErrors;
                       }}
                       label="Requests Per Minute (RPM)"
+                      description="Use -1 for unlimited requests"
                       max={1000000}
-                      min={0}
+                      min={-1}
                       placeholder="Enter requests per minute limit"
                       type="number"
                       value={editingPlan.rpm.toString()}
@@ -523,8 +526,9 @@ const PlansPage = () => {
                         return validationErrors;
                       }}
                       label="Requests Per Day (RPD)"
+                      description="Use -1 for unlimited requests"
                       max={1000000}
-                      min={0}
+                      min={-1}
                       placeholder="Enter requests per day limit"
                       type="number"
                       value={editingPlan.rpd.toString()}

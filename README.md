@@ -1,161 +1,123 @@
 ![logo](./assets/favicon.svg)
 
 # Ollama-Hack V2 🚀
+*The Next-Generation, High-Performance Go Backend for Ollama Endpoint Aggregation!*
+
+---
 
 ## 📖 Introduction
 
-> Many publicly exposed Ollama interfaces are available online without authentication. You want to use them, but testing their performance and checking available models one by one is too tedious. Plus, you might need to frequently switch between failing interfaces.
->
-> Try Ollama-Hack! It's a Go-based aggregation platform that helps you easily manage, test, and seamlessly use multiple Ollama interfaces.
+Ollama-Hack V2 is a complete rewrite of the original Ollama aggregator, specifically engineered in **Go** to guarantee high-performance concurrency, minimal latency, and incredible stability. 
 
-Ollama-Hack is a service for managing, testing, and forwarding Ollama APIs. It centrally manages multiple Ollama endpoints and automatically selects the optimal route based on performance, providing an OpenAI-compatible API. The platform offers a friendly web interface for managing endpoints, models, API keys, and usage plans.
+> Many publicly exposed Ollama interfaces are available online without authentication. When you try to harness them, testing performance and verifying models individually is a massive headache. 
+> 
+> **Ollama-Hack V2** is your unified command center. It seamlessly manages, categorizes, tests, and load-balances public or private Ollama endpoints under one ultra-fast API roof. 
 
-## ✨ Features
+It acts as an intelligent proxy that provides a 100% **OpenAI-compatible API**, while automatically funneling your requests to the best performing underlying Ollama endpoints.
 
--   🔄 **Multi-Endpoint Management**: Centrally manage multiple Ollama service endpoints with batch import support
-    ![Endpoint Management](./assets/endpoints.png)
--   🔍 **Endpoint Details**: View detailed information and available models for each endpoint
-    ![Endpoint Details](./assets/endpoint_details.png)
--   🧩 **OpenAI API Compatible**: Provides OpenAI-compatible API interface
--   ⚖️ **Optimal Route Selection**: Automatically selects the best Ollama endpoint based on Token/s performance
--   🔑 **API Key Management**: Generate and manage API keys for authentication
--   📊 **Performance Monitoring**: Test and display performance metrics for models on different endpoints
--   📝 **Model Management**: Search and view available models
-    ![Model Management](./assets/models.png)
--   📈 **Model Performance**: View detailed performance data for each model
-    ![Model Details](./assets/model_details.png)
--   🔐 **User Management**: Admins can create and manage user accounts
--   💰 **Plan Management**: Create and manage different usage plans with API request rate limits
--   🌙 **Dark Mode**: Supports light/dark theme switching
+## ✨ Why V2 in Go?
 
-## 🛠️ Requirements
+We transitioned from a Python/FastAPI environment directly to **Golang** to maximize throughput. When handling LLM streams, proxying requests, and doing background task polling across dozens of endpoints, Go's goroutines ensure rock-solid stability and zero dropped connections.
 
--   Docker and Docker Compose (recommended)
--   Or Go 1.22+ and Node.js (for direct execution)
+V2 doesn't just proxy—it's smart, robust, and designed for heavy production usage.
 
-## 🚀 Installation & Deployment
+## 🚀 Core Features
 
-### Method 1: Docker Deployment (Recommended)
+-   ⚡ **Go-Powered Backend**: Rewritten from the ground up in Go for extreme scalability and efficiency.
+-   🔄 **Unified Endpoint Aggregation**: Centrally manage multiple Ollama endpoints. Supports batch importing!
+-   ⚖️ **Smart Load Balancing**: The proxy evaluates underlying token-per-second (`token/s`) metrics to automatically select the optimal route for your OpenAI requests.
+-   🧩 **100% OpenAI API Compatible**: Drop-in replacement for OpenAI endpoints in LangChain, LlamaIndex, or any common UI.
+-   🔑 **API Key Generation**: Secure and distribute API Keys to clients without exposing your raw Ollama instances.
+-   💰 **Custom Usage Plans**: Create tiered plans (Limits for RPM & RPD), including unlimited request plans (-1 limit)!
+-   📊 **Background Performance Testing**: Built-in background polling continuously tests the health and speed of your managed nodes.
+-   🎨 **Stunning React Frontend**: Polished, dark-mode ready UI built with Vite and NextUI for effortless administration.
 
-If you have Docker and Docker Compose installed, start with a single command:
+## 🛠️ Stack & Requirements
+
+-   **Backend**: Go 1.22+, Gin, PostgreSQL
+-   **Frontend**: React, Vite, TypeScript, TailwindCSS
+-   **Infrastructure**: Docker & Docker Compose (Highly Recommended)
+
+## 🐳 Quickstart (Docker)
+
+If you have Docker installed, you can spin up the entire ecosystem in seconds:
 
 ```bash
-# Download docker-compose.yml file
-curl -o docker-compose.yml https://raw.githubusercontent.com/timlzh/ollama-hack/main/docker-compose.example.yml
+# Clone the repository
+git clone https://github.com/timlzh/ollama-hack.git
+cd ollama-hack
 
-# Modify sensitive configurations like secret keys in docker-compose.yml
-vim docker-compose.yml
-
-# Start services
-docker compose up -d
+# The repository contains the fully composed V2 ecosystem
+docker compose up -d --build
 ```
 
-After starting, visit http://localhost:3000/init to use the platform.
+Visit the Admin Console: `http://localhost:3000/init` to configure your master credentials.
 
-### Method 2: Direct Execution (Development Environment)
+## 💻 Manual Development Setup
 
-#### Backend
+If you wish to contribute or run the components manually:
 
+### Start the Go Backend
 ```bash
 cd backend-go
-# Install dependencies
 go mod tidy
-
-# Start service (Make sure you set your env vars, e.g., DATABASE_HOST)
 go run ./cmd/server
 ```
+*(Ensure PostgreSQL is running and environment variables like `DATABASE_HOST` are set)*
 
-#### Frontend
-
+### Start the React Frontend
 ```bash
 cd frontend
-# Install dependencies
 yarn install
-
-# Start in development mode
 yarn dev
 ```
 
-## 📝 Usage
+## 📝 OpenAI Drop-in Usage
 
-### Web Interface
-
-Visit http://localhost:3000/init to initialize the admin account.
-
-After logging in, you can:
-
--   Create and manage user accounts
--   Add and manage Ollama endpoints
--   Generate API keys
--   Create and assign usage plans
--   View model performance data
-
-### Plan Management
-
-V2 adds plan management functionality. Admins can create different usage plans and assign them to users. Each plan can set:
-
--   Requests per minute limit (RPM)
--   Requests per day limit (RPD)
--   Default plan flag
-
-### API Usage Examples
-
-#### Ollama API Compatible
+Because the Go Proxy is fully OpenAI compatible, you can interact with it using standard cURL or OpenAI client libraries. Just pass your generated API Key!
 
 ```bash
 curl -N -X POST http://localhost:3000/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: Bearer YOUR_OLLAMA_HACK_API_KEY" \
   -d '{
-    "model": "llama3",
+    "model": "llama3:8b",
     "messages": [
-      {"role": "system", "content": "You are a helpful assistant"},
-      {"role": "user", "content": "Hello, please introduce yourself"}
+      {"role": "system", "content": "You are a helpful proxy routing assistant."},
+      {"role": "user", "content": "Hello!"}
     ],
     "temperature": 0.7,
     "stream": true
   }'
 ```
 
-Ollama-Hack supports all Ollama OpenAI-compatible APIs. For details, see: [Ollama/OpenAI Compatibility](https://github.com/ollama/ollama/blob/main/docs/openai.md).
+## ⚙️ Configuration
 
-## 🔧 Configuration Options
-
-### Environment Variables
-
-In the docker-compose.yml file, you can customize the backend through these environment variables:
+Configure the backend behavior via environment variables in `docker-compose.yml`:
 
 ```yaml
 environment:
-    - APP_ENV=prod # Environment type: dev or prod
-    - APP_LOG_LEVEL=INFO # Log level
-    - APP_SECRET_KEY=change_this_key # JWT secret key
-    - APP_ACCESS_TOKEN_EXPIRE_MINUTES=30 # Access token expiration time
-    - DATABASE_ENGINE=postgresql # Database engine (postgresql or mysql)
-    - DATABASE_HOST=db # Database host
-    - DATABASE_PORT=5432 # Database port (5432 for PostgreSQL, 3306 for MySQL)
-    - DATABASE_USERNAME=user # Database username
-    - DATABASE_PASSWORD=password # Database password
-    - DATABASE_DB=ollama_hack # Database name
+    - APP_ENV=prod # "dev" or "prod"
+    - APP_SECRET_KEY=change_this_key # Security signing key
+    - APP_ACCESS_TOKEN_EXPIRE_MINUTES=10080 # Token TTL
+    - DATABASE_ENGINE=postgresql
+    - DATABASE_HOST=db
+    - DATABASE_PORT=5432
+    - DATABASE_USERNAME=ollama_hack
+    - DATABASE_PASSWORD=change_this_password
+    - DATABASE_DB=ollama_hack
 ```
 
-## 👤 Author
+## 👤 Author & License
 
-[Timlzh](https://github.com/timlzh)
+Originating Author: [Timlzh](https://github.com/timlzh)  
+License: **MIT License**
 
-## 📜 License
-
-MIT License
-
-## 🖼️ Screenshots
+## 🖼️ Gallery
 
 -   Home
     ![Home](./assets/index.png)
--   Endpoint Management
+-   Endpoint Routing
     ![Endpoint Management](./assets/endpoints.png)
--   Model Management
+-   Fleet Testing
     ![Model Management](./assets/models.png)
--   Model Details
-    ![Model Details](./assets/model_details.png)
--   Endpoint Details
-    ![Endpoint Details](./assets/endpoint_details.png)

@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/timlzh/ollama-hack/internal/database"
@@ -91,22 +92,46 @@ func TestEndpoint(endpointURL string) *EndpointTestResult {
 	var tagsData OllamaTagsResponse
 	json.NewDecoder(tagsResp.Body).Decode(&tagsData)
 
-	// 3. Test each model
+	// 3. Test each model concurrently (bounded concurrency of 3 to avoid overwhelming the node)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	semaphore := make(chan struct{}, 3) // max 3 concurrent tests
+	isFake := false
+
 	for _, m := range tagsData.Models {
 		parts := strings.SplitN(m.Model, ":", 2)
 		if len(parts) != 2 {
 			continue
 		}
-		name, tag := parts[0], parts[1]
-		mr := testModel(endpointURL, name, tag)
-		result.Models = append(result.Models, mr)
-
-		// If a model is fake, mark the endpoint fake and stop
-		if mr.Status == StatusFake {
-			result.EndpointStatus = StatusFake
-			break
-		}
+		
+		wg.Add(1)
+		go func(name, tag string) {
+			defer wg.Done()
+			
+			// If already identified as fake, don't start new tests
+			mu.Lock()
+			fake := isFake
+			mu.Unlock()
+			if fake {
+				return
+			}
+			
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+			
+			mr := testModel(endpointURL, name, tag)
+			
+			mu.Lock()
+			if mr.Status == StatusFake {
+				isFake = true
+				result.EndpointStatus = StatusFake
+			}
+			result.Models = append(result.Models, mr)
+			mu.Unlock()
+			
+		}(parts[0], parts[1])
 	}
+	wg.Wait()
 
 	return result
 }
@@ -218,11 +243,19 @@ func (t *Tester) Start() {
 	log.Println("[tester] background tester started")
 	go func() {
 		ticker := time.NewTicker(t.interval)
+		fetchTicker := time.NewTicker(1 * time.Hour) // Fetch every hour
 		defer ticker.Stop()
+		defer fetchTicker.Stop()
+
+		// Run fetch immediately on startup
+		go t.fetchExternalEndpoints()
+
 		for {
 			select {
 			case <-ticker.C:
 				t.runPendingTasks()
+			case <-fetchTicker.C:
+				go t.fetchExternalEndpoints()
 			case <-t.stop:
 				log.Println("[tester] background tester stopped")
 				return
@@ -233,6 +266,50 @@ func (t *Tester) Start() {
 
 func (t *Tester) Stop() {
 	close(t.stop)
+}
+
+func (t *Tester) fetchExternalEndpoints() {
+	log.Println("[tester] fetching external endpoints from ollama.vincentko.top")
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get("https://ollama.vincentko.top/data.json")
+	if err != nil {
+		log.Printf("[tester] failed to fetch external endpoints: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	var data []struct {
+		Server string `json:"server"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		log.Printf("[tester] failed to decode external endpoints JSON: %v", err)
+		return
+	}
+
+	importedCount := 0
+	for _, item := range data {
+		url := strings.TrimSpace(item.Server)
+		if url == "" {
+			continue
+		}
+
+		// Check if exists
+		var exists bool
+		err := t.db.Get(&exists, "SELECT EXISTS(SELECT 1 FROM endpoints WHERE url = $1)", url)
+		if err != nil || exists {
+			continue
+		}
+
+		// Insert
+		var newID int
+		err = t.db.QueryRow("INSERT INTO endpoints (url, name, status) VALUES ($1, $2, 'pending') RETURNING id", url, url).Scan(&newID)
+		if err == nil {
+			// Schedule task immediately
+			t.db.Exec("INSERT INTO endpoint_test_tasks (endpoint_id, scheduled_at, status) VALUES ($1, NOW(), 'pending')", newID)
+			importedCount++
+		}
+	}
+	log.Printf("[tester] successfully imported %d new external endpoints", importedCount)
 }
 
 type pendingTask struct {
@@ -249,7 +326,7 @@ func (t *Tester) runPendingTasks() {
 		JOIN endpoints e ON e.id = ett.endpoint_id
 		WHERE ett.status = 'pending' AND ett.scheduled_at <= NOW()
 		ORDER BY ett.scheduled_at ASC
-		LIMIT 5
+		LIMIT 100
 	`)
 	if err != nil {
 		return
@@ -258,10 +335,25 @@ func (t *Tester) runPendingTasks() {
 		return
 	}
 
+	// Bulk update tasks to 'running'
+	var taskIDs []int
 	for _, task := range tasks {
-		// Mark as running
-		t.db.Exec("UPDATE endpoint_test_tasks SET status = 'running', last_tried = NOW() WHERE id = $1", task.ID)
+		taskIDs = append(taskIDs, task.ID)
+	}
 
+	query := "UPDATE endpoint_test_tasks SET status = 'running', last_tried = NOW() WHERE id IN ("
+	var args []interface{}
+	for i, id := range taskIDs {
+		if i > 0 {
+			query += ", "
+		}
+		query += fmt.Sprintf("$%d", i+1)
+		args = append(args, id)
+	}
+	query += ")"
+	t.db.Exec(query, args...)
+
+	for _, task := range tasks {
 		log.Printf("[tester] testing endpoint %d (%s)", task.EndpointID, task.EndpointURL)
 		go t.executeTask(task)
 	}

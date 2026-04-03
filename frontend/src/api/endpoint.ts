@@ -1,6 +1,5 @@
 import apiClient, { buildQueryString } from "./client";
 
-import {
   BatchOperationResult,
   EndpointBatchCreate,
   EndpointBatchOperation,
@@ -12,6 +11,7 @@ import {
   EndpointWithAIModels,
   PageResponse,
   QueryParams,
+  TaskStatusEnum,
 } from "@/types";
 
 export const endpointApi = {
@@ -89,6 +89,14 @@ export const endpointApi = {
   getEndpointTask: (endpointId: number) => {
     return apiClient.get<EndpointTaskInfo>(
       `/api/v2/endpoint/${endpointId}/task`,
+    );
+  },
+
+  // Batch get endpoint test tasks
+  batchGetEndpointTasks: (endpointIds: number[]) => {
+    return apiClient.post<{ [key: number]: TaskStatusEnum }>(
+      "/api/v2/endpoint/batch/task-status",
+      { endpoint_ids: endpointIds },
     );
   },
 };
