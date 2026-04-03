@@ -9,7 +9,6 @@ import {
   ModalFooter,
 } from "@heroui/modal";
 import { Tooltip } from "@heroui/tooltip";
-import { Form } from "@heroui/form";
 import { Snippet } from "@heroui/snippet";
 import { Link } from "@heroui/link";
 import { Image } from "@heroui/image";
@@ -367,7 +366,7 @@ const ApiKeysPage = () => {
       >
         <ModalContent>
           {(onClose) => (
-            <Form className="w-full" onSubmit={handleCreateApiKey}>
+            <>
               <ModalHeader>
                 {createdApiKey ? "Key Created Successfully" : "Create API Key"}
               </ModalHeader>
@@ -422,7 +421,7 @@ const ApiKeysPage = () => {
                   </>
                 )}
               </ModalFooter>
-            </Form>
+            </>
           )}
         </ModalContent>
       </Modal>
