@@ -4,10 +4,10 @@ FROM node:20-slim as build
 WORKDIR /app
 
 # Copy package files
-COPY package.json ./
+COPY package.json package-lock.json ./
 
 # Install dependencies
-RUN yarn install
+RUN npm ci
 
 # Copy the source code
 COPY . .
@@ -16,7 +16,7 @@ COPY . .
 ENV VITE_API_BASE_URL=/
 
 # Build the application
-RUN yarn build
+RUN npm run build
 
 # Production stage
 FROM nginx:alpine-slim
