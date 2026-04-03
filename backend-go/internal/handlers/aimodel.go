@@ -18,15 +18,44 @@ func NewAIModelHandler(db *database.DB) *AIModelHandler {
 func (h *AIModelHandler) List(c *gin.Context) {
 	var rowInfos []models.AIModelInfo
 
+	// Get order_by param (default: name)
+	orderBy := c.DefaultQuery("order_by", "name")
+	order := c.DefaultQuery("order", "asc")
+
+	// Validate order_by field
+	validOrderFields := map[string]string{
+		"id":               "m.id",
+		"name":             "m.name",
+		"created_at":       "m.created_at",
+		"token_per_second": "token_per_second",
+		"endpoints":        "endpoints",
+	}
+
+	orderField, ok := validOrderFields[orderBy]
+	if !ok {
+		orderField = "m.name"
+	}
+
+	// Validate order direction
+	if order != "asc" && order != "desc" {
+		order = "asc"
+	}
+
+	// For token_per_second, put NULLs last when sorting desc (highest first)
+	nullsHandling := ""
+	if orderBy == "token_per_second" && order == "desc" {
+		nullsHandling = " NULLS LAST"
+	}
+
 	query := `
 		SELECT 
 			m.id, m.name, m.tag, m.enabled, m.created_at,
-			COUNT(case when eam.status = 'available' then 1 end) as endpoints
+			COUNT(case when eam.status = 'available' then 1 end) as endpoints,
+			MAX(eam.token_per_second) as token_per_second
 		FROM ai_models m
 		LEFT JOIN endpoint_ai_models eam ON m.id = eam.ai_model_id
 		GROUP BY m.id
-		ORDER BY m.name, m.tag
-	`
+		ORDER BY ` + orderField + " " + order + nullsHandling
 
 	if err := h.db.Select(&rowInfos, query); err != nil {
 		utils.InternalServerError(c, "Failed to fetch AI models")

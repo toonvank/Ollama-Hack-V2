@@ -84,6 +84,7 @@ const ModelTable: React.FC<ModelTableProps> = ({
     { key: "id", label: "ID", allowsSorting: true },
     { key: "name", label: "Name", allowsSorting: true },
     { key: "tag", label: "Tag", allowsSorting: true },
+    { key: "token_per_second", label: "Speed (tps)", allowsSorting: true },
     { key: "endpoints", label: "Endpoints" },
     { key: "enabled", label: "Enabled" },
     { key: "status", label: "Status" },
@@ -127,6 +128,12 @@ const ModelTable: React.FC<ModelTableProps> = ({
         return (
           <span className="whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
             {model.tag}
+          </span>
+        );
+      case "token_per_second":
+        return (
+          <span className="whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+            {model.token_per_second ? `${model.token_per_second.toFixed(1)}` : "-"}
           </span>
         );
       case "endpoints":

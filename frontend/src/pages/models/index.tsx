@@ -22,8 +22,8 @@ export const ModelListPage = () => {
       pageSize: { min: 5, max: 100 },
       totalPages: 1,
       orderBy: {
-        allowedFields: ["id", "name", "created_at", "last_used_at"],
-        defaultField: "id",
+        allowedFields: ["id", "name", "created_at", "token_per_second"],
+        defaultField: "name",
       },
     });
 

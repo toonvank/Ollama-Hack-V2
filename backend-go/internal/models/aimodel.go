@@ -11,12 +11,13 @@ type AIModel struct {
 }
 
 type AIModelInfo struct {
-	ID        int       `json:"id" db:"id"`
-	Name      string    `json:"name" db:"name"`
-	Tag       string    `json:"tag" db:"tag"`
-	Enabled   bool      `json:"enabled" db:"enabled"`
-	CreatedAt time.Time `json:"created_at" db:"created_at"`
-	Endpoints int       `json:"endpoints" db:"endpoints"`
+	ID             int       `json:"id" db:"id"`
+	Name           string    `json:"name" db:"name"`
+	Tag            string    `json:"tag" db:"tag"`
+	Enabled        bool      `json:"enabled" db:"enabled"`
+	CreatedAt      time.Time `json:"created_at" db:"created_at"`
+	Endpoints      int       `json:"endpoints" db:"endpoints"`
+	TokenPerSecond *float64  `json:"token_per_second" db:"token_per_second"`
 }
 
 type AIModelToggle struct {
