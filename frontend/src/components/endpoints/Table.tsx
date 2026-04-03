@@ -1,8 +1,8 @@
 import React from "react";
-import { Button } from "@heroui/button";
-import { SortDescriptor, Selection, Key } from "@heroui/table";
-import { Tooltip } from "@heroui/tooltip";
-import { Spinner } from "@heroui/spinner";
+import { Button } from "@nextui-org/button";
+import { SortDescriptor, Selection, Key } from "@nextui-org/table";
+import { Tooltip } from "@nextui-org/tooltip";
+import { Spinner } from "@nextui-org/spinner";
 
 import { DataTable } from "@/components/DataTable";
 import StatusBadge from "@/components/StatusBadge";

@@ -1,4 +1,4 @@
-import { Input } from "@heroui/input";
+import { Input } from "@nextui-org/input";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { SearchIcon } from "./icons";

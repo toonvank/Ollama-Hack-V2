@@ -1,30 +1,30 @@
 import { useState, useEffect } from "react";
-import { Button } from "@heroui/button";
-import { Input } from "@heroui/input";
+import { Button } from "@nextui-org/button";
+import { Input } from "@nextui-org/input";
 import {
   Modal,
   ModalContent,
   ModalHeader,
   ModalBody,
   ModalFooter,
-} from "@heroui/modal";
-import { Tooltip } from "@heroui/tooltip";
-import { Snippet } from "@heroui/snippet";
-import { Link } from "@heroui/link";
-import { Image } from "@heroui/image";
+} from "@nextui-org/modal";
+import { Tooltip } from "@nextui-org/tooltip";
+import { Snippet } from "@nextui-org/snippet";
+import { Link } from "@nextui-org/link";
+import { Image } from "@nextui-org/image";
 import {
   Drawer,
   DrawerContent,
   DrawerHeader,
   DrawerBody,
-} from "@heroui/drawer";
+} from "@nextui-org/drawer";
 import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";
 import bash from "react-syntax-highlighter/dist/esm/languages/prism/bash";
 import {
   oneDark,
   oneLight,
 } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { useTheme } from "@heroui/use-theme";
+import { useTheme } from "@nextui-org/use-theme";
 import { SortDescriptor } from "@react-types/shared";
 
 import { useAuth } from "@/contexts/AuthContext";

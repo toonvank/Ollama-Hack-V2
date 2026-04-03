@@ -1,18 +1,18 @@
 import React, { useState } from "react";
-import { Button } from "@heroui/button";
-import { Input } from "@heroui/input";
-import { Textarea } from "@heroui/input";
-import { Tabs, Tab } from "@heroui/tabs";
-import { RadioGroup, Radio } from "@heroui/radio";
+import { Button } from "@nextui-org/button";
+import { Input } from "@nextui-org/input";
+import { Textarea } from "@nextui-org/input";
+import { Tabs, Tab } from "@nextui-org/tabs";
+import { RadioGroup, Radio } from "@nextui-org/radio";
 import {
   Modal,
   ModalContent,
   ModalHeader,
   ModalBody,
   ModalFooter,
-} from "@heroui/modal";
-import { addToast } from "@heroui/toast";
-import { Form } from "@heroui/form";
+} from "@nextui-org/modal";
+import { addToast } from "@nextui-org/toast";
+import { Form } from "@nextui-org/form";
 
 import { endpointApi } from "@/api";
 import { EndpointCreate } from "@/types";

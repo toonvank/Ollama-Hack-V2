@@ -1,6 +1,6 @@
-import { Button } from "@heroui/button";
-import { Card, CardBody } from "@heroui/card";
-import { Link } from "@heroui/link";
+import { Button } from "@nextui-org/button";
+import { Card, CardBody } from "@nextui-org/card";
+import { Link } from "@nextui-org/link";
 
 import { useAuth } from "@/contexts/AuthContext";
 import DashboardLayout from "@/layouts/Main";

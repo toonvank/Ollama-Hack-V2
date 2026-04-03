@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { Button } from "@heroui/button";
-import { Input } from "@heroui/input";
-import { Card } from "@heroui/card";
-import { addToast } from "@heroui/toast";
+import { Button } from "@nextui-org/button";
+import { Input } from "@nextui-org/input";
+import { Card } from "@nextui-org/card";
+import { addToast } from "@nextui-org/toast";
 
 import { authApi, settingApi } from "@/api";
 import { useAuth } from "@/contexts/AuthContext";

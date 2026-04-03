@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
-import { addToast } from "@heroui/toast";
-import { Key, Selection } from "@heroui/table";
-import { Button } from "@heroui/button";
+import { addToast } from "@nextui-org/toast";
+import { Key, Selection } from "@nextui-org/table";
+import { Button } from "@nextui-org/button";
 
 import EndpointDetailDrawer from "@/components/endpoints/DetailDrawer";
 import CreateEndpointModal from "@/components/endpoints/CreateModal";

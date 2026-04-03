@@ -1,5 +1,5 @@
-import { Card, CardHeader } from "@heroui/card";
-import { Progress } from "@heroui/progress";
+import { Card, CardHeader } from "@nextui-org/card";
+import { Progress } from "@nextui-org/progress";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useCustomQuery } from "@/hooks";

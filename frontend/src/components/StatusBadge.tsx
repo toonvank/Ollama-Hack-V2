@@ -1,5 +1,5 @@
 import React from "react";
-import { Chip } from "@heroui/chip";
+import { Chip } from "@nextui-org/chip";
 
 import { AIModelStatusEnum, EndpointStatusEnum } from "@/types";
 

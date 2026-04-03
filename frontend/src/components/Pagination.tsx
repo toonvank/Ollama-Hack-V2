@@ -1,7 +1,7 @@
 import React, { useState, KeyboardEvent } from "react";
-import { Pagination as HeroUIPagination } from "@heroui/pagination";
-import { NumberInput } from "@heroui/number-input";
-import { Button } from "@heroui/button";
+import { Pagination as HeroUIPagination } from "@nextui-org/pagination";
+import { NumberInput } from "@nextui-org/number-input";
+import { Button } from "@nextui-org/button";
 
 interface PaginationProps {
   currentPage: number;

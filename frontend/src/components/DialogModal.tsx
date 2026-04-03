@@ -5,8 +5,8 @@ import {
   ModalHeader,
   ModalBody,
   ModalFooter,
-} from "@heroui/modal";
-import { Button } from "@heroui/button";
+} from "@nextui-org/modal";
+import { Button } from "@nextui-org/button";
 
 export type DialogType = "error" | "confirm";
 

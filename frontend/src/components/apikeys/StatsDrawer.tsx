@@ -3,12 +3,12 @@ import {
   DrawerBody,
   DrawerContent,
   DrawerHeader,
-} from "@heroui/drawer";
-import { Card, CardHeader, CardBody } from "@heroui/card";
-import { Divider } from "@heroui/divider";
-import { Tooltip } from "@heroui/tooltip";
+} from "@nextui-org/drawer";
+import { Card, CardHeader, CardBody } from "@nextui-org/card";
+import { Divider } from "@nextui-org/divider";
+import { Tooltip } from "@nextui-org/tooltip";
 import React, { useEffect } from "react";
-import { Button } from "@heroui/button";
+import { Button } from "@nextui-org/button";
 
 import { LeftArrowIcon } from "../icons";
 

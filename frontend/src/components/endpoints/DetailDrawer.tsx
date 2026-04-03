@@ -3,13 +3,13 @@ import {
   DrawerBody,
   DrawerContent,
   DrawerHeader,
-} from "@heroui/drawer";
-import { Card, CardHeader, CardBody } from "@heroui/card";
-import { Divider } from "@heroui/divider";
-import { Chip } from "@heroui/chip";
-import { Tooltip } from "@heroui/tooltip";
+} from "@nextui-org/drawer";
+import { Card, CardHeader, CardBody } from "@nextui-org/card";
+import { Divider } from "@nextui-org/divider";
+import { Chip } from "@nextui-org/chip";
+import { Tooltip } from "@nextui-org/tooltip";
 import React, { useState, useEffect } from "react";
-import { Button } from "@heroui/button";
+import { Button } from "@nextui-org/button";
 
 import { DeleteIcon, EditIcon, LeftArrowIcon } from "../icons";
 import StatusTimeline from "../StatusTimeline";

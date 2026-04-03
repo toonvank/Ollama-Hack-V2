@@ -1,4 +1,4 @@
-import { Button } from "@heroui/button";
+import { Button } from "@nextui-org/button";
 
 interface ErrorDisplayProps {
   error: Error | null;

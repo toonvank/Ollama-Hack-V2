@@ -9,17 +9,17 @@ import {
   SortDescriptor,
   Selection,
   Key,
-} from "@heroui/table";
-import { Button } from "@heroui/button";
+} from "@nextui-org/table";
+import { Button } from "@nextui-org/button";
 import {
   Dropdown,
   DropdownTrigger,
   DropdownMenu,
   DropdownItem,
   DropdownSection,
-} from "@heroui/dropdown";
-import { Tooltip } from "@heroui/tooltip";
-import { Input } from "@heroui/input";
+} from "@nextui-org/dropdown";
+import { Tooltip } from "@nextui-org/tooltip";
+import { Input } from "@nextui-org/input";
 
 import LoadingSpinner from "./LoadingSpinner";
 import ErrorDisplay from "./ErrorDisplay";
