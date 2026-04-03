@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Button } from "@nextui-org/button";
-import { Input } from "@nextui-org/input";
-import { addToast } from "@/utils/toast";
-import { Card, CardBody, CardFooter, CardHeader } from "@nextui-org/card";
-import { Form } from "@nextui-org/form";
+import { Button } from "@heroui/button";
+import { Input } from "@heroui/input";
+import { addToast } from "@heroui/toast";
+import { Card, CardBody, CardFooter, CardHeader } from "@heroui/card";
+import { Form } from "@heroui/form";
 
 import { EnhancedAxiosError } from "@/api";
 import { useAuth } from "@/contexts/AuthContext";

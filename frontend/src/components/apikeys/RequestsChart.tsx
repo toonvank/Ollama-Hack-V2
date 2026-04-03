@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import Chart from "react-apexcharts";
 import { ApexOptions } from "apexcharts";
-import { useTheme } from "@nextui-org/use-theme";
+import { useTheme } from "@heroui/use-theme";
 
 interface ChartData {
   date: string;

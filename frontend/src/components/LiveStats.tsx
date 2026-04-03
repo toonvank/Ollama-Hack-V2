@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import ReactApexChart from "react-apexcharts";
-import { Card, CardHeader } from "@nextui-org/card";
+import { Card, CardHeader } from "@heroui/card";
 
 export const LiveStats = () => {
   const [stats, setStats] = useState({

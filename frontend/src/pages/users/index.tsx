@@ -1,20 +1,20 @@
 import { useState, useEffect } from "react";
-import { Button } from "@nextui-org/button";
-import { Input } from "@nextui-org/input";
-import { Form } from "@nextui-org/form";
+import { Button } from "@heroui/button";
+import { Input } from "@heroui/input";
+import { Form } from "@heroui/form";
 import {
   Modal,
   ModalContent,
   ModalHeader,
   ModalBody,
   ModalFooter,
-} from "@nextui-org/modal";
+} from "@heroui/modal";
 import { SortDescriptor } from "@react-types/shared";
-import { Checkbox } from "@nextui-org/checkbox";
-import { Tooltip } from "@nextui-org/tooltip";
-import { addToast } from "@/utils/toast";
-import { Chip } from "@nextui-org/chip";
-import { Select, SelectItem } from "@nextui-org/select";
+import { Checkbox } from "@heroui/checkbox";
+import { Tooltip } from "@heroui/tooltip";
+import { addToast } from "@heroui/toast";
+import { Chip } from "@heroui/chip";
+import { Select, SelectItem } from "@heroui/select";
 
 import {
   useCustomQuery,

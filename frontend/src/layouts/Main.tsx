@@ -4,8 +4,8 @@ import {
   DropdownMenu,
   DropdownSection,
   DropdownTrigger,
-} from "@nextui-org/dropdown";
-import { Link } from "@nextui-org/link";
+} from "@heroui/dropdown";
+import { Link } from "@heroui/link";
 import {
   Navbar,
   NavbarBrand,
@@ -14,12 +14,12 @@ import {
   NavbarMenu,
   NavbarMenuItem,
   NavbarMenuToggle,
-} from "@nextui-org/navbar";
+} from "@heroui/navbar";
 import { useNavigate } from "react-router-dom";
-import { User } from "@nextui-org/user";
+import { User } from "@heroui/user";
 import { useState } from "react";
-import { useTheme } from "@nextui-org/use-theme";
-import { Switch } from "@nextui-org/switch";
+import { useTheme } from "@heroui/use-theme";
+import { Switch } from "@heroui/switch";
 
 import { LogoIcon, MoonIcon, SunIcon } from "@/components/icons";
 import { useAuth } from "@/contexts/AuthContext";

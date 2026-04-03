@@ -1,7 +1,7 @@
 import React from "react";
-import { Button } from "@nextui-org/button";
-import { SortDescriptor } from "@nextui-org/table";
-import { Tooltip } from "@nextui-org/tooltip";
+import { Button } from "@heroui/button";
+import { SortDescriptor } from "@heroui/table";
+import { Tooltip } from "@heroui/tooltip";
 
 import { DataTable } from "@/components/DataTable";
 import StatusBadge from "@/components/StatusBadge";
@@ -11,7 +11,7 @@ import {
   SortOrder,
 } from "@/types";
 import { EyeIcon } from "@/components/icons";
-import { Switch } from "@nextui-org/switch";
+import { Switch } from "@heroui/switch";
 
 interface ModelTableProps {
   models: AIModelInfoWithEndpointCount[] | undefined;

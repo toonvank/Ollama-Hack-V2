@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
-import { addToast } from "@/utils/toast";
-import { Key, Selection } from "@nextui-org/table";
-import { Button } from "@nextui-org/button";
+import { addToast } from "@heroui/toast";
+import { Key, Selection } from "@heroui/table";
+import { Button } from "@heroui/button";
 
 import EndpointDetailDrawer from "@/components/endpoints/DetailDrawer";
 import CreateEndpointModal from "@/components/endpoints/CreateModal";
@@ -339,32 +339,30 @@ const EndpointListPage = () => {
         // Get current latest test ID list
         let stillTestingIds = [...currentTestingIds];
 
-        // Check status of each endpoint being tested using batch API
-        try {
-          // Send all endpoints at once to get statuses
-          const taskStatuses = await endpointApi.batchGetEndpointTasks(currentTestingIds);
+        // Check status of each endpoint being tested
+        for (const endpointId of currentTestingIds) {
+          try {
+            const task = await endpointApi.getEndpointTask(endpointId);
 
-          for (const endpointId of currentTestingIds) {
-            const status = taskStatuses[endpointId];
-            if (!status) continue;
-
-            const endpoint = endpoints?.items.find((e) => e.id === endpointId);
+            const endpoint = endpoints?.items.find(
+              (endpoint) => endpoint.id === endpointId,
+            );
 
             if (endpoint) {
-              endpoint.task_status = status;
+              endpoint.task_status = task.status;
             }
 
             if (
-              status !== TaskStatusEnum.RUNNING &&
-              status !== TaskStatusEnum.PENDING
+              task.status !== TaskStatusEnum.RUNNING &&
+              task.status !== TaskStatusEnum.PENDING
             ) {
-              if (status === TaskStatusEnum.FAILED) {
+              if (task.status === TaskStatusEnum.FAILED) {
                 addToast({
                   title: "Test Failed",
                   description: `Endpoint ${endpointId} test failed. Please try again.`,
                   color: "danger",
                 });
-              } else if (status === TaskStatusEnum.DONE) {
+              } else if (task.status === TaskStatusEnum.DONE) {
                 addToast({
                   title: "Test Successful",
                   description: `Endpoint ${endpointId} test completed successfully.`,
@@ -378,9 +376,12 @@ const EndpointListPage = () => {
               // Refresh endpoint list for latest status
               refetch();
             }
+          } catch {
+            // Remove from list on error to avoid infinite retries
+            stillTestingIds = stillTestingIds.filter(
+              (id) => Number(id) !== Number(endpointId),
+            );
           }
-        } catch {
-          // On error, we'll try again next poll
         }
 
         // Update testing endpoint list - use functional update for latest state

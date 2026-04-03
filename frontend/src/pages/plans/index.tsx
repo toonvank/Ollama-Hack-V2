@@ -1,18 +1,18 @@
 import { useState, useEffect } from "react";
-import { Button } from "@nextui-org/button";
-import { Input } from "@nextui-org/input";
+import { Button } from "@heroui/button";
+import { Input } from "@heroui/input";
 import {
   Modal,
   ModalContent,
   ModalHeader,
   ModalBody,
   ModalFooter,
-} from "@nextui-org/modal";
+} from "@heroui/modal";
 import { SortDescriptor } from "@react-types/shared";
-import { Form } from "@nextui-org/form";
-import { Tooltip } from "@nextui-org/tooltip";
-import { addToast } from "@/utils/toast";
-import { Checkbox } from "@nextui-org/checkbox";
+import { Form } from "@heroui/form";
+import { Tooltip } from "@heroui/tooltip";
+import { addToast } from "@heroui/toast";
+import { Checkbox } from "@heroui/checkbox";
 
 import {
   useCustomQuery,
@@ -402,9 +402,8 @@ const PlansPage = () => {
                     return validationErrors;
                   }}
                   label="Requests Per Minute (RPM)"
-                  description="Use -1 for unlimited requests"
                   max={1000000}
-                  min={-1}
+                  min={0}
                   placeholder="Enter requests per minute limit"
                   type="number"
                   value={newPlan.rpm.toString()}
@@ -422,9 +421,8 @@ const PlansPage = () => {
                     return validationErrors;
                   }}
                   label="Requests Per Day (RPD)"
-                  description="Use -1 for unlimited requests"
                   max={1000000}
-                  min={-1}
+                  min={0}
                   placeholder="Enter requests per day limit"
                   type="number"
                   value={newPlan.rpd.toString()}
@@ -506,9 +504,8 @@ const PlansPage = () => {
                         return validationErrors;
                       }}
                       label="Requests Per Minute (RPM)"
-                      description="Use -1 for unlimited requests"
                       max={1000000}
-                      min={-1}
+                      min={0}
                       placeholder="Enter requests per minute limit"
                       type="number"
                       value={editingPlan.rpm.toString()}
@@ -526,9 +523,8 @@ const PlansPage = () => {
                         return validationErrors;
                       }}
                       label="Requests Per Day (RPD)"
-                      description="Use -1 for unlimited requests"
                       max={1000000}
-                      min={-1}
+                      min={0}
                       placeholder="Enter requests per day limit"
                       type="number"
                       value={editingPlan.rpd.toString()}

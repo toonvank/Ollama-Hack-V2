@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button } from "@nextui-org/button";
-import { Input } from "@nextui-org/input";
-import { Link } from "@nextui-org/link";
-import { Form } from "@nextui-org/form";
-import { addToast } from "@/utils/toast";
-import { Card, CardBody, CardFooter, CardHeader } from "@nextui-org/card";
+import { Button } from "@heroui/button";
+import { Input } from "@heroui/input";
+import { Link } from "@heroui/link";
+import { Form } from "@heroui/form";
+import { addToast } from "@heroui/toast";
+import { Card, CardBody, CardFooter, CardHeader } from "@heroui/card";
 
 import { authApi, EnhancedAxiosError } from "@/api";
 import LoadingSpinner from "@/components/LoadingSpinner";

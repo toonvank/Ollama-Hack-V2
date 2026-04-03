@@ -1,4 +1,4 @@
-import { Card } from "@nextui-org/card";
+import { Card } from "@heroui/card";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useCustomQuery } from "@/hooks";

@@ -1,7 +1,7 @@
 import React, { useState, KeyboardEvent } from "react";
-import { Pagination as HeroUIPagination } from "@nextui-org/pagination";
-import { Input } from "@nextui-org/input";
-import { Button } from "@nextui-org/button";
+import { Pagination as HeroUIPagination } from "@heroui/pagination";
+import { NumberInput } from "@heroui/number-input";
+import { Button } from "@heroui/button";
 
 interface PaginationProps {
   currentPage: number;
@@ -77,22 +77,22 @@ const Pagination = ({
             <span className="text-sm text-gray-500 dark:text-gray-400">
               Go to
             </span>
-            <Input
+            <NumberInput
+              hideStepper
               className="w-16"
               classNames={{
                 mainWrapper: "h-8",
                 input: "h-8",
                 inputWrapper: "h-8 min-h-8",
               }}
-              type="number"
-              min={1}
-              max={totalPages}
+              maxValue={totalPages}
+              minValue={1}
               placeholder={currentPage.toString()}
               radius="sm"
               size="sm"
-              value={jumpValue?.toString() ?? ""}
+              value={jumpValue}
               onKeyDown={handleKeyDown}
-              onValueChange={(value) => setJumpValue(value ? parseInt(value) : null)}
+              onValueChange={(value) => setJumpValue(value)}
             />
             <span className="text-sm text-gray-500 dark:text-gray-400">page</span>
             <Button

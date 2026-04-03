@@ -1,30 +1,31 @@
 import { useState, useEffect } from "react";
-import { Button } from "@nextui-org/button";
-import { Input } from "@nextui-org/input";
+import { Button } from "@heroui/button";
+import { Input } from "@heroui/input";
 import {
   Modal,
   ModalContent,
   ModalHeader,
   ModalBody,
   ModalFooter,
-} from "@nextui-org/modal";
-import { Tooltip } from "@nextui-org/tooltip";
-import { Snippet } from "@nextui-org/snippet";
-import { Link } from "@nextui-org/link";
-import { Image } from "@nextui-org/image";
+} from "@heroui/modal";
+import { Tooltip } from "@heroui/tooltip";
+import { Form } from "@heroui/form";
+import { Snippet } from "@heroui/snippet";
+import { Link } from "@heroui/link";
+import { Image } from "@heroui/image";
 import {
   Drawer,
   DrawerContent,
   DrawerHeader,
   DrawerBody,
-} from "@nextui-org/drawer";
+} from "@heroui/drawer";
 import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";
 import bash from "react-syntax-highlighter/dist/esm/languages/prism/bash";
 import {
   oneDark,
   oneLight,
 } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { useTheme } from "@nextui-org/use-theme";
+import { useTheme } from "@heroui/use-theme";
 import { SortDescriptor } from "@react-types/shared";
 
 import { useAuth } from "@/contexts/AuthContext";
@@ -366,7 +367,7 @@ const ApiKeysPage = () => {
       >
         <ModalContent>
           {(onClose) => (
-            <>
+            <Form className="w-full" onSubmit={handleCreateApiKey}>
               <ModalHeader>
                 {createdApiKey ? "Key Created Successfully" : "Create API Key"}
               </ModalHeader>
@@ -421,7 +422,7 @@ const ApiKeysPage = () => {
                   </>
                 )}
               </ModalFooter>
-            </>
+            </Form>
           )}
         </ModalContent>
       </Modal>
