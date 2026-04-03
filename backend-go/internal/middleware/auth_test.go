@@ -163,12 +163,13 @@ func TestAuthMiddleware_InvalidFormat(t *testing.T) {
 }
 
 func TestAuthMiddleware_EmptyToken(t *testing.T) {
+	authService := createTestAuthService()
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request, _ = http.NewRequest("GET", "/", nil)
 	c.Request.Header.Set("Authorization", "Bearer ")
 
-	handler := AuthMiddleware(nil)
+	handler := AuthMiddleware(authService)
 	handler(c)
 
 	// Empty token should still be treated as invalid

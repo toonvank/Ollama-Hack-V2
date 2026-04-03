@@ -94,6 +94,9 @@ func (s *AuthService) GetUserByID(userID int) (*models.User, error) {
 }
 
 func (s *AuthService) GetUserByAPIKey(apiKey string) (*models.User, error) {
+	if s.db == nil {
+		return nil, errors.New("invalid API key")
+	}
 	var user models.User
 	query := `
 		SELECT u.* FROM users u

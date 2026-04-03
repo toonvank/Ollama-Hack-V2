@@ -33,14 +33,22 @@ func AuthMiddleware(authService *services.AuthService) gin.HandlerFunc {
 
 		switch authType {
 		case "bearer":
+			// First try JWT token
 			claims, err := authService.ValidateToken(token)
-			if err != nil {
-				utils.Unauthorized(c, "Invalid or expired token")
-				c.Abort()
-				return
+			if err == nil {
+				userID = claims.UserID
+				isAdmin = claims.IsAdmin
+			} else {
+				// JWT failed, try as API key (OpenAI-compatible clients send API keys as Bearer tokens)
+				user, apiKeyErr := authService.GetUserByAPIKey(token)
+				if apiKeyErr != nil {
+					utils.Unauthorized(c, "Invalid or expired token")
+					c.Abort()
+					return
+				}
+				userID = user.ID
+				isAdmin = user.IsAdmin
 			}
-			userID = claims.UserID
-			isAdmin = claims.IsAdmin
 
 		default:
 			// Try API key
