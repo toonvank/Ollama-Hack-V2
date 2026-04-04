@@ -299,6 +299,8 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 		utils.BadRequest(c, "Field 'model' is required")
 		return
 	}
+	
+	originalModelRequested := modelRaw
 
 	// 🧠 NEVER-SLEEP INJECTOR: Eliminate Cold-Starts
 	// Inject infinite keep_alive if the user hasn't explicitly set one. This securely
@@ -319,19 +321,18 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 				preferEndpoints, preferErr := h.bestEndpointsForModel(preferName, preferTag)
 				
 				if preferErr == nil && len(preferEndpoints) > 0 {
-					originalModel := modelRaw
 					modelRaw = result.PreferModel
 					smartRouteHeader = services.FormatRouteHeader(result.Category, result.PreferModel)
 					
 					log.Printf("[smart-router] Routing '%s' → '%s' (category: %s, confidence: %.2f)",
-						originalModel, result.PreferModel, result.Category, result.Confidence)
+						originalModelRequested, result.PreferModel, result.Category, result.Confidence)
 					
 					// Update the body with the new model
 					bodyMap["model"] = modelRaw
 					rawBody, _ = json.Marshal(bodyMap)
 				} else {
 					log.Printf("[smart-router] Preferred model '%s' not available, keeping original '%s'",
-						result.PreferModel, modelRaw)
+						result.PreferModel, originalModelRequested)
 				}
 			}
 		}
@@ -341,13 +342,13 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 	var endpoints []string
 
 	if name == "smart" {
-		originalTag := tag
 		endpoints, name, tag, err = h.resolveSmartModel(tag)
 		if err == nil {
-			log.Printf("[smart-model] Resolved pseudo-model 'smart:%s' directly to '%s:%s'", originalTag, name, tag)
-			bodyMap["model"] = fmt.Sprintf("%s:%s", name, tag)
+			log.Printf("[smart-model] Resolved pseudo-model '%s' directly to '%s:%s'", originalModelRequested, name, tag)
+			modelRaw = fmt.Sprintf("%s:%s", name, tag)
+			bodyMap["model"] = modelRaw
 			rawBody, _ = json.Marshal(bodyMap)
-			smartRouteHeader = services.FormatRouteHeader("smart", fmt.Sprintf("%s:%s", name, tag))
+			smartRouteHeader = services.FormatRouteHeader("smart", modelRaw)
 		}
 	} else {
 		endpoints, err = h.bestEndpointsForModel(name, tag)
@@ -635,15 +636,35 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 		// Streaming: flush chunks as they arrive
 		flusher, ok := c.Writer.(http.Flusher)
 		buf := make([]byte, 4096)
+		
+		targetModelStr := []byte(fmt.Sprintf(`"model":"%s"`, modelRaw))
+		replModelStr := []byte(fmt.Sprintf(`"model":"%s"`, originalModelRequested))
+		
 		for {
 			n, readErr := resp.Body.Read(buf)
 			if n > 0 {
-				c.Writer.Write(buf[:n])
+				chunk := buf[:n]
+				
+				// Rewrite the output model JSON so Open WebUI doesn't crash on mismatch
+				if originalModelRequested != modelRaw {
+					chunk = bytes.ReplaceAll(chunk, targetModelStr, replModelStr)
+				}
+				
+				c.Writer.Write(chunk)
 				if ok {
 					flusher.Flush()
 				}
 			}
 			if readErr != nil {
+				// Inject a guaranteed DONE frame if the stream ends or is aborted abruptly,
+				// which prevents python/aiohttp ClientPayloadError crashes in Open WebUI
+				c.Writer.Write([]byte("\n\ndata: [DONE]\n\n"))
+				if ok {
+					flusher.Flush()
+				}
+				if readErr != io.EOF {
+					log.Printf("[proxy] Stream aborted early: %v", readErr)
+				}
 				break
 			}
 		}
@@ -652,6 +673,13 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 		// Non-streaming: copy full body and cache it
 		respBytes, bodyErr := io.ReadAll(resp.Body)
 		resp.Body.Close()
+		
+		if originalModelRequested != modelRaw {
+			targetModelStr := []byte(fmt.Sprintf(`"model":"%s"`, modelRaw))
+			replModelStr := []byte(fmt.Sprintf(`"model":"%s"`, originalModelRequested))
+			respBytes = bytes.ReplaceAll(respBytes, targetModelStr, replModelStr)
+		}
+		
 		if bodyErr == nil {
 			// Cache successful responses for 10 minutes
 			if resp.StatusCode == 200 && cacheKey != "" {
