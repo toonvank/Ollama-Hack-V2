@@ -338,6 +338,7 @@ type Tester struct {
 	db       *database.DB
 	interval time.Duration
 	stop     chan struct{}
+	taskChan chan pendingTask
 }
 
 func NewTester(db *database.DB) *Tester {
@@ -345,16 +346,32 @@ func NewTester(db *database.DB) *Tester {
 		db:       db,
 		interval: 10 * time.Second,
 		stop:     make(chan struct{}),
+		taskChan: make(chan pendingTask, 500),
 	}
 }
 
 func (t *Tester) Start() {
 	log.Println("[tester] background tester started")
+	
+	// Create worker pool with 20 parallel workers to prevent connection saturation
+	for i := 0; i < 20; i++ {
+		go func() {
+			for {
+				select {
+				case task := <-t.taskChan:
+					t.executeTask(task)
+				case <-t.stop:
+					return
+				}
+			}
+		}()
+	}
+
 	go func() {
 		ticker := time.NewTicker(t.interval)
-		fetchTicker := time.NewTicker(1 * time.Hour) // Fetch every hour
-		requeueTicker := time.NewTicker(1 * time.Hour) // Re-queue old tests
-		statsTicker := time.NewTicker(5 * time.Second) // Poll stats for frontend
+		fetchTicker := time.NewTicker(1 * time.Hour)    // Fetch every hour
+		requeueTicker := time.NewTicker(1 * time.Hour) // Check for tests to re-queue every hour
+		statsTicker := time.NewTicker(5 * time.Second)  // Poll stats for frontend
 		defer ticker.Stop()
 		defer fetchTicker.Stop()
 		defer requeueTicker.Stop()
@@ -404,17 +421,32 @@ func (t *Tester) Start() {
 }
 
 func (t *Tester) queueCyclicalTests() {
-	log.Println("[tester] checking for endpoints that need re-testing (>24h)")
-	query := `
+	log.Println("[tester] checking for endpoints that need re-testing")
+	
+	intervalStr := os.Getenv("CYCLICAL_TEST_INTERVAL_HOURS")
+	if intervalStr == "" {
+		intervalStr = "24"
+	}
+	intervalInt, err := strconv.Atoi(intervalStr)
+	if err != nil || intervalInt <= 0 {
+		intervalInt = 24
+	}
+
+	query := fmt.Sprintf(`
 		INSERT INTO endpoint_test_tasks (endpoint_id, scheduled_at, status)
 		SELECT e.id, NOW(), 'pending'
 		FROM endpoints e
 		WHERE NOT EXISTS (
 			SELECT 1 FROM endpoint_test_tasks ett 
-			WHERE ett.endpoint_id = e.id AND (ett.status = 'pending' OR ett.last_tried >= NOW() - INTERVAL '24 hours')
+			WHERE ett.endpoint_id = e.id 
+			  AND (
+				ett.status = 'pending' 
+				OR (e.status IN ('available', 'pending') AND ett.last_tried >= NOW() - INTERVAL '%d hours')
+				OR (e.status IN ('unavailable', 'fake') AND ett.last_tried >= NOW() - INTERVAL '168 hours')
+			  )
 		)
 		LIMIT 500
-	`
+	`, intervalInt)
 	res, err := t.db.Exec(query)
 	if err != nil {
 		log.Printf("[tester] failed to queue cyclical tests: %v", err)
@@ -518,8 +550,12 @@ func (t *Tester) runPendingTasks() {
 	t.db.Exec(query, args...)
 
 	for _, task := range tasks {
-		log.Printf("[tester] testing endpoint %d (%s)", task.EndpointID, task.EndpointURL)
-		go t.executeTask(task)
+		select {
+		case t.taskChan <- task:
+			log.Printf("[tester] enqueued endpoint %d (%s) for testing", task.EndpointID, task.EndpointURL)
+		case <-t.stop:
+			return
+		}
 	}
 }
 

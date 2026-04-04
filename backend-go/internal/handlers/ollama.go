@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -18,10 +19,19 @@ import (
 	"github.com/timlzh/ollama-hack/internal/utils"
 )
 
+type smartModelCacheEntry struct {
+	urls []string
+	name string
+	tag  string
+	exp  time.Time
+}
+
 type OllamaHandler struct {
 	db          *database.DB
 	fallbacks   map[string]string
 	smartRouter *services.SmartRouter
+
+	smartCache sync.Map
 }
 
 func NewOllamaHandler(db *database.DB) *OllamaHandler {
@@ -60,10 +70,12 @@ func (h *OllamaHandler) bestEndpointsForModel(modelName, modelTag string) ([]str
 		FROM endpoint_ai_models eam
 		JOIN endpoints e ON e.id = eam.endpoint_id
 		JOIN ai_models m ON m.id = eam.ai_model_id
+		LEFT JOIN endpoint_health eh ON eh.url = e.url
 		WHERE m.name = $1 AND m.tag = $2
 		  AND m.enabled = TRUE
 		  AND eam.status = 'available'
 		  AND e.status = 'available'
+		  AND (eh.disabled IS NULL OR eh.disabled = FALSE)
 		  AND (eam.token_per_second >= $3 OR eam.token_per_second IS NULL)
 		ORDER BY eam.token_per_second DESC NULLS LAST
 		LIMIT 5
@@ -80,6 +92,14 @@ func (h *OllamaHandler) bestEndpointsForModel(modelName, modelTag string) ([]str
 
 // resolveSmartModel dynamically calculates the best real model for a pseudo-model tag (like "fastest" or "large")
 func (h *OllamaHandler) resolveSmartModel(smartTag string) ([]string, string, string, error) {
+	// ⚡ Fast path: Check 60-second TTL cache for smart model resolutions
+	if val, ok := h.smartCache.Load(smartTag); ok {
+		entry := val.(smartModelCacheEntry)
+		if time.Now().Before(entry.exp) {
+			return entry.urls, entry.name, entry.tag, nil
+		}
+	}
+
 	var heuristic string
 	switch smartTag {
 	case "fastest":
@@ -99,10 +119,12 @@ func (h *OllamaHandler) resolveSmartModel(smartTag string) ([]string, string, st
 		FROM endpoint_ai_models eam
 		JOIN endpoints e ON e.id = eam.endpoint_id
 		JOIN ai_models m ON m.id = eam.ai_model_id
+		LEFT JOIN endpoint_health eh ON eh.url = e.url
 		WHERE %s
 		  AND m.enabled = TRUE
 		  AND eam.status = 'available'
 		  AND e.status = 'available'
+		  AND (eh.disabled IS NULL OR eh.disabled = FALSE)
 		ORDER BY eam.token_per_second DESC NULLS LAST
 		LIMIT 1
 	`, heuristic)
@@ -118,6 +140,17 @@ func (h *OllamaHandler) resolveSmartModel(smartTag string) ([]string, string, st
 	}
 
 	urls, err := h.bestEndpointsForModel(mRow.Name, mRow.Tag)
+	
+	// Cache the result for 60 seconds to relieve database load
+	if err == nil {
+		h.smartCache.Store(smartTag, smartModelCacheEntry{
+			urls: urls,
+			name: mRow.Name,
+			tag:  mRow.Tag,
+			exp:  time.Now().Add(60 * time.Second),
+		})
+	}
+	
 	return urls, mRow.Name, mRow.Tag, err
 }
 
