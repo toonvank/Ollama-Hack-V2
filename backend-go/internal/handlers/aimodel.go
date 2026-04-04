@@ -135,3 +135,79 @@ func (h *AIModelHandler) Toggle(c *gin.Context) {
 
 	utils.Success(c, info)
 }
+
+// SmartModels returns the current smart model resolutions
+func (h *AIModelHandler) SmartModels(c *gin.Context) {
+	smartProfiles := []string{"fastest", "large", "small", "coding"}
+	results := make([]gin.H, 0, len(smartProfiles))
+
+	for _, profile := range smartProfiles {
+		var heuristic string
+		var description string
+
+		switch profile {
+		case "fastest":
+			heuristic = "1=1"
+			description = "Highest tokens per second across all available models"
+		case "large":
+			heuristic = "(m.name ILIKE '%70b%' OR m.name ILIKE '%104b%' OR m.name ILIKE '%72b%')"
+			description = "Large models (70B, 72B, 104B parameters)"
+		case "small":
+			heuristic = "(m.name ILIKE '%8b%' OR m.name ILIKE '%7b%' OR m.name ILIKE '%3b%' OR m.name ILIKE '%1.5b%')"
+			description = "Small models (1.5B, 3B, 7B, 8B parameters)"
+		case "coding":
+			heuristic = "(m.name ILIKE '%code%' OR m.name ILIKE '%coder%')"
+			description = "Code-specialized models"
+		}
+
+		query := `
+			SELECT 
+				m.name, 
+				m.tag,
+				e.name as endpoint_name,
+				eam.token_per_second
+			FROM endpoint_ai_models eam
+			JOIN endpoints e ON e.id = eam.endpoint_id
+			JOIN ai_models m ON m.id = eam.ai_model_id
+			WHERE ` + heuristic + `
+			  AND m.enabled = TRUE
+			  AND eam.status = 'available'
+			  AND e.status = 'available'
+			ORDER BY eam.token_per_second DESC NULLS LAST
+			LIMIT 1
+		`
+
+		type resultRow struct {
+			Name             string   `db:"name"`
+			Tag              string   `db:"tag"`
+			EndpointName     string   `db:"endpoint_name"`
+			TokenPerSecond   *float64 `db:"token_per_second"`
+		}
+
+		var row resultRow
+		err := h.db.Get(&row, query)
+
+		result := gin.H{
+			"smart_model":  "smart:" + profile,
+			"description":  description,
+			"resolved":     false,
+		}
+
+		if err == nil {
+			result["resolved"] = true
+			result["model_name"] = row.Name
+			result["model_tag"] = row.Tag
+			result["model_full"] = row.Name + ":" + row.Tag
+			result["endpoint"] = row.EndpointName
+			if row.TokenPerSecond != nil {
+				result["token_per_second"] = *row.TokenPerSecond
+			}
+		} else {
+			result["error"] = "No available models match this profile"
+		}
+
+		results = append(results, result)
+	}
+
+	c.JSON(200, gin.H{"smart_models": results})
+}

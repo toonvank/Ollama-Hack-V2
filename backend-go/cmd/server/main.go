@@ -138,6 +138,7 @@ func main() {
 			// AI models
 			admin.GET("/ai_model", modelHandler.List)
 			admin.GET("/ai_model/:id", modelHandler.Get)
+			admin.GET("/ai_model/smart/resolutions", modelHandler.SmartModels)
 			admin.PATCH("/ai_model/:id/toggle", modelHandler.Toggle) // enable/disable
 		}
 	}

@@ -11,6 +11,7 @@ import { AIModelInfoWithEndpointCount, PageResponse } from "@/types";
 import DashboardLayout from "@/layouts/Main";
 import ModelTable from "@/components/models/Table";
 import ModelDetailDrawer from "@/components/models/DetailDrawer";
+import SmartModelsCard from "@/components/models/SmartModelsCard";
 import { addToast } from "@heroui/toast";
 
 // Model list page
@@ -23,7 +24,7 @@ export const ModelListPage = () => {
       totalPages: 1,
       orderBy: {
         allowedFields: ["id", "name", "created_at", "token_per_second"],
-        defaultField: "name",
+        defaultField: "token_per_second",
       },
     });
 
@@ -44,8 +45,8 @@ export const ModelListPage = () => {
       page: 1,
       pageSize: 10,
       search: "",
-      orderBy: undefined,
-      order: undefined,
+      orderBy: "token_per_second",
+      order: "desc",
     },
     validationConfig,
   );
@@ -128,6 +129,7 @@ export const ModelListPage = () => {
 
   return (
     <DashboardLayout current_root_href="/models">
+      <SmartModelsCard />
       <ModelTable
         error={modelsError}
         isLoading={isLoading}

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/timlzh/ollama-hack/internal/database"
+	"github.com/timlzh/ollama-hack/internal/utils"
 )
 
 // EndpointStatus constants
@@ -353,12 +354,18 @@ func (t *Tester) Start() {
 		ticker := time.NewTicker(t.interval)
 		fetchTicker := time.NewTicker(1 * time.Hour) // Fetch every hour
 		requeueTicker := time.NewTicker(1 * time.Hour) // Re-queue old tests
+		statsTicker := time.NewTicker(5 * time.Second) // Poll stats for frontend
 		defer ticker.Stop()
 		defer fetchTicker.Stop()
 		defer requeueTicker.Stop()
+		defer statsTicker.Stop()
 
 		// Run fetch immediately on startup
 		go t.fetchExternalEndpoints()
+
+		var lastCompleted uint64 = utils.TestTasksCompleted.Load()
+		var lastTime = time.Now()
+		var currentSpeed float64 = 0
 
 		for {
 			select {
@@ -368,6 +375,26 @@ func (t *Tester) Start() {
 				go t.fetchExternalEndpoints()
 			case <-requeueTicker.C:
 				go t.queueCyclicalTests()
+			case <-statsTicker.C:
+				var count int64
+				err := t.db.Get(&count, "SELECT COUNT(*) FROM endpoint_test_tasks WHERE status = 'pending'")
+				if err == nil {
+					utils.PendingTestsQueue.Store(count)
+				}
+				now := time.Now()
+				completedNow := utils.TestTasksCompleted.Load()
+				elapsedMins := now.Sub(lastTime).Minutes()
+				if elapsedMins > 0 {
+					speedThisTick := float64(completedNow-lastCompleted) / elapsedMins
+					if currentSpeed == 0 {
+						currentSpeed = speedThisTick
+					} else {
+						currentSpeed = (currentSpeed * 0.8) + (speedThisTick * 0.2) // EMA
+					}
+					utils.TesterSpeed.Store(uint64(currentSpeed))
+				}
+				lastCompleted = completedNow
+				lastTime = now
 			case <-t.stop:
 				log.Println("[tester] background tester stopped")
 				return
@@ -574,6 +601,7 @@ func (t *Tester) executeTask(task pendingTask) {
 		return
 	}
 
+	utils.TestTasksCompleted.Add(1)
 	t.db.Exec("UPDATE endpoint_test_tasks SET status = 'done' WHERE id = $1", task.ID)
 	log.Printf("[tester] finished task %d for endpoint %d — status: %s, models tested: %d",
 		task.ID, task.EndpointID, result.EndpointStatus, len(result.Models))

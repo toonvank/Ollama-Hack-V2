@@ -8,6 +8,8 @@ export const LiveStats = () => {
     active_requests: 0,
     cache_hits: 0,
     failed_requests: 0,
+    tester_speed: 0,
+    tester_pending: 0,
   });
 
   const [history, setHistory] = useState<{ x: number; y: number }[]>([]);
@@ -63,7 +65,7 @@ export const LiveStats = () => {
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
       <Card className="col-span-1 p-6 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col justify-between">
         <div>
-          <h4 className="text-gray-500 text-sm font-semibold uppercase">Total Requests</h4>
+          <h4 className="text-gray-500 text-sm font-semibold uppercase">Total Requests (Proxy)</h4>
           <p className="text-3xl font-bold text-primary">{stats.total_requests}</p>
         </div>
         <div className="mt-4">
@@ -73,8 +75,17 @@ export const LiveStats = () => {
           <p className="text-3xl font-bold text-success">{stats.cache_hits}</p>
         </div>
         <div className="mt-4 border-t border-gray-100 dark:border-gray-800 pt-4">
-          <h4 className="text-gray-500 text-sm font-semibold uppercase">Failed Routes</h4>
-          <p className="text-3xl font-bold text-danger">{stats.failed_requests}</p>
+          <h4 className="text-gray-500 text-sm font-semibold uppercase">Tester Polling Queue</h4>
+          <div className="flex justify-between items-end">
+            <div>
+               <p className="text-2xl font-bold text-warning">{stats.tester_pending}</p>
+               <span className="text-xs text-gray-500 uppercase">Pending</span>
+            </div>
+            <div className="text-right">
+               <p className="text-2xl font-bold text-primary">{stats.tester_speed}</p>
+               <span className="text-xs text-gray-500 uppercase">Tests / Min</span>
+            </div>
+          </div>
         </div>
       </Card>
       

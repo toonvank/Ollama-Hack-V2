@@ -36,6 +36,23 @@ export const aiModelApi = {
       { enabled },
     );
   },
+
+  // Get smart model resolutions
+  getSmartModels: () => {
+    return apiClient.get<{
+      smart_models: Array<{
+        smart_model: string;
+        description: string;
+        resolved: boolean;
+        model_name?: string;
+        model_tag?: string;
+        model_full?: string;
+        endpoint?: string;
+        token_per_second?: number;
+        error?: string;
+      }>;
+    }>(`/api/v2/ai_model/smart/resolutions`);
+  },
 };
 
 export default aiModelApi;

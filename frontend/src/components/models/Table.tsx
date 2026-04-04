@@ -70,13 +70,13 @@ const ModelTable: React.FC<ModelTableProps> = ({
 
   // Sort state
   const [sortDescriptor, setSortDescriptor] = React.useState<SortDescriptor>({
-    column: orderBy || "id",
+    column: orderBy || "token_per_second",
     direction:
       order === SortOrder.ASC
         ? "ascending"
         : order === SortOrder.DESC
           ? "descending"
-          : "ascending",
+          : "descending",
   });
 
   // Define table columns

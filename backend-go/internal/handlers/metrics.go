@@ -26,10 +26,12 @@ func LiveMetrics(c *gin.Context) {
 			return
 		default:
 			stats := gin.H{
-				"total_requests":  utils.TotalRequests.Load(),
-				"cache_hits":      utils.CacheHits.Load(),
-				"active_requests": utils.ActiveRequests.Load(),
-				"failed_requests": utils.FailedRequests.Load(),
+				"total_requests":   utils.TotalRequests.Load(),
+				"cache_hits":       utils.CacheHits.Load(),
+				"active_requests":  utils.ActiveRequests.Load(),
+				"failed_requests":  utils.FailedRequests.Load(),
+				"tester_speed":     utils.TesterSpeed.Load(),
+				"tester_pending":   utils.PendingTestsQueue.Load(),
 			}
 
 			data, _ := json.Marshal(stats)
