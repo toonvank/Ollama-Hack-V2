@@ -7,6 +7,8 @@ import (
 	"hash/fnv"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -85,9 +87,16 @@ const testPrompt = "Explain the concept of recursion in computer science. Provid
 func getModelLockID(name, tag string) int64 {
 	h := fnv.New64a()
 	h.Write([]byte(name + ":" + tag))
-	// PostgreSQL advisory lock requires a signed 64-bit integer
-	// Use modulo to ensure it fits within int64 range safely
 	return int64(h.Sum64() & 0x7FFFFFFFFFFFFFFF)
+}
+
+func getPollTimeout() time.Duration {
+	if val := os.Getenv("POLL_TIMEOUT_SECS"); val != "" {
+		if secs, err := strconv.Atoi(val); err == nil && secs > 0 {
+			return time.Duration(secs) * time.Second
+		}
+	}
+	return 300 * time.Second // default 5 minutes
 }
 
 // TestEndpointWithType tests an endpoint based on its type
@@ -106,7 +115,7 @@ func TestOpenAIEndpoint(endpointURL string, apiKey *string) *EndpointTestResult 
 		OllamaVersion:  "OpenAI Compatible",
 	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := &http.Client{Timeout: getPollTimeout()}
 
 	// Test /v1/models endpoint
 	req, err := http.NewRequest("GET", endpointURL+"/v1/models", nil)
@@ -248,7 +257,7 @@ func testModel(endpointURL, name, tag string) ModelTestResult {
 		"stream": true,
 	})
 
-	client := &http.Client{Timeout: 70 * time.Second}
+	client := &http.Client{Timeout: getPollTimeout()}
 	req, err := http.NewRequest("POST", endpointURL+"/api/generate", strings.NewReader(string(body)))
 	if err != nil {
 		return mr
@@ -343,8 +352,10 @@ func (t *Tester) Start() {
 	go func() {
 		ticker := time.NewTicker(t.interval)
 		fetchTicker := time.NewTicker(1 * time.Hour) // Fetch every hour
+		requeueTicker := time.NewTicker(1 * time.Hour) // Re-queue old tests
 		defer ticker.Stop()
 		defer fetchTicker.Stop()
+		defer requeueTicker.Stop()
 
 		// Run fetch immediately on startup
 		go t.fetchExternalEndpoints()
@@ -355,12 +366,37 @@ func (t *Tester) Start() {
 				t.runPendingTasks()
 			case <-fetchTicker.C:
 				go t.fetchExternalEndpoints()
+			case <-requeueTicker.C:
+				go t.queueCyclicalTests()
 			case <-t.stop:
 				log.Println("[tester] background tester stopped")
 				return
 			}
 		}
 	}()
+}
+
+func (t *Tester) queueCyclicalTests() {
+	log.Println("[tester] checking for endpoints that need re-testing (>24h)")
+	query := `
+		INSERT INTO endpoint_test_tasks (endpoint_id, scheduled_at, status)
+		SELECT e.id, NOW(), 'pending'
+		FROM endpoints e
+		WHERE NOT EXISTS (
+			SELECT 1 FROM endpoint_test_tasks ett 
+			WHERE ett.endpoint_id = e.id AND (ett.status = 'pending' OR ett.last_tried >= NOW() - INTERVAL '24 hours')
+		)
+		LIMIT 500
+	`
+	res, err := t.db.Exec(query)
+	if err != nil {
+		log.Printf("[tester] failed to queue cyclical tests: %v", err)
+		return
+	}
+	rowsAffected, _ := res.RowsAffected()
+	if rowsAffected > 0 {
+		log.Printf("[tester] dynamically re-queued %d endpoints for cyclical testing", rowsAffected)
+	}
 }
 
 func (t *Tester) Stop() {

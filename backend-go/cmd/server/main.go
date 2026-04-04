@@ -35,7 +35,18 @@ func main() {
 	tester.Start()
 	defer tester.Stop()
 
+	// Start background cleanup
+	cleanupSvc := services.NewBackgroundCleanupService(db)
+	cleanupSvc.Start()
+	defer cleanupSvc.Stop()
+
+	// Start background scraper
+	scraperSvc := services.NewBackgroundScraperService(db)
+	scraperSvc.Start()
+	defer scraperSvc.Stop()
+
 	// Initialize services
+	services.InitHealthTracker(db)
 	authService := services.NewAuthService(db, cfg)
 
 	// Initialize handlers

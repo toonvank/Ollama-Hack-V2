@@ -34,12 +34,15 @@ V2 doesn't just proxy—it's smart, robust, and designed for heavy production us
 -   🎨 **Stunning React Frontend**: Polished, dark-mode ready UI built with Vite and NextUI for effortless administration.
 
 ### 🧠 V2 Advanced Intelligence
--   🎯 **Smart Routing**: AI-powered prompt classification automatically routes requests to the optimal model based on task type (coding → CodeLlama, creative → Mistral, math → DeepSeek, etc.)
+-   🎯 **Smart Routing & Pseudo Models**: AI prompt classification routes tasks dynamically, or simply request `smart:fastest` in your external tools to have V2 instantly proxy you to the top-performing endpoint thresholding on live TPS data!
 -   💾 **Semantic Cache**: Similarity-based caching using embeddings—get instant responses for semantically similar prompts even if not exact matches.
--   🏥 **Health Tracking**: Real-time endpoint health monitoring with automatic disable/re-enable based on failure patterns.
+-   🏥 **Persistent Health Tracking**: Endpoints failing routines are disabled with historical contexts persisted permanently in PostgreSQL, preventing score bleeding across proxy restarts. 
 -   🚀 **Zero-Latency Racer**: Launches parallel requests to all available endpoints simultaneously—first response wins!
 -   🔪 **Map-Reduce Proxy**: Automatically splits large documents across multiple GPUs for parallel processing.
 -   🔥 **Never-Sleep Mode**: Injects infinite `keep_alive` to lock models in VRAM, eliminating cold-start latency.
+-   ⏱️ **Cyclical Testing**: Stale endpoints idle >24h are automatically funneled back into the validation queues.
+-   🧹 **Background Node Cleanup**: Automatically auto-shreds endpoints flagged as repeatedly unavailable for >3 days.
+-   🕵️ **Public Endpoint Scraper**: Passive active internet harvesting locating public nodes automatically parsing parameters over Shodan API.
 
 ## 🛠️ Stack & Requirements
 
@@ -132,6 +135,11 @@ environment:
     - HEALTH_TRACKER_DISABLE_THRESHOLD=3 # Failures before disable
     - HEALTH_TRACKER_DISABLE_DURATION=5m # How long to disable
     - HEALTH_TRACKER_PROBE_INTERVAL=30s # Health check interval
+
+    # ⏱️ Performance & Integrations
+    - MIN_TPS_THRESHOLD=5.0 # Minimum tokens/sec required for smart routing validation
+    - POLL_TIMEOUT_SECS=300 # Testing worker timeouts
+    - SHODAN_API_KEY=your_key_here # For background automatic target harvesting
 ```
 
 ### 🎯 Smart Routing Categories

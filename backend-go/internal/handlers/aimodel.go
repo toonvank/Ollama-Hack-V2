@@ -47,6 +47,14 @@ func (h *AIModelHandler) List(c *gin.Context) {
 		nullsHandling = " NULLS LAST"
 	}
 
+	searchQuery := c.Query("search")
+	whereClause := ""
+	var args []interface{}
+	if searchQuery != "" {
+		whereClause = "WHERE m.name ILIKE $1"
+		args = append(args, "%"+searchQuery+"%")
+	}
+
 	query := `
 		SELECT 
 			m.id, m.name, m.tag, m.enabled, m.created_at,
@@ -54,10 +62,11 @@ func (h *AIModelHandler) List(c *gin.Context) {
 			MAX(eam.token_per_second) as token_per_second
 		FROM ai_models m
 		LEFT JOIN endpoint_ai_models eam ON m.id = eam.ai_model_id
+		` + whereClause + `
 		GROUP BY m.id
 		ORDER BY ` + orderField + " " + order + nullsHandling
 
-	if err := h.db.Select(&rowInfos, query); err != nil {
+	if err := h.db.Select(&rowInfos, query, args...); err != nil {
 		utils.InternalServerError(c, "Failed to fetch AI models")
 		return
 	}

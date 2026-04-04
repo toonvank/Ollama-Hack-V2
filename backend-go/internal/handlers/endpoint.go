@@ -28,6 +28,7 @@ func (h *EndpointHandler) List(c *gin.Context) {
 	orderBy := "id"
 	order := "asc"
 	statusFilter := ""
+	searchQuery := ""
 
 	if p := c.Query("page"); p != "" {
 		if val, err := strconv.Atoi(p); err == nil && val > 0 {
@@ -54,22 +55,40 @@ func (h *EndpointHandler) List(c *gin.Context) {
 	if s := c.Query("status"); s != "" {
 		statusFilter = s
 	}
+	if sq := c.Query("search"); sq != "" {
+		searchQuery = sq
+	}
 
 	// Calculate offset
 	offset := (page - 1) * pageSize
 
 	// Build WHERE clause
-	whereClause := ""
+	whereClauses := []string{}
 	var countArgs []interface{}
 	var queryArgs []interface{}
+	argIdx := 1
 
 	if statusFilter != "" {
-		whereClause = "WHERE status = $1"
+		whereClauses = append(whereClauses, fmt.Sprintf("status = $%d", argIdx))
 		countArgs = append(countArgs, statusFilter)
-		queryArgs = append(queryArgs, statusFilter, pageSize, offset)
-	} else {
-		queryArgs = append(queryArgs, pageSize, offset)
+		queryArgs = append(queryArgs, statusFilter)
+		argIdx++
 	}
+	
+	if searchQuery != "" {
+		whereClauses = append(whereClauses, fmt.Sprintf("name ILIKE $%d", argIdx))
+		countArgs = append(countArgs, "%"+searchQuery+"%")
+		queryArgs = append(queryArgs, "%"+searchQuery+"%")
+		argIdx++
+	}
+
+	whereClause := ""
+	if len(whereClauses) > 0 {
+		whereClause = "WHERE " + strings.Join(whereClauses, " AND ")
+	}
+
+	// Append pagination to query args
+	queryArgs = append(queryArgs, pageSize, offset)
 
 	// Get total count
 	var total int
@@ -80,12 +99,8 @@ func (h *EndpointHandler) List(c *gin.Context) {
 	}
 
 	// Fetch paginated and sorted data
-	var query string
-	if statusFilter != "" {
-		query = fmt.Sprintf("SELECT * FROM endpoints WHERE status = $1 ORDER BY %s %s LIMIT $2 OFFSET $3", orderBy, order)
-	} else {
-		query = fmt.Sprintf("SELECT * FROM endpoints ORDER BY %s %s LIMIT $1 OFFSET $2", orderBy, order)
-	}
+	query := fmt.Sprintf("SELECT * FROM endpoints %s ORDER BY %s %s LIMIT $%d OFFSET $%d", 
+		whereClause, orderBy, order, argIdx, argIdx+1)
 
 	var endpoints []models.Endpoint
 	if err := h.db.Select(&endpoints, query, queryArgs...); err != nil {

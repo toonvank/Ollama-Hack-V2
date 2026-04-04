@@ -1,12 +1,15 @@
 package services
 
 import (
+	"database/sql"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/timlzh/ollama-hack/internal/database"
 )
 
 // EndpointHealth holds the health status and metrics for a single endpoint
@@ -40,17 +43,28 @@ type HealthTracker struct {
 	health   map[string]*EndpointHealth
 	config   HealthTrackerConfig
 	stopChan chan struct{}
+	db       *database.DB
 }
 
 // Global health tracker instance
 var globalHealthTracker *HealthTracker
 var healthTrackerOnce sync.Once
 
+// InitHealthTracker initializes the global health tracker with DB
+func InitHealthTracker(db *database.DB) {
+	healthTrackerOnce.Do(func() {
+		globalHealthTracker = NewHealthTracker(loadHealthConfig(), db)
+	})
+}
+
 // GetHealthTracker returns the global health tracker instance
 func GetHealthTracker() *HealthTracker {
-	healthTrackerOnce.Do(func() {
-		globalHealthTracker = NewHealthTracker(loadHealthConfig())
-	})
+	if globalHealthTracker == nil {
+		log.Println("[health-tracker] Warning: HealthTracker accessed before initialization")
+		healthTrackerOnce.Do(func() {
+			globalHealthTracker = NewHealthTracker(loadHealthConfig(), nil)
+		})
+	}
 	return globalHealthTracker
 }
 
@@ -105,15 +119,23 @@ func loadHealthConfig() HealthTrackerConfig {
 }
 
 // NewHealthTracker creates a new health tracker with the given configuration
-func NewHealthTracker(config HealthTrackerConfig) *HealthTracker {
+func NewHealthTracker(config HealthTrackerConfig, db *database.DB) *HealthTracker {
 	ht := &HealthTracker{
 		health:   make(map[string]*EndpointHealth),
 		config:   config,
 		stopChan: make(chan struct{}),
+		db:       db,
+	}
+
+	if ht.db != nil {
+		ht.loadFromDB()
 	}
 
 	if config.Enabled {
 		go ht.probeLoop()
+		if ht.db != nil {
+			go ht.persistLoop()
+		}
 		log.Printf("[health-tracker] Started with threshold=%d, disable_duration=%v, probe_interval=%v",
 			config.DisableThreshold, config.DisableDuration, config.ProbeInterval)
 	} else {
@@ -273,6 +295,110 @@ func (ht *HealthTracker) GetAllHealth() []EndpointHealth {
 // GetConfig returns the current configuration
 func (ht *HealthTracker) GetConfig() HealthTrackerConfig {
 	return ht.config
+}
+
+func (ht *HealthTracker) loadFromDB() {
+	var rows []struct {
+		URL           string       `db:"url"`
+		Score         int          `db:"score"`
+		FailCount     int          `db:"fail_count"`
+		SuccessCount  int          `db:"success_count"`
+		Disabled      bool         `db:"disabled"`
+		DisabledUntil sql.NullTime `db:"disabled_until"`
+		LastSuccess   sql.NullTime `db:"last_success"`
+		LastFail      sql.NullTime `db:"last_fail"`
+		LastProbe     sql.NullTime `db:"last_probe"`
+	}
+
+	err := ht.db.Select(&rows, "SELECT * FROM endpoint_health")
+	if err != nil {
+		log.Printf("[health-tracker] Failed to load state from DB: %v", err)
+		return
+	}
+
+	ht.mu.Lock()
+	defer ht.mu.Unlock()
+	for _, r := range rows {
+		h := &EndpointHealth{
+			URL:          r.URL,
+			Score:        r.Score,
+			FailCount:    r.FailCount,
+			SuccessCount: r.SuccessCount,
+			Disabled:     r.Disabled,
+		}
+		if r.DisabledUntil.Valid {
+			h.DisabledUntil = r.DisabledUntil.Time
+		}
+		if r.LastSuccess.Valid {
+			h.LastSuccess = r.LastSuccess.Time
+		}
+		if r.LastFail.Valid {
+			h.LastFail = r.LastFail.Time
+		}
+		if r.LastProbe.Valid {
+			h.LastProbe = r.LastProbe.Time
+		}
+		ht.health[r.URL] = h
+	}
+	log.Printf("[health-tracker] Loaded %d endpoints from DB", len(rows))
+}
+
+func (ht *HealthTracker) persistLoop() {
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			ht.persistToDB()
+		case <-ht.stopChan:
+			ht.persistToDB()
+			return
+		}
+	}
+}
+
+func (ht *HealthTracker) persistToDB() {
+	if ht.db == nil {
+		return
+	}
+
+	ht.mu.RLock()
+	var toSave []EndpointHealth
+	for _, h := range ht.health {
+		toSave = append(toSave, *h)
+	}
+	ht.mu.RUnlock()
+
+	for _, h := range toSave {
+		_, err := ht.db.Exec(`
+			INSERT INTO endpoint_health (
+				url, score, success_count, fail_count, disabled, 
+				disabled_until, last_success, last_fail, last_probe
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+			ON CONFLICT (url) DO UPDATE SET
+				score = EXCLUDED.score,
+				success_count = EXCLUDED.success_count,
+				fail_count = EXCLUDED.fail_count,
+				disabled = EXCLUDED.disabled,
+				disabled_until = EXCLUDED.disabled_until,
+				last_success = EXCLUDED.last_success,
+				last_fail = EXCLUDED.last_fail,
+				last_probe = EXCLUDED.last_probe,
+				updated_at = CURRENT_TIMESTAMP
+		`, h.URL, h.Score, h.SuccessCount, h.FailCount, h.Disabled, 
+		nullTime(h.DisabledUntil), nullTime(h.LastSuccess), nullTime(h.LastFail), nullTime(h.LastProbe))
+		if err != nil {
+			log.Printf("[health-tracker] Failed to save %s: %v", h.URL, err)
+		}
+	}
+}
+
+func nullTime(t time.Time) sql.NullTime {
+    if t.IsZero() {
+        return sql.NullTime{Valid: false}
+    }
+    return sql.NullTime{Time: t, Valid: true}
 }
 
 // probeLoop runs periodically to check disabled endpoints for recovery

@@ -50,6 +50,11 @@ func (h *OllamaHandler) bestEndpointsForModel(modelName, modelTag string) ([]str
 		URL string `db:"url"`
 	}
 	var rows []row
+	minTPS := 0.0
+	if val := os.Getenv("MIN_TPS_THRESHOLD"); val != "" {
+		fmt.Sscanf(val, "%f", &minTPS)
+	}
+
 	err := h.db.Select(&rows, `
 		SELECT e.url
 		FROM endpoint_ai_models eam
@@ -59,9 +64,10 @@ func (h *OllamaHandler) bestEndpointsForModel(modelName, modelTag string) ([]str
 		  AND m.enabled = TRUE
 		  AND eam.status = 'available'
 		  AND e.status = 'available'
+		  AND (eam.token_per_second >= $3 OR eam.token_per_second IS NULL)
 		ORDER BY eam.token_per_second DESC NULLS LAST
-		LIMIT 10
-	`, modelName, modelTag)
+		LIMIT 5
+	`, modelName, modelTag, minTPS)
 	if err != nil {
 		return nil, err
 	}
@@ -70,6 +76,49 @@ func (h *OllamaHandler) bestEndpointsForModel(modelName, modelTag string) ([]str
 		urls = append(urls, r.URL)
 	}
 	return urls, nil
+}
+
+// resolveSmartModel dynamically calculates the best real model for a pseudo-model tag (like "fastest" or "large")
+func (h *OllamaHandler) resolveSmartModel(smartTag string) ([]string, string, string, error) {
+	var heuristic string
+	switch smartTag {
+	case "fastest":
+		heuristic = "1=1"
+	case "large":
+		heuristic = "(m.name ILIKE '%70b%' OR m.name ILIKE '%104b%' OR m.name ILIKE '%72b%')"
+	case "small":
+		heuristic = "(m.name ILIKE '%8b%' OR m.name ILIKE '%7b%' OR m.name ILIKE '%3b%' OR m.name ILIKE '%1.5b%')"
+	case "coding":
+		heuristic = "(m.name ILIKE '%code%' OR m.name ILIKE '%coder%')"
+	default:
+		heuristic = "1=1"
+	}
+
+	query := fmt.Sprintf(`
+		SELECT m.name, m.tag
+		FROM endpoint_ai_models eam
+		JOIN endpoints e ON e.id = eam.endpoint_id
+		JOIN ai_models m ON m.id = eam.ai_model_id
+		WHERE %s
+		  AND m.enabled = TRUE
+		  AND eam.status = 'available'
+		  AND e.status = 'available'
+		ORDER BY eam.token_per_second DESC NULLS LAST
+		LIMIT 1
+	`, heuristic)
+
+	type modelRow struct {
+		Name string `db:"name"`
+		Tag  string `db:"tag"`
+	}
+	var mRow modelRow
+	err := h.db.Get(&mRow, query)
+	if err != nil {
+		return nil, "", "", fmt.Errorf("no models available for smart tag '%s'", smartTag)
+	}
+
+	urls, err := h.bestEndpointsForModel(mRow.Name, mRow.Tag)
+	return urls, mRow.Name, mRow.Tag, err
 }
 
 // parseModel splits "name:tag" into name, tag. If no ":" present, tag = "latest".
@@ -109,6 +158,18 @@ func (h *OllamaHandler) Models(c *gin.Context) {
 			"created":  timestamp,
 		})
 	}
+
+	// Inject pseudo-models
+	pseudoModels := []string{"smart:fastest", "smart:large", "smart:small", "smart:coding"}
+	for _, pm := range pseudoModels {
+		data = append(data, gin.H{
+			"id":       pm,
+			"object":   "model",
+			"owned_by": "system",
+			"created":  timestamp,
+		})
+	}
+
 	c.JSON(200, gin.H{"object": "list", "data": data})
 }
 
@@ -186,7 +247,19 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 	}
 
 	name, tag := parseModel(modelRaw)
-	endpoints, err := h.bestEndpointsForModel(name, tag)
+	var endpoints []string
+
+	if name == "smart" {
+		endpoints, name, tag, err = h.resolveSmartModel(tag)
+		if err == nil {
+			log.Printf("[smart-model] Resolved pseudo-model 'smart:%s' directly to '%s:%s'", tag, name, tag)
+			bodyMap["model"] = fmt.Sprintf("%s:%s", name, tag)
+			rawBody, _ = json.Marshal(bodyMap)
+			smartRouteHeader = services.FormatRouteHeader("smart", fmt.Sprintf("%s:%s", name, tag))
+		}
+	} else {
+		endpoints, err = h.bestEndpointsForModel(name, tag)
+	}
 
 	// Attempt blazing fast in-memory fallback route if unavailable
 	if err != nil || len(endpoints) == 0 {

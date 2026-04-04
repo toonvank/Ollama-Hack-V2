@@ -164,6 +164,20 @@ func (db *DB) CreateTables() error {
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);
 
+	-- Endpoint Health table
+	CREATE TABLE IF NOT EXISTS endpoint_health (
+		url VARCHAR(512) PRIMARY KEY,
+		score INTEGER NOT NULL,
+		success_count INTEGER DEFAULT 0,
+		fail_count INTEGER DEFAULT 0,
+		disabled BOOLEAN DEFAULT FALSE,
+		disabled_until TIMESTAMP,
+		last_success TIMESTAMP,
+		last_fail TIMESTAMP,
+		last_probe TIMESTAMP,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
+
 	-- Create indexes
 	CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id);
 	CREATE INDEX IF NOT EXISTS idx_api_keys_key ON api_keys(key);
