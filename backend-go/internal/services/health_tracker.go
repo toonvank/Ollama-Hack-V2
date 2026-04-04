@@ -308,6 +308,7 @@ func (ht *HealthTracker) loadFromDB() {
 		LastSuccess   sql.NullTime `db:"last_success"`
 		LastFail      sql.NullTime `db:"last_fail"`
 		LastProbe     sql.NullTime `db:"last_probe"`
+		UpdatedAt     sql.NullTime `db:"updated_at"`
 	}
 
 	err := ht.db.Select(&rows, "SELECT * FROM endpoint_health")

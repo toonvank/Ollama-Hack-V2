@@ -341,9 +341,10 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 	var endpoints []string
 
 	if name == "smart" {
+		originalTag := tag
 		endpoints, name, tag, err = h.resolveSmartModel(tag)
 		if err == nil {
-			log.Printf("[smart-model] Resolved pseudo-model 'smart:%s' directly to '%s:%s'", tag, name, tag)
+			log.Printf("[smart-model] Resolved pseudo-model 'smart:%s' directly to '%s:%s'", originalTag, name, tag)
 			bodyMap["model"] = fmt.Sprintf("%s:%s", name, tag)
 			rawBody, _ = json.Marshal(bodyMap)
 			smartRouteHeader = services.FormatRouteHeader("smart", fmt.Sprintf("%s:%s", name, tag))
@@ -489,6 +490,18 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 				resultCh <- raceResult{err: fmt.Errorf("status %d", resp.StatusCode), endpointURL: url, index: index}
 				return
 			}
+
+			// Verify actual data arrives (Time-To-First-Byte) to filter out fake 200 OK honeypots
+			firstChunk := make([]byte, 512)
+			n, readErr := resp.Body.Read(firstChunk)
+			if n == 0 && readErr != nil {
+				resp.Body.Close()
+				resultCh <- raceResult{err: fmt.Errorf("empty response body or immediate EOF"), endpointURL: url, index: index}
+				return
+			}
+
+			// Reconstruct body with the read chunk
+			resp.Body = io.NopCloser(io.MultiReader(bytes.NewReader(firstChunk[:n]), resp.Body))
 
 			resultCh <- raceResult{resp: resp, endpointURL: url, index: index}
 		}(i, endpointURL, ctx)
