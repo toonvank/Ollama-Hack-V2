@@ -132,6 +132,7 @@ func parseModel(model string) (string, string) {
 
 // Models returns the list of available (enabled) models — OpenAI /v1/models format
 func (h *OllamaHandler) Models(c *gin.Context) {
+	log.Println("[Models] Handler called!")
 	type row struct {
 		Name string `db:"name"`
 		Tag  string `db:"tag"`
@@ -149,18 +150,10 @@ func (h *OllamaHandler) Models(c *gin.Context) {
 		return
 	}
 	timestamp := time.Now().Unix()
-	data := make([]gin.H, 0, len(rows))
-	for _, r := range rows {
-		data = append(data, gin.H{
-			"id":       fmt.Sprintf("%s:%s", r.Name, r.Tag),
-			"object":   "model",
-			"owned_by": "user",
-			"created":  timestamp,
-		})
-	}
-
-	// Inject pseudo-models
+	
+	// Inject pseudo-models FIRST so they appear at the top
 	pseudoModels := []string{"smart:fastest", "smart:large", "smart:small", "smart:coding"}
+	data := make([]gin.H, 0, len(rows)+len(pseudoModels))
 	for _, pm := range pseudoModels {
 		data = append(data, gin.H{
 			"id":       pm,
@@ -169,6 +162,18 @@ func (h *OllamaHandler) Models(c *gin.Context) {
 			"created":  timestamp,
 		})
 	}
+	
+	// Add real models
+	for _, r := range rows {
+		data = append(data, gin.H{
+			"id":       fmt.Sprintf("%s:%s", r.Name, r.Tag),
+			"object":   "model",
+			"owned_by": "user",
+			"created":  timestamp,
+		})
+	}
+	
+	log.Printf("[Models] Returning %d models (%d real + %d smart)", len(data), len(rows), len(pseudoModels))
 
 	c.JSON(200, gin.H{"object": "list", "data": data})
 }
