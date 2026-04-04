@@ -525,11 +525,27 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 					resultCh <- raceResult{err: fmt.Errorf("rejected honeypot: invalid payload start %q", firstChar), endpointURL: url, index: index}
 					return
 				}
-				// Aggressively reject JSON error payloads wrapped in 200 OK (often happens on model-missing or auth proxies)
+				
+				// Aggressively reject JSON error payloads wrapped in 200 OK
 				if strings.HasPrefix(sniffStr, `{"error"`) || strings.HasPrefix(sniffStr, `{"message"`) {
 					resp.Body.Close()
 					resultCh <- raceResult{err: fmt.Errorf("rejected node: returned 200 OK error JSON payload"), endpointURL: url, index: index}
 					return
+				}
+				
+				// Validate streaming integrity: If stream requested, it MUST start with "data:"
+				// Also catch upstream API errors that are embedded inside the initial SSE chunk (very common in LiteLLM/Ollama proxies)
+				if streamReq {
+					if !strings.HasPrefix(sniffStr, "data:") {
+						resp.Body.Close()
+						resultCh <- raceResult{err: fmt.Errorf("rejected node: node ignored stream parameter and returned non-chunked response"), endpointURL: url, index: index}
+						return
+					}
+					if strings.Contains(sniffStr, `"error"`) {
+						resp.Body.Close()
+						resultCh <- raceResult{err: fmt.Errorf("rejected node: upstream model threw an API error hidden in the SSE stream"), endpointURL: url, index: index}
+						return
+					}
 				}
 			}
 
