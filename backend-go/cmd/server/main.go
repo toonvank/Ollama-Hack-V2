@@ -151,6 +151,15 @@ func main() {
 		v1.POST("/completions", ollamaHandler.Completions)
 	}
 
+	// Native Ollama API proxy endpoints
+	apiNative := r.Group("/api")
+	apiNative.Use(middleware.AuthMiddleware(authService))
+	{
+		apiNative.GET("/tags", ollamaHandler.Tags)
+		apiNative.POST("/generate", ollamaHandler.Generate)
+		apiNative.POST("/chat", ollamaHandler.Chat)
+	}
+
 	log.Printf("Starting server on :8000 (env: %s)", cfg.App.Env)
 	if err := r.Run(":8000"); err != nil {
 		log.Fatalf("Failed to start server: %v", err)

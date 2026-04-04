@@ -173,7 +173,50 @@ func (h *OllamaHandler) Models(c *gin.Context) {
 	c.JSON(200, gin.H{"object": "list", "data": data})
 }
 
-// ChatCompletions proxies POST /v1/chat/completions to the best Ollama endpoint
+// Tags returns the list of available models in Ollama /api/tags format
+func (h *OllamaHandler) Tags(c *gin.Context) {
+	type row struct {
+		Name string `db:"name"`
+		Tag  string `db:"tag"`
+	}
+	var rows []row
+	err := h.db.Select(&rows, `
+		SELECT DISTINCT m.name, m.tag
+		FROM ai_models m
+		JOIN endpoint_ai_models eam ON eam.ai_model_id = m.id
+		WHERE m.enabled = TRUE AND eam.status = 'available'
+		ORDER BY m.name, m.tag
+	`)
+	if err != nil {
+		utils.InternalServerError(c, "Failed to fetch models")
+		return
+	}
+	
+	now := time.Now().Format(time.RFC3339)
+	models := make([]gin.H, 0, len(rows)+4)
+	for _, r := range rows {
+		modelName := fmt.Sprintf("%s:%s", r.Name, r.Tag)
+		models = append(models, gin.H{
+			"name":        modelName,
+			"model":       modelName,
+			"modified_at": now,
+		})
+	}
+
+	// Inject pseudo-models
+	pseudoModels := []string{"smart:fastest", "smart:large", "smart:small", "smart:coding"}
+	for _, pm := range pseudoModels {
+		models = append(models, gin.H{
+			"name":        pm,
+			"model":       pm,
+			"modified_at": now,
+		})
+	}
+
+	c.JSON(200, gin.H{"models": models})
+}
+
+// ChatCompletions proxies POST /v1/chat/completions to the best node
 func (h *OllamaHandler) ChatCompletions(c *gin.Context) {
 	h.proxyRequest(c, "POST", "/v1/chat/completions")
 }
@@ -181,6 +224,16 @@ func (h *OllamaHandler) ChatCompletions(c *gin.Context) {
 // Completions proxies POST /v1/completions
 func (h *OllamaHandler) Completions(c *gin.Context) {
 	h.proxyRequest(c, "POST", "/v1/completions")
+}
+
+// Generate proxies native Ollama POST /api/generate
+func (h *OllamaHandler) Generate(c *gin.Context) {
+	h.proxyRequest(c, "POST", "/api/generate")
+}
+
+// Chat proxies native Ollama POST /api/chat
+func (h *OllamaHandler) Chat(c *gin.Context) {
+	h.proxyRequest(c, "POST", "/api/chat")
 }
 
 // proxyRequest reads the model from the request body, finds the best endpoint,
