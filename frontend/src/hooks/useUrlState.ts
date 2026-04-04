@@ -84,14 +84,13 @@ export function useUrlState<T>(
     if (paramValue) {
       try {
         const parsedValue = deserialize(paramValue);
-
-        setState(parsedValue);
+        setState((current) => JSON.stringify(current) !== JSON.stringify(parsedValue) ? parsedValue : current);
       } catch {
         // Ignore errors
       }
     } else if (searchParams.toString() !== "") {
       // Reset to initial value only when other parameters exist but current parameter does not
-      setState(initialState);
+      setState((current) => JSON.stringify(current) !== JSON.stringify(initialState) ? initialState : current);
     }
   }, [searchParams, paramName, deserialize, initialState]);
 
@@ -167,9 +166,9 @@ export function usePaginationUrlState<SortType = string>(
 
     if (orderBy) {
       if (validationConfig?.orderBy?.allowedFields?.includes(orderBy)) {
-        stateFromUrl.orderBy = orderBy as SortType;
+        stateFromUrl.orderBy = orderBy as unknown as SortType;
       } else {
-        stateFromUrl.orderBy = validationConfig?.orderBy?.defaultField;
+        stateFromUrl.orderBy = validationConfig?.orderBy?.defaultField as unknown as SortType;
       }
     }
 
@@ -313,7 +312,8 @@ export function usePaginationUrlState<SortType = string>(
 
   // Update state when URL parameter changes
   useEffect(() => {
-    setState(getInitialStateFromUrl());
+    const nextState = getInitialStateFromUrl();
+    setState((current) => JSON.stringify(current) !== JSON.stringify(nextState) ? nextState : current);
   }, [searchParams]);
 
   // Check if page number needs to fall back when totalPages changes

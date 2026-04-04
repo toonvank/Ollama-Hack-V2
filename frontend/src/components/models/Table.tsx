@@ -74,10 +74,16 @@ const ModelTable: React.FC<ModelTableProps> = ({
     direction:
       order === SortOrder.ASC
         ? "ascending"
-        : order === SortOrder.DESC
-          ? "descending"
-          : "descending",
+        : "descending", // Default fallback is descending for TPS
   });
+
+  // Sync external sort changes to internal state
+  React.useEffect(() => {
+    setSortDescriptor({
+      column: orderBy || "token_per_second",
+      direction: order === SortOrder.ASC ? "ascending" : "descending",
+    });
+  }, [orderBy, order]);
 
   // Define table columns
   const columns = [
