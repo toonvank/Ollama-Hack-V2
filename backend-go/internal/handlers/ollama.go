@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -633,32 +634,34 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 		c.Header("Connection", "keep-alive")
 		c.Header("X-Accel-Buffering", "no")
 
-		// Streaming: flush chunks as they arrive
+		// Streaming: flush chunks as they arrive safely line-by-line
 		flusher, ok := c.Writer.(http.Flusher)
-		buf := make([]byte, 4096)
+		reader := bufio.NewReader(resp.Body)
 		
 		targetModelStr := []byte(fmt.Sprintf(`"model":"%s"`, modelRaw))
 		replModelStr := []byte(fmt.Sprintf(`"model":"%s"`, originalModelRequested))
 		
 		for {
-			n, readErr := resp.Body.Read(buf)
-			if n > 0 {
-				chunk := buf[:n]
-				
-				// Rewrite the output model JSON so Open WebUI doesn't crash on mismatch
+			line, readErr := reader.ReadBytes('\n')
+			if len(line) > 0 {
+				// Rewrite the output model JSON cleanly at logical data boundaries
 				if originalModelRequested != modelRaw {
-					chunk = bytes.ReplaceAll(chunk, targetModelStr, replModelStr)
+					line = bytes.ReplaceAll(line, targetModelStr, replModelStr)
 				}
 				
-				c.Writer.Write(chunk)
+				c.Writer.Write(line)
 				if ok {
 					flusher.Flush()
 				}
 			}
 			if readErr != nil {
+				// Inject a terminal Usage object chunk (OpenAI standard) to protect Litellm from crashing if 'stream_options.include_usage: true' was passed
+				usageChunk := fmt.Sprintf("\ndata: {\"id\":\"chatcmpl-end\",\"object\":\"chat.completion.chunk\",\"created\":%d,\"model\":\"%s\",\"choices\":[],\"usage\":{\"prompt_tokens\":0,\"completion_tokens\":0,\"total_tokens\":0}}\n\n", time.Now().Unix(), originalModelRequested)
+				c.Writer.Write([]byte(usageChunk))
+				
 				// Inject a guaranteed DONE frame if the stream ends or is aborted abruptly,
 				// which prevents python/aiohttp ClientPayloadError crashes in Open WebUI
-				c.Writer.Write([]byte("\n\ndata: [DONE]\n\n"))
+				c.Writer.Write([]byte("data: [DONE]\n\n"))
 				if ok {
 					flusher.Flush()
 				}
