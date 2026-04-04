@@ -627,6 +627,11 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 	c.Status(resp.StatusCode)
 
 	if stream {
+		// Anti-buffering headers to guarantee Nginx/aiohttp stream it live instead of waiting for EOF
+		c.Header("Cache-Control", "no-cache")
+		c.Header("Connection", "keep-alive")
+		c.Header("X-Accel-Buffering", "no")
+
 		// Streaming: flush chunks as they arrive
 		flusher, ok := c.Writer.(http.Flusher)
 		buf := make([]byte, 4096)
