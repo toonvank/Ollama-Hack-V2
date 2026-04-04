@@ -491,6 +491,22 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 				return
 			}
 
+			// Validate Content-Type
+			contentType := strings.ToLower(resp.Header.Get("Content-Type"))
+			if strings.Contains(contentType, "text/html") {
+				resp.Body.Close()
+				resultCh <- raceResult{err: fmt.Errorf("rejected honeypot: html response"), endpointURL: url, index: index}
+				return
+			}
+
+			// Enforce streaming response if the client requested it to prevent Open WebUI parser crashes
+			streamReq, _ := bodyMap["stream"].(bool)
+			if streamReq && !strings.Contains(contentType, "event-stream") && !strings.Contains(contentType, "ndjson") {
+				resp.Body.Close()
+				resultCh <- raceResult{err: fmt.Errorf("rejected node: expected stream but got %s", contentType), endpointURL: url, index: index}
+				return
+			}
+
 			// Verify actual data arrives (Time-To-First-Byte) to filter out fake 200 OK honeypots
 			firstChunk := make([]byte, 512)
 			n, readErr := resp.Body.Read(firstChunk)
@@ -507,6 +523,12 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 				if firstChar != '{' && firstChar != '[' && firstChar != 'd' && firstChar != '"' {
 					resp.Body.Close()
 					resultCh <- raceResult{err: fmt.Errorf("rejected honeypot: invalid payload start %q", firstChar), endpointURL: url, index: index}
+					return
+				}
+				// Aggressively reject JSON error payloads wrapped in 200 OK (often happens on model-missing or auth proxies)
+				if strings.HasPrefix(sniffStr, `{"error"`) || strings.HasPrefix(sniffStr, `{"message"`) {
+					resp.Body.Close()
+					resultCh <- raceResult{err: fmt.Errorf("rejected node: returned 200 OK error JSON payload"), endpointURL: url, index: index}
 					return
 				}
 			}
