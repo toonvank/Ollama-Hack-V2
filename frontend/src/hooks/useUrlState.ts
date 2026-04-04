@@ -92,7 +92,7 @@ export function useUrlState<T>(
       // Reset to initial value only when other parameters exist but current parameter does not
       setState((current) => JSON.stringify(current) !== JSON.stringify(initialState) ? initialState : current);
     }
-  }, [searchParams, paramName, deserialize, initialState]);
+  }, [searchParams.get(paramName)]);
 
   return [state, updateState] as const;
 }
@@ -313,8 +313,17 @@ export function usePaginationUrlState<SortType = string>(
   // Update state when URL parameter changes
   useEffect(() => {
     const nextState = getInitialStateFromUrl();
-    setState((current) => JSON.stringify(current) !== JSON.stringify(nextState) ? nextState : current);
-  }, [searchParams]);
+    setState((current) => {
+	  // Manual deep check for simple properties to avoid reference/order issues
+	  const isSame = 
+		current.page === nextState.page &&
+		current.pageSize === nextState.pageSize &&
+		current.search === nextState.search &&
+		current.orderBy === nextState.orderBy &&
+		current.order === nextState.order;
+      return isSame ? current : nextState;
+	});
+  }, [searchParams.toString()]);
 
   // Check if page number needs to fall back when totalPages changes
   useEffect(() => {

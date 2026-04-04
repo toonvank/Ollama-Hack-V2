@@ -511,8 +511,12 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 
 	resp := winningResp
 
-	// Copy response headers
+	// Copy response headers but filter out hop-by-hop protocols
 	for k, vs := range resp.Header {
+		kLower := strings.ToLower(k)
+		if kLower == "content-length" || kLower == "transfer-encoding" || kLower == "connection" || kLower == "keep-alive" {
+			continue
+		}
 		for _, v := range vs {
 			c.Header(k, v)
 		}

@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"strconv"
+
 	"github.com/gin-gonic/gin"
 	"github.com/timlzh/ollama-hack/internal/database"
 	"github.com/timlzh/ollama-hack/internal/models"
@@ -66,12 +68,45 @@ func (h *AIModelHandler) List(c *gin.Context) {
 		GROUP BY m.id
 		ORDER BY ` + orderField + " " + order + nullsHandling
 
+	// Count total records for pagination
+	var total int
+	countQuery := `SELECT COUNT(*) FROM ai_models m ` + whereClause
+	if err := h.db.Get(&total, countQuery, args...); err != nil {
+		utils.InternalServerError(c, "Failed to count AI models")
+		return
+	}
+
+	page := 1
+	size := 10
+	if p := c.Query("page"); p != "" {
+		if parsedPage, err := strconv.Atoi(p); err == nil && parsedPage > 0 {
+			page = parsedPage
+		}
+	}
+	if s := c.Query("size"); s != "" {
+		if parsedSize, err := strconv.Atoi(s); err == nil && parsedSize > 0 {
+			size = parsedSize
+		}
+	}
+	
+	// Add limit and offset
+	query += ` LIMIT $` + strconv.Itoa(len(args)+1) + ` OFFSET $` + strconv.Itoa(len(args)+2)
+	args = append(args, size, (page-1)*size)
+
 	if err := h.db.Select(&rowInfos, query, args...); err != nil {
 		utils.InternalServerError(c, "Failed to fetch AI models")
 		return
 	}
 
-	utils.SuccessPage(c, rowInfos, len(rowInfos), 1, 50, 1)
+	pages := total / size
+	if total%size != 0 {
+		pages++
+	}
+	if pages == 0 {
+		pages = 1
+	}
+
+	utils.SuccessPage(c, rowInfos, total, page, size, pages)
 }
 
 func (h *AIModelHandler) Get(c *gin.Context) {
@@ -157,7 +192,7 @@ func (h *AIModelHandler) SmartModels(c *gin.Context) {
 			description = "Small models (1.5B, 3B, 7B, 8B parameters)"
 		case "coding":
 			heuristic = "(m.name ILIKE '%code%' OR m.name ILIKE '%coder%')"
-			description = "Code-specialized models"
+			description = "Fastest code-specialized model"
 		}
 
 		query := `
