@@ -237,7 +237,7 @@ const EndpointTable: React.FC<EndpointTableProps> = ({
         );
       case "created_at":
         return endpoint.created_at
-          ? new Date(endpoint.created_at + "Z").toLocaleString()
+          ? new Date(endpoint.created_at).toLocaleString()
           : "-";
       case "actions":
         return (

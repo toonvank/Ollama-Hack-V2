@@ -40,7 +40,7 @@ const getStatusColor = (
 
 const formatDateTime = (dateTimeStr: string) => {
   try {
-    const date = new Date(dateTimeStr + "Z");
+    const date = new Date(dateTimeStr);
 
     return new Intl.DateTimeFormat(undefined, {
       year: "numeric",

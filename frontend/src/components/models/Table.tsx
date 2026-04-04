@@ -161,7 +161,7 @@ const ModelTable: React.FC<ModelTableProps> = ({
         return <StatusBadge status={getModelStatus(model)} />;
       case "created_at":
         return model.created_at
-          ? new Date(model.created_at + "Z").toLocaleString()
+          ? new Date(model.created_at).toLocaleString()
           : "-";
       case "actions":
         return (

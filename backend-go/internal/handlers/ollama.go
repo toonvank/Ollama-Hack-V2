@@ -500,6 +500,17 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 				return
 			}
 
+			// Sniff the payload to verify it's actual AI JSON/SSE and not an HTML captive portal / honeypot
+			sniffStr := strings.TrimSpace(string(firstChunk[:n]))
+			if len(sniffStr) > 0 {
+				firstChar := sniffStr[0]
+				if firstChar != '{' && firstChar != '[' && firstChar != 'd' && firstChar != '"' {
+					resp.Body.Close()
+					resultCh <- raceResult{err: fmt.Errorf("rejected honeypot: invalid payload start %q", firstChar), endpointURL: url, index: index}
+					return
+				}
+			}
+
 			// Reconstruct body with the read chunk
 			resp.Body = io.NopCloser(io.MultiReader(bytes.NewReader(firstChunk[:n]), resp.Body))
 

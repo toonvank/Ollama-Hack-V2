@@ -81,7 +81,7 @@ const EndpointDetailDrawer = ({
 
   // Format date
   const formatDate = (dateString: string) => {
-    return new Date(dateString + "Z").toLocaleString();
+    return new Date(dateString).toLocaleString();
   };
 
   // Define table columns
