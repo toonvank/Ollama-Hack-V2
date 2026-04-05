@@ -49,6 +49,7 @@ interface EndpointTableProps {
   selectedKeys?: Selection;
   onSelectionChange?: (keys: Set<Key>) => void;
   selectionToolbarContent?: React.ReactNode;
+  topActionContent?: React.ReactNode;
 }
 
 const EndpointTable: React.FC<EndpointTableProps> = ({
@@ -81,6 +82,7 @@ const EndpointTable: React.FC<EndpointTableProps> = ({
   selectedKeys,
   onSelectionChange,
   selectionToolbarContent,
+  topActionContent,
 }) => {
   // Get endpoint status
   const getEndpointStatus = (
@@ -311,6 +313,7 @@ const EndpointTable: React.FC<EndpointTableProps> = ({
       setVisibleColumns={setVisibleColumns}
       sortDescriptor={sortDescriptor}
       title="Endpoint List"
+      topActionContent={topActionContent}
       total={totalItems}
       visibleColumns={visibleColumns}
       onPageChange={onPageChange}

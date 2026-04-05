@@ -26,13 +26,13 @@ func AdminHealthStatus(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"enabled": config.Enabled,
 		"config": gin.H{
-			"disable_threshold":  config.DisableThreshold,
-			"disable_duration":   config.DisableDuration.String(),
-			"probe_interval":     config.ProbeInterval.String(),
-			"fail_penalty":       config.FailPenalty,
-			"success_reward":     config.SuccessReward,
-			"max_score":          config.MaxScore,
-			"initial_score":      config.InitialScore,
+			"disable_threshold": config.DisableThreshold,
+			"disable_duration":  config.DisableDuration.String(),
+			"probe_interval":    config.ProbeInterval.String(),
+			"fail_penalty":      config.FailPenalty,
+			"success_reward":    config.SuccessReward,
+			"max_score":         config.MaxScore,
+			"initial_score":     config.InitialScore,
 		},
 		"summary": gin.H{
 			"total_endpoints":    totalEndpoints,

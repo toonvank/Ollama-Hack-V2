@@ -88,7 +88,7 @@ func (h *AIModelHandler) List(c *gin.Context) {
 			size = parsedSize
 		}
 	}
-	
+
 	// Add limit and offset
 	query += ` LIMIT $` + strconv.Itoa(len(args)+1) + ` OFFSET $` + strconv.Itoa(len(args)+2)
 	args = append(args, size, (page-1)*size)
@@ -213,19 +213,19 @@ func (h *AIModelHandler) SmartModels(c *gin.Context) {
 		`
 
 		type resultRow struct {
-			Name             string   `db:"name"`
-			Tag              string   `db:"tag"`
-			EndpointName     string   `db:"endpoint_name"`
-			TokenPerSecond   *float64 `db:"token_per_second"`
+			Name           string   `db:"name"`
+			Tag            string   `db:"tag"`
+			EndpointName   string   `db:"endpoint_name"`
+			TokenPerSecond *float64 `db:"token_per_second"`
 		}
 
 		var row resultRow
 		err := h.db.Get(&row, query)
 
 		result := gin.H{
-			"smart_model":  "smart:" + profile,
-			"description":  description,
-			"resolved":     false,
+			"smart_model": "smart:" + profile,
+			"description": description,
+			"resolved":    false,
 		}
 
 		if err == nil {

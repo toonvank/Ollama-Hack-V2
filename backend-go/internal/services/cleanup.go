@@ -48,7 +48,7 @@ func (s *BackgroundCleanupService) Stop() {
 
 func (s *BackgroundCleanupService) cleanupDeadNodes() {
 	log.Println("[cleanup] checking for dead nodes > 3 days")
-	
+
 	query := `
 		DELETE FROM endpoints
 		WHERE status = 'unavailable'
@@ -61,13 +61,13 @@ func (s *BackgroundCleanupService) cleanupDeadNodes() {
 			OR created_at < NOW() - INTERVAL '3 days'
 		)
 	`
-	
+
 	res, err := s.db.Exec(query)
 	if err != nil {
 		log.Printf("[cleanup] failed to delete dead nodes: %v", err)
 		return
 	}
-	
+
 	count, _ := res.RowsAffected()
 	if count > 0 {
 		log.Printf("[cleanup] permanently removed %d dead nodes", count)

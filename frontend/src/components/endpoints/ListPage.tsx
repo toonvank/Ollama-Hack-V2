@@ -100,6 +100,9 @@ const EndpointListPage = () => {
   const [testingEndpointIds, setTestingEndpointIds] = useState<number[]>([]);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Cleanup state
+  const [isCleaningUp, setIsCleaningUp] = useState(false);
+
   // Fetch endpoint list
   const {
     data: endpoints,
@@ -300,6 +303,34 @@ const EndpointListPage = () => {
     );
   };
 
+  // Handle cleanup unscanned endpoints
+  const handleCleanupUnscanned = () => {
+    confirm(
+      "Are you sure you want to clean up all unscanned endpoints? This action cannot be undone.",
+      async () => {
+        try {
+          setIsCleaningUp(true);
+          const res = await endpointApi.cleanupUnscannedEndpoints();
+          addToast({
+            title: "Cleanup Successful",
+            description: `Removed ${res.count} unscanned endpoints.`,
+            color: "success",
+          });
+          refetch();
+        } catch (err) {
+          addToast({
+            title: "Cleanup Failed",
+            description: (err as Error).message || "Please try again",
+            color: "danger",
+          });
+        } finally {
+          setIsCleaningUp(false);
+        }
+      },
+      "Confirm Cleanup",
+    );
+  };
+
   // Create selection toolbar content
   const selectionToolbarContent = useMemo(() => {
     if (!selectedEndpointIds || selectedEndpointIds.size === 0) return null;
@@ -449,6 +480,19 @@ const EndpointListPage = () => {
           setSearchTerm={setSearchTerm}
           setVisibleColumns={setVisibleColumns}
           testingEndpointIds={testingEndpointIds}
+          topActionContent={
+            isAdmin ? (
+              <Button
+                color="warning"
+                isLoading={isCleaningUp}
+                startContent={!isCleaningUp && <DeleteIcon />}
+                variant="flat"
+                onPress={handleCleanupUnscanned}
+              >
+                Cleanup Unscanned
+              </Button>
+            ) : null
+          }
           totalItems={endpoints?.total}
           totalPages={endpoints?.pages}
           visibleColumns={visibleColumns}

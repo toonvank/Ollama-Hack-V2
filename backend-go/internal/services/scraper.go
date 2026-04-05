@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/timlzh/ollama-hack/internal/database"
+	"github.com/timlzh/ollama-hack/internal/utils"
 )
 
 // BackgroundScraperService periodically runs active scraping (Shodan, or direct IP scans)
@@ -71,10 +72,10 @@ func (s *BackgroundScraperService) runScraping() {
 
 func (s *BackgroundScraperService) scrapeShodan(apiKey string) {
 	log.Println("[scraper-shodan] starting shodan query for 'port:11434 product:Ollama'")
-	
-	client := &http.Client{Timeout: 30 * time.Second}
+
+	client := utils.NewHTTPClient(30 * time.Second)
 	url := fmt.Sprintf("https://api.shodan.io/shodan/host/search?key=%s&query=port:11434", apiKey)
-	
+
 	resp, err := client.Get(url)
 	if err != nil {
 		log.Printf("[scraper-shodan] failed query: %v", err)
@@ -104,7 +105,7 @@ func (s *BackgroundScraperService) scrapeShodan(apiKey string) {
 	imported := 0
 	for _, match := range data.Matches {
 		endpointURL := fmt.Sprintf("http://%s:%d", match.IPStr, match.Port)
-		
+
 		// Avoid inserting duplicates
 		var exists bool
 		err := s.db.Get(&exists, "SELECT EXISTS(SELECT 1 FROM endpoints WHERE url = $1)", endpointURL)
@@ -119,6 +120,6 @@ func (s *BackgroundScraperService) scrapeShodan(apiKey string) {
 			}
 		}
 	}
-	
+
 	log.Printf("[scraper-shodan] successfully imported %d new endpoints", imported)
 }

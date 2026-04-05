@@ -74,7 +74,7 @@ func (h *EndpointHandler) List(c *gin.Context) {
 		queryArgs = append(queryArgs, statusFilter)
 		argIdx++
 	}
-	
+
 	if searchQuery != "" {
 		whereClauses = append(whereClauses, fmt.Sprintf("name ILIKE $%d", argIdx))
 		countArgs = append(countArgs, "%"+searchQuery+"%")
@@ -99,7 +99,7 @@ func (h *EndpointHandler) List(c *gin.Context) {
 	}
 
 	// Fetch paginated and sorted data
-	query := fmt.Sprintf("SELECT * FROM endpoints %s ORDER BY %s %s LIMIT $%d OFFSET $%d", 
+	query := fmt.Sprintf("SELECT * FROM endpoints %s ORDER BY %s %s LIMIT $%d OFFSET $%d",
 		whereClause, orderBy, order, argIdx, argIdx+1)
 
 	var endpoints []models.Endpoint
@@ -404,6 +404,25 @@ func (h *EndpointHandler) BatchDelete(c *gin.Context) {
 		SuccessCount: int(affected),
 		FailedCount:  len(req.EndpointIDs) - int(affected),
 		FailedIDs:    map[string]string{}, // Simplified
+	})
+}
+
+func (h *EndpointHandler) CleanupUnscanned(c *gin.Context) {
+	res, err := h.db.Exec(`
+		DELETE FROM endpoints e
+		WHERE NOT EXISTS (
+			SELECT 1 FROM endpoint_performances ep WHERE ep.endpoint_id = e.id
+		)
+	`)
+	if err != nil {
+		utils.InternalServerError(c, "Failed to clean up unscanned endpoints")
+		return
+	}
+
+	affected, _ := res.RowsAffected()
+	utils.Success(c, gin.H{
+		"message": "Cleanup successful",
+		"count":   affected,
 	})
 }
 

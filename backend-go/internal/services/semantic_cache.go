@@ -6,11 +6,12 @@ import (
 	"io"
 	"log"
 	"math"
-	"net/http"
 	"os"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/timlzh/ollama-hack/internal/utils"
 )
 
 // SemanticCacheEntry stores an embedding vector along with its cached response
@@ -25,12 +26,12 @@ type SemanticCacheEntry struct {
 // SemanticCache provides similarity-based caching using embeddings
 type SemanticCache struct {
 	sync.RWMutex
-	entries         []SemanticCacheEntry
-	enabled         bool
-	threshold       float64
-	embeddingModel  string
-	ollamaURL       string
-	maxEntries      int
+	entries        []SemanticCacheEntry
+	enabled        bool
+	threshold      float64
+	embeddingModel string
+	ollamaURL      string
+	maxEntries     int
 }
 
 // GlobalSemanticCache is the singleton semantic cache instance
@@ -43,36 +44,36 @@ func init() {
 // NewSemanticCache creates a new semantic cache with configuration from environment
 func NewSemanticCache() *SemanticCache {
 	enabled := os.Getenv("SEMANTIC_CACHE_ENABLED") == "true"
-	
+
 	threshold := 0.95
 	if t := os.Getenv("SEMANTIC_CACHE_THRESHOLD"); t != "" {
 		if parsed, err := strconv.ParseFloat(t, 64); err == nil && parsed > 0 && parsed <= 1 {
 			threshold = parsed
 		}
 	}
-	
+
 	embeddingModel := os.Getenv("SEMANTIC_CACHE_MODEL")
 	if embeddingModel == "" {
 		embeddingModel = "nomic-embed-text"
 	}
-	
+
 	ollamaURL := os.Getenv("SEMANTIC_CACHE_OLLAMA_URL")
 	if ollamaURL == "" {
 		ollamaURL = "http://localhost:11434"
 	}
-	
+
 	maxEntries := 500
 	if m := os.Getenv("SEMANTIC_CACHE_MAX_ENTRIES"); m != "" {
 		if parsed, err := strconv.Atoi(m); err == nil && parsed > 0 {
 			maxEntries = parsed
 		}
 	}
-	
+
 	if enabled {
 		log.Printf("[semantic-cache] Enabled with threshold=%.3f, model=%s, url=%s, max_entries=%d",
 			threshold, embeddingModel, ollamaURL, maxEntries)
 	}
-	
+
 	return &SemanticCache{
 		entries:        make([]SemanticCacheEntry, 0),
 		enabled:        enabled,
@@ -94,31 +95,31 @@ func (c *SemanticCache) GetEmbedding(text string) ([]float64, error) {
 		"model":  c.embeddingModel,
 		"prompt": text,
 	}
-	
+
 	jsonBody, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, err
 	}
-	
-	client := &http.Client{Timeout: 30 * time.Second}
+
+	client := utils.NewHTTPClient(30 * time.Second)
 	resp, err := client.Post(c.ollamaURL+"/api/embeddings", "application/json", bytes.NewReader(jsonBody))
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var result struct {
 		Embedding []float64 `json:"embedding"`
 	}
 	if err := json.Unmarshal(body, &result); err != nil {
 		return nil, err
 	}
-	
+
 	return result.Embedding, nil
 }
 
@@ -127,18 +128,18 @@ func cosineSimilarity(a, b []float64) float64 {
 	if len(a) != len(b) || len(a) == 0 {
 		return 0
 	}
-	
+
 	var dotProduct, normA, normB float64
 	for i := range a {
 		dotProduct += a[i] * b[i]
 		normA += a[i] * a[i]
 		normB += b[i] * b[i]
 	}
-	
+
 	if normA == 0 || normB == 0 {
 		return 0
 	}
-	
+
 	return dotProduct / (math.Sqrt(normA) * math.Sqrt(normB))
 }
 
@@ -154,17 +155,17 @@ type SearchResult struct {
 func (c *SemanticCache) Search(embedding []float64) (*SearchResult, bool) {
 	c.RLock()
 	defer c.RUnlock()
-	
+
 	now := time.Now()
 	var bestResult *SearchResult
 	bestSimilarity := 0.0
-	
+
 	for _, entry := range c.entries {
 		// Skip expired entries
 		if now.After(entry.ExpiresAt) {
 			continue
 		}
-		
+
 		similarity := cosineSimilarity(embedding, entry.Embedding)
 		if similarity >= c.threshold && similarity > bestSimilarity {
 			bestSimilarity = similarity
@@ -176,7 +177,7 @@ func (c *SemanticCache) Search(embedding []float64) (*SearchResult, bool) {
 			}
 		}
 	}
-	
+
 	return bestResult, bestResult != nil
 }
 
@@ -184,7 +185,7 @@ func (c *SemanticCache) Search(embedding []float64) (*SearchResult, bool) {
 func (c *SemanticCache) Store(embedding []float64, data []byte, headers map[string][]string, prompt string, ttl time.Duration) {
 	c.Lock()
 	defer c.Unlock()
-	
+
 	// Clean up expired entries and enforce max size
 	now := time.Now()
 	validEntries := make([]SemanticCacheEntry, 0, len(c.entries))
@@ -193,7 +194,7 @@ func (c *SemanticCache) Store(embedding []float64, data []byte, headers map[stri
 			validEntries = append(validEntries, entry)
 		}
 	}
-	
+
 	// If still at max capacity, remove oldest entries
 	if len(validEntries) >= c.maxEntries {
 		// Remove the first 10% to make room
@@ -203,7 +204,7 @@ func (c *SemanticCache) Store(embedding []float64, data []byte, headers map[stri
 		}
 		validEntries = validEntries[removeCount:]
 	}
-	
+
 	// Add new entry
 	validEntries = append(validEntries, SemanticCacheEntry{
 		Embedding: embedding,
@@ -212,7 +213,7 @@ func (c *SemanticCache) Store(embedding []float64, data []byte, headers map[stri
 		ExpiresAt: now.Add(ttl),
 		Prompt:    prompt,
 	})
-	
+
 	c.entries = validEntries
 }
 
@@ -232,12 +233,12 @@ func ExtractPromptFromRequest(bodyMap map[string]interface{}) string {
 			return joinStrings(parts, " ")
 		}
 	}
-	
+
 	// Check for completion format (prompt string)
 	if prompt, ok := bodyMap["prompt"].(string); ok {
 		return prompt
 	}
-	
+
 	return ""
 }
 

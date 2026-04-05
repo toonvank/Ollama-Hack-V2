@@ -80,6 +80,13 @@ export const endpointApi = {
     });
   },
 
+  // Cleanup unscanned endpoints
+  cleanupUnscannedEndpoints: () => {
+    return apiClient.delete<{ message: string; count: number }>(
+      "/api/v2/endpoint/cleanup-unscanned",
+    );
+  },
+
   // Manually trigger endpoint test
   triggerEndpointTest: (endpointId: number) => {
     return apiClient.post<void>(`/api/v2/endpoint/${endpointId}/test`);

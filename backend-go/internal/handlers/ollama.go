@@ -200,7 +200,7 @@ func (h *OllamaHandler) Models(c *gin.Context) {
 		return
 	}
 	timestamp := time.Now().Unix()
-	
+
 	// Inject pseudo-models FIRST so they appear at the top
 	pseudoModels := []string{"smart:fastest", "smart:large", "smart:small", "smart:coding"}
 	data := make([]gin.H, 0, len(rows)+len(pseudoModels))
@@ -212,7 +212,7 @@ func (h *OllamaHandler) Models(c *gin.Context) {
 			"created":  timestamp,
 		})
 	}
-	
+
 	// Add real models
 	for _, r := range rows {
 		data = append(data, gin.H{
@@ -222,7 +222,7 @@ func (h *OllamaHandler) Models(c *gin.Context) {
 			"created":  timestamp,
 		})
 	}
-	
+
 	log.Printf("[Models] Returning %d models (%d real + %d smart)", len(data), len(rows), len(pseudoModels))
 
 	c.JSON(200, gin.H{"object": "list", "data": data})
@@ -246,7 +246,7 @@ func (h *OllamaHandler) Tags(c *gin.Context) {
 		utils.InternalServerError(c, "Failed to fetch models")
 		return
 	}
-	
+
 	now := time.Now().Format(time.RFC3339)
 	models := make([]gin.H, 0, len(rows)+4)
 	for _, r := range rows {
@@ -316,7 +316,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 		utils.BadRequest(c, "Field 'model' is required")
 		return
 	}
-	
+
 	originalModelRequested := modelRaw
 
 	// 🧠 NEVER-SLEEP INJECTOR: Eliminate Cold-Starts
@@ -336,14 +336,14 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 				// Check if the preferred model is available
 				preferName, preferTag := parseModel(result.PreferModel)
 				preferEndpoints, preferErr := h.bestEndpointsForModel(preferName, preferTag)
-				
+
 				if preferErr == nil && len(preferEndpoints) > 0 {
 					modelRaw = result.PreferModel
 					smartRouteHeader = services.FormatRouteHeader(result.Category, result.PreferModel)
-					
+
 					log.Printf("[smart-router] Routing '%s' → '%s' (category: %s, confidence: %.2f)",
 						originalModelRequested, result.PreferModel, result.Category, result.Confidence)
-					
+
 					// Update the body with the new model
 					bodyMap["model"] = modelRaw
 					rawBody, _ = json.Marshal(bodyMap)
@@ -505,7 +505,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 				}
 			}
 
-			client := &http.Client{Timeout: 120 * time.Second}
+			client := utils.NewHTTPClient(120 * time.Second)
 			resp, err := client.Do(req)
 
 			if err != nil {
@@ -564,14 +564,14 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 					resultCh <- raceResult{err: fmt.Errorf("rejected honeypot: invalid payload start %q", firstChar), endpointURL: url, index: index}
 					return
 				}
-				
+
 				// Aggressively reject JSON error payloads wrapped in 200 OK
 				if strings.HasPrefix(sniffStr, `{"error"`) || strings.HasPrefix(sniffStr, `{"message"`) {
 					resp.Body.Close()
 					resultCh <- raceResult{err: fmt.Errorf("rejected node: returned 200 OK error JSON payload"), endpointURL: url, index: index}
 					return
 				}
-				
+
 				// Validate streaming integrity: If stream requested, it MUST start with "data:"
 				// Also catch upstream API errors that are embedded inside the initial SSE chunk (very common in LiteLLM/Ollama proxies)
 				if streamReq {
@@ -598,7 +598,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 	var winningResp *http.Response
 	var winningEndpoint string
 	failures := 0
-	
+
 	// Keep track of the most interesting upstream error to return if the race fails entirely
 	var lastFailStatus int
 	var lastFailBody []byte
@@ -630,7 +630,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 			failures++
 			utils.FailedRequests.Add(1)
 			log.Printf("[proxy-race] endpoint %s failed: %v", res.endpointURL, res.err)
-			
+
 			// Save the most recent upstream error to bubble back if the proxy fails
 			if res.failStatus > 0 {
 				lastFailStatus = res.failStatus
@@ -678,7 +678,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 						continue
 					}
 					creq.Header.Set("Content-Type", "application/json")
-					client := &http.Client{Timeout: 120 * time.Second}
+					client := utils.NewHTTPClient(120 * time.Second)
 					cresp, cerr := client.Do(creq)
 					if cerr != nil || cresp.StatusCode >= 400 {
 						if cresp != nil {
@@ -748,10 +748,10 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 		// Streaming: flush chunks as they arrive safely line-by-line
 		flusher, ok := c.Writer.(http.Flusher)
 		reader := bufio.NewReader(resp.Body)
-		
+
 		targetModelStr := []byte(fmt.Sprintf(`"model":"%s"`, modelRaw))
 		replModelStr := []byte(fmt.Sprintf(`"model":"%s"`, originalModelRequested))
-		
+
 		for {
 			line, readErr := reader.ReadBytes('\n')
 			if len(line) > 0 {
@@ -759,7 +759,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 				if originalModelRequested != modelRaw {
 					line = bytes.ReplaceAll(line, targetModelStr, replModelStr)
 				}
-				
+
 				c.Writer.Write(line)
 				if ok {
 					flusher.Flush()
@@ -769,7 +769,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 				// Inject a terminal Usage object chunk (OpenAI standard) to protect Litellm from crashing if 'stream_options.include_usage: true' was passed
 				usageChunk := fmt.Sprintf("\ndata: {\"id\":\"chatcmpl-end\",\"object\":\"chat.completion.chunk\",\"created\":%d,\"model\":\"%s\",\"choices\":[],\"usage\":{\"prompt_tokens\":0,\"completion_tokens\":0,\"total_tokens\":0}}\n\n", time.Now().Unix(), originalModelRequested)
 				c.Writer.Write([]byte(usageChunk))
-				
+
 				// Inject a guaranteed DONE frame if the stream ends or is aborted abruptly,
 				// which prevents python/aiohttp ClientPayloadError crashes in Open WebUI
 				c.Writer.Write([]byte("data: [DONE]\n\n"))
@@ -787,13 +787,13 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 		// Non-streaming: copy full body and cache it
 		respBytes, bodyErr := io.ReadAll(resp.Body)
 		resp.Body.Close()
-		
+
 		if originalModelRequested != modelRaw {
 			targetModelStr := []byte(fmt.Sprintf(`"model":"%s"`, modelRaw))
 			replModelStr := []byte(fmt.Sprintf(`"model":"%s"`, originalModelRequested))
 			respBytes = bytes.ReplaceAll(respBytes, targetModelStr, replModelStr)
 		}
-		
+
 		if bodyErr == nil {
 			// Cache successful responses for 10 minutes
 			if resp.StatusCode == 200 && cacheKey != "" {
@@ -811,10 +811,10 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 	// Finished executing winner
 }
 
-// 🔪 THE DOCUMENT CRACKER: Auto-splits massive documents and blasts them to multiple GPUs 
+// 🔪 THE DOCUMENT CRACKER: Auto-splits massive documents and blasts them to multiple GPUs
 func (h *OllamaHandler) mapReduceProxy(c *gin.Context, method, path string, bodyMap map[string]interface{}, endpoints []string) {
 	startTime := time.Now()
-	
+
 	messages, ok := bodyMap["messages"].([]interface{})
 	if !ok || len(messages) == 0 {
 		c.JSON(400, gin.H{"error": "messages array required for map-reduce"})
@@ -837,7 +837,7 @@ func (h *OllamaHandler) mapReduceProxy(c *gin.Context, method, path string, body
 	if chunkCount > 4 {
 		chunkCount = 4
 	}
-	
+
 	chunkSize := len(content) / chunkCount
 	var chunks []string
 	if chunkSize < 50 {
@@ -858,7 +858,7 @@ func (h *OllamaHandler) mapReduceProxy(c *gin.Context, method, path string, body
 		text  string
 		err   error
 	}
-	
+
 	resultCh := make(chan mrResult, len(chunks))
 	streamRaw, _ := bodyMap["stream"].(bool)
 	bodyMap["stream"] = false // Map-Reduce runs blocking-sync natively
@@ -867,18 +867,22 @@ func (h *OllamaHandler) mapReduceProxy(c *gin.Context, method, path string, body
 		// Launch N simultaneous GPU Map jobs!
 		go func(idx int, text string, endpointURL string) {
 			bodyClone := make(map[string]interface{})
-			for k, v := range bodyMap { bodyClone[k] = v }
-			
+			for k, v := range bodyMap {
+				bodyClone[k] = v
+			}
+
 			msgsClone := make([]interface{}, len(messages)-1)
 			copy(msgsClone, messages[:len(messages)-1])
-			
+
 			newLastMsg := map[string]interface{}{}
-			for k, v := range lastMsg { newLastMsg[k] = v }
+			for k, v := range lastMsg {
+				newLastMsg[k] = v
+			}
 			newLastMsg["content"] = "[MAP-REDUCE SUB-CHUNK, SUMMARIZE THIS PORTION EXACTLY]:\n\n" + text
-			
+
 			msgsClone = append(msgsClone, newLastMsg)
 			bodyClone["messages"] = msgsClone
-			
+
 			reqBytes, _ := json.Marshal(bodyClone)
 			target := endpointURL + path
 
@@ -893,23 +897,25 @@ func (h *OllamaHandler) mapReduceProxy(c *gin.Context, method, path string, body
 				if k == "authorization" || k == "host" || k == "content-length" {
 					continue
 				}
-				for _, v := range vs { req.Header.Add(k, v) }
+				for _, v := range vs {
+					req.Header.Add(k, v)
+				}
 			}
 
-			client := &http.Client{Timeout: 300 * time.Second}
+			client := utils.NewHTTPClient(300 * time.Second)
 			resp, err := client.Do(req)
 			if err != nil {
 				resultCh <- mrResult{index: idx, err: err}
 				return
 			}
 			defer resp.Body.Close()
-			
+
 			respBytes, _ := io.ReadAll(resp.Body)
 			if resp.StatusCode != 200 {
 				resultCh <- mrResult{index: idx, err: fmt.Errorf("node failed with status %d", resp.StatusCode)}
 				return
 			}
-			
+
 			// Unmarshal Ollama's OpenAI-compatible JSON representation
 			var oaiResp struct {
 				Choices []struct {
@@ -919,21 +925,21 @@ func (h *OllamaHandler) mapReduceProxy(c *gin.Context, method, path string, body
 				} `json:"choices"`
 			}
 			json.Unmarshal(respBytes, &oaiResp)
-			
+
 			var outText string
 			if len(oaiResp.Choices) > 0 {
 				outText = oaiResp.Choices[0].Message.Content
 			} else {
 				outText = string(respBytes) // fallback to raw
 			}
-			
+
 			resultCh <- mrResult{index: idx, text: outText}
-		}(i, chunkText, endpoints[i % len(endpoints)])
+		}(i, chunkText, endpoints[i%len(endpoints)])
 	}
-	
+
 	results := make([]string, len(chunks))
 	errs := 0
-	
+
 	// Wait for all GPUs to finish and Reduce the output
 	for i := 0; i < len(chunks); i++ {
 		res := <-resultCh
@@ -944,22 +950,22 @@ func (h *OllamaHandler) mapReduceProxy(c *gin.Context, method, path string, body
 			results[res.index] = res.text
 		}
 	}
-	
+
 	if errs == len(chunks) {
 		c.JSON(500, gin.H{"error": "Map-Reduce failed completely across all cluster nodes."})
 		return
 	}
-	
+
 	finalText := strings.Join(results, "\n\n---\n\n")
 	log.Printf("[map-reduce] Crushed %d chunks in %v", len(chunks), time.Since(startTime))
-	
+
 	if streamRaw {
 		// Emit fake SSE stream to satisfy streaming clients seamlessly!
 		c.Header("Content-Type", "text/event-stream")
 		chunk := gin.H{
 			"id": "chatcmpl-mapreduce", "object": "chat.completion.chunk",
 			"created": time.Now().Unix(), "model": bodyMap["model"],
-			"choices": []gin.H{ { "index": 0, "delta": gin.H{"content": finalText} } },
+			"choices": []gin.H{{"index": 0, "delta": gin.H{"content": finalText}}},
 		}
 		b, _ := json.Marshal(chunk)
 		c.Writer.Write([]byte("data: " + string(b) + "\n\n"))
@@ -968,7 +974,7 @@ func (h *OllamaHandler) mapReduceProxy(c *gin.Context, method, path string, body
 		ans := gin.H{
 			"id": "chatcmpl-mapreduce", "object": "chat.completion",
 			"created": time.Now().Unix(), "model": bodyMap["model"],
-			"choices": []gin.H{ { "index": 0, "message": gin.H{"role": "assistant", "content": finalText} } },
+			"choices": []gin.H{{"index": 0, "message": gin.H{"role": "assistant", "content": finalText}}},
 		}
 		c.JSON(200, ans)
 	}

@@ -128,6 +128,7 @@ func main() {
 			admin.POST("/endpoint/batch", endpointHandler.BatchCreate)
 			admin.GET("/endpoint/:id", endpointHandler.Get)
 			admin.PATCH("/endpoint/:id", endpointHandler.Update)
+			admin.DELETE("/endpoint/cleanup-unscanned", endpointHandler.CleanupUnscanned)
 			admin.DELETE("/endpoint/:id", endpointHandler.Delete)
 			admin.DELETE("/endpoint/batch", endpointHandler.BatchDelete)
 			admin.POST("/endpoint/batch-test", endpointHandler.BatchTest)

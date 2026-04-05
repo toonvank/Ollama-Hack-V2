@@ -116,7 +116,7 @@ func TestOpenAIEndpoint(endpointURL string, apiKey *string) *EndpointTestResult 
 		OllamaVersion:  "OpenAI Compatible",
 	}
 
-	client := &http.Client{Timeout: getPollTimeout()}
+	client := utils.NewHTTPClient(getPollTimeout())
 
 	// Test /v1/models endpoint
 	req, err := http.NewRequest("GET", endpointURL+"/v1/models", nil)
@@ -132,7 +132,7 @@ func TestOpenAIEndpoint(endpointURL string, apiKey *string) *EndpointTestResult 
 
 	modelsResp, err := client.Do(req)
 	if err != nil || modelsResp.StatusCode != http.StatusOK {
-		log.Printf("[tester] OpenAI endpoint %s unreachable or unauthorized: %v (status: %v)", 
+		log.Printf("[tester] OpenAI endpoint %s unreachable or unauthorized: %v (status: %v)",
 			endpointURL, err, modelsResp.StatusCode)
 		return result
 	}
@@ -170,7 +170,6 @@ func TestOpenAIEndpoint(endpointURL string, apiKey *string) *EndpointTestResult 
 	return result
 }
 
-
 // TestEndpoint fully tests an endpoint: version, lists models, tests each model
 func TestEndpoint(endpointURL string) *EndpointTestResult {
 	result := &EndpointTestResult{
@@ -178,7 +177,7 @@ func TestEndpoint(endpointURL string) *EndpointTestResult {
 		EndpointStatus: StatusUnavailable,
 	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := utils.NewHTTPClient(10 * time.Second)
 
 	// 1. Check version
 	versionResp, err := client.Get(endpointURL + "/api/version")
@@ -258,7 +257,7 @@ func testModel(endpointURL, name, tag string) ModelTestResult {
 		"stream": true,
 	})
 
-	client := &http.Client{Timeout: getPollTimeout()}
+	client := utils.NewHTTPClient(getPollTimeout())
 	req, err := http.NewRequest("POST", endpointURL+"/api/generate", strings.NewReader(string(body)))
 	if err != nil {
 		return mr
@@ -352,7 +351,7 @@ func NewTester(db *database.DB) *Tester {
 
 func (t *Tester) Start() {
 	log.Println("[tester] background tester started")
-	
+
 	// Create worker pool with 20 parallel workers to prevent connection saturation
 	for i := 0; i < 20; i++ {
 		go func() {
@@ -369,9 +368,9 @@ func (t *Tester) Start() {
 
 	go func() {
 		ticker := time.NewTicker(t.interval)
-		fetchTicker := time.NewTicker(1 * time.Hour)    // Fetch every hour
+		fetchTicker := time.NewTicker(1 * time.Hour)   // Fetch every hour
 		requeueTicker := time.NewTicker(1 * time.Hour) // Check for tests to re-queue every hour
-		statsTicker := time.NewTicker(5 * time.Second)  // Poll stats for frontend
+		statsTicker := time.NewTicker(5 * time.Second) // Poll stats for frontend
 		defer ticker.Stop()
 		defer fetchTicker.Stop()
 		defer requeueTicker.Stop()
@@ -422,7 +421,7 @@ func (t *Tester) Start() {
 
 func (t *Tester) queueCyclicalTests() {
 	log.Println("[tester] checking for endpoints that need re-testing")
-	
+
 	intervalStr := os.Getenv("CYCLICAL_TEST_INTERVAL_HOURS")
 	if intervalStr == "" {
 		intervalStr = "24"
@@ -464,7 +463,7 @@ func (t *Tester) Stop() {
 
 func (t *Tester) fetchExternalEndpoints() {
 	log.Println("[tester] fetching external endpoints from ollama.vincentko.top")
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := utils.NewHTTPClient(30 * time.Second)
 	resp, err := client.Get("https://ollama.vincentko.top/data.json")
 	if err != nil {
 		log.Printf("[tester] failed to fetch external endpoints: %v", err)

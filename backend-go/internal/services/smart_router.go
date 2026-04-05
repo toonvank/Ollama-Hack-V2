@@ -91,9 +91,9 @@ func NewSmartRouter() *SmartRouter {
 
 // ClassificationResult holds the result of prompt classification
 type ClassificationResult struct {
-	Category      string  // The detected category
-	PreferModel   string  // The preferred model for this category
-	Confidence    float64 // Score indicating match strength (0.0 - 1.0)
+	Category        string   // The detected category
+	PreferModel     string   // The preferred model for this category
+	Confidence      float64  // Score indicating match strength (0.0 - 1.0)
 	MatchedKeywords []string // Keywords that triggered the match
 }
 
@@ -121,13 +121,13 @@ func (sr *SmartRouter) Classify(prompt string) *ClassificationResult {
 	}
 
 	lowerPrompt := strings.ToLower(prompt)
-	
+
 	var bestResult *ClassificationResult
 	var bestScore float64
 
 	for _, rule := range sr.rules {
 		matchedKeywords := []string{}
-		
+
 		for _, keyword := range rule.Keywords {
 			if strings.Contains(lowerPrompt, strings.ToLower(keyword)) {
 				matchedKeywords = append(matchedKeywords, keyword)
@@ -173,7 +173,7 @@ func (sr *SmartRouter) ClassifyMessages(messages []interface{}) *ClassificationR
 	}
 
 	var allContent strings.Builder
-	
+
 	for _, msg := range messages {
 		if msgMap, ok := msg.(map[string]interface{}); ok {
 			if content, ok := msgMap["content"].(string); ok {
@@ -190,7 +190,7 @@ func (sr *SmartRouter) ClassifyMessages(messages []interface{}) *ClassificationR
 func (sr *SmartRouter) GetRules() []RoutingRule {
 	sr.mu.RLock()
 	defer sr.mu.RUnlock()
-	
+
 	rules := make([]RoutingRule, len(sr.rules))
 	copy(rules, sr.rules)
 	return rules

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/timlzh/ollama-hack/internal/database"
+	"github.com/timlzh/ollama-hack/internal/utils"
 )
 
 // EndpointHealth holds the health status and metrics for a single endpoint
@@ -406,8 +407,8 @@ func (ht *HealthTracker) persistToDB() {
 				last_fail = EXCLUDED.last_fail,
 				last_probe = EXCLUDED.last_probe,
 				updated_at = CURRENT_TIMESTAMP
-		`, h.URL, h.Score, h.SuccessCount, h.FailCount, h.Disabled, 
-		nullTime(h.DisabledUntil), nullTime(h.LastSuccess), nullTime(h.LastFail), nullTime(h.LastProbe))
+		`, h.URL, h.Score, h.SuccessCount, h.FailCount, h.Disabled,
+			nullTime(h.DisabledUntil), nullTime(h.LastSuccess), nullTime(h.LastFail), nullTime(h.LastProbe))
 		if err != nil {
 			log.Printf("[health-tracker] Failed to save %s: %v", h.URL, err)
 		}
@@ -415,10 +416,10 @@ func (ht *HealthTracker) persistToDB() {
 }
 
 func nullTime(t time.Time) sql.NullTime {
-    if t.IsZero() {
-        return sql.NullTime{Valid: false}
-    }
-    return sql.NullTime{Time: t, Valid: true}
+	if t.IsZero() {
+		return sql.NullTime{Valid: false}
+	}
+	return sql.NullTime{Time: t, Valid: true}
 }
 
 // probeLoop runs periodically to check disabled endpoints for recovery
@@ -465,7 +466,7 @@ func (ht *HealthTracker) probeEndpoint(url string) {
 	ht.mu.Unlock()
 
 	// Simple health check - just check if the endpoint responds
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := utils.NewHTTPClient(10 * time.Second)
 	resp, err := client.Get(url + "/api/version")
 	if err != nil {
 		log.Printf("[health-tracker] Probe failed for %s: %v", url, err)

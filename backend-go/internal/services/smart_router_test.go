@@ -33,10 +33,10 @@ func TestSmartRouterClassifyCoding(t *testing.T) {
 	sr := NewSmartRouter()
 
 	tests := []struct {
-		name     string
-		prompt   string
-		wantCat  string
-		wantNil  bool
+		name    string
+		prompt  string
+		wantCat string
+		wantNil bool
 	}{
 		{
 			name:    "code keyword",
