@@ -14,15 +14,16 @@ import (
 
 // EndpointHealth holds the health status and metrics for a single endpoint
 type EndpointHealth struct {
-	URL           string    `json:"url"`
-	Score         int       `json:"score"`
-	FailCount     int       `json:"fail_count"`
-	SuccessCount  int       `json:"success_count"`
-	LastFail      time.Time `json:"last_fail,omitempty"`
-	LastSuccess   time.Time `json:"last_success,omitempty"`
-	Disabled      bool      `json:"disabled"`
-	DisabledUntil time.Time `json:"disabled_until,omitempty"`
-	LastProbe     time.Time `json:"last_probe,omitempty"`
+	URL            string    `json:"url"`
+	Score          int       `json:"score"`
+	FailCount      int       `json:"fail_count"`
+	SuccessCount   int       `json:"success_count"`
+	RateLimitCount int       `json:"rate_limit_count"`
+	LastFail       time.Time `json:"last_fail,omitempty"`
+	LastSuccess    time.Time `json:"last_success,omitempty"`
+	Disabled       bool      `json:"disabled"`
+	DisabledUntil  time.Time `json:"disabled_until,omitempty"`
+	LastProbe      time.Time `json:"last_probe,omitempty"`
 }
 
 // HealthTrackerConfig holds configuration for the health tracker
@@ -207,6 +208,24 @@ func (ht *HealthTracker) RecordFailure(url string) {
 		log.Printf("[health-tracker] Endpoint %s DISABLED (score: %d, until: %v)",
 			url, h.Score, h.DisabledUntil.Format(time.RFC3339))
 	}
+}
+
+// RecordRateLimit records a 429 Too Many Requests response.
+// Unlike RecordFailure, it does NOT penalize the health score — rate limits are
+// a quota signal from the cloud provider, not a sign the endpoint is broken.
+func (ht *HealthTracker) RecordRateLimit(url string) {
+	if !ht.config.Enabled {
+		return
+	}
+
+	ht.mu.Lock()
+	defer ht.mu.Unlock()
+
+	h := ht.getOrCreateHealth(url)
+	h.RateLimitCount++
+	h.LastFail = time.Now()
+	log.Printf("[health-tracker] Rate-limited by %s (total 429s: %d) — score preserved at %d",
+		url, h.RateLimitCount, h.Score)
 }
 
 // IsDisabled checks if an endpoint is currently disabled

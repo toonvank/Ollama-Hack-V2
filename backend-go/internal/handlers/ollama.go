@@ -20,11 +20,15 @@ import (
 	"github.com/timlzh/ollama-hack/internal/utils"
 )
 
-type smartModelCacheEntry struct {
+type smartModelCandidate struct {
 	urls []string
 	name string
 	tag  string
-	exp  time.Time
+}
+
+type smartModelCacheEntry struct {
+	candidates []smartModelCandidate // ranked best→worst
+	exp        time.Time
 }
 
 type OllamaHandler struct {
@@ -91,13 +95,14 @@ func (h *OllamaHandler) bestEndpointsForModel(modelName, modelTag string) ([]str
 	return urls, nil
 }
 
-// resolveSmartModel dynamically calculates the best real model for a pseudo-model tag (like "fastest" or "large")
-func (h *OllamaHandler) resolveSmartModel(smartTag string) ([]string, string, string, error) {
+// resolveSmartModel dynamically calculates the best real models for a pseudo-model tag.
+// Returns a ranked slice of candidates (best→worst) to enable cascade fallback.
+func (h *OllamaHandler) resolveSmartModel(smartTag string) ([]smartModelCandidate, error) {
 	// ⚡ Fast path: Check 60-second TTL cache for smart model resolutions
 	if val, ok := h.smartCache.Load(smartTag); ok {
 		entry := val.(smartModelCacheEntry)
 		if time.Now().Before(entry.exp) {
-			return entry.urls, entry.name, entry.tag, nil
+			return entry.candidates, nil
 		}
 	}
 
@@ -115,8 +120,9 @@ func (h *OllamaHandler) resolveSmartModel(smartTag string) ([]string, string, st
 		heuristic = "1=1"
 	}
 
+	// Fetch top 3 distinct (name, tag) candidates ranked by speed
 	query := fmt.Sprintf(`
-		SELECT m.name, m.tag
+		SELECT DISTINCT ON (m.name, m.tag) m.name, m.tag
 		FROM endpoint_ai_models eam
 		JOIN endpoints e ON e.id = eam.endpoint_id
 		JOIN ai_models m ON m.id = eam.ai_model_id
@@ -126,33 +132,43 @@ func (h *OllamaHandler) resolveSmartModel(smartTag string) ([]string, string, st
 		  AND eam.status = 'available'
 		  AND e.status = 'available'
 		  AND (eh.disabled IS NULL OR eh.disabled = FALSE)
-		ORDER BY eam.token_per_second DESC NULLS LAST
-		LIMIT 1
+		ORDER BY m.name, m.tag, eam.token_per_second DESC NULLS LAST
+		LIMIT 3
 	`, heuristic)
 
 	type modelRow struct {
 		Name string `db:"name"`
 		Tag  string `db:"tag"`
 	}
-	var mRow modelRow
-	err := h.db.Get(&mRow, query)
-	if err != nil {
-		return nil, "", "", fmt.Errorf("no models available for smart tag '%s'", smartTag)
+	var mRows []modelRow
+	err := h.db.Select(&mRows, query)
+	if err != nil || len(mRows) == 0 {
+		return nil, fmt.Errorf("no models available for smart tag '%s'", smartTag)
 	}
 
-	urls, err := h.bestEndpointsForModel(mRow.Name, mRow.Tag)
-	
-	// Cache the result for 60 seconds to relieve database load
-	if err == nil {
-		h.smartCache.Store(smartTag, smartModelCacheEntry{
-			urls: urls,
-			name: mRow.Name,
-			tag:  mRow.Tag,
-			exp:  time.Now().Add(60 * time.Second),
-		})
+	candidates := make([]smartModelCandidate, 0, len(mRows))
+	for _, mRow := range mRows {
+		urls, err := h.bestEndpointsForModel(mRow.Name, mRow.Tag)
+		if err == nil && len(urls) > 0 {
+			candidates = append(candidates, smartModelCandidate{
+				urls: urls,
+				name: mRow.Name,
+				tag:  mRow.Tag,
+			})
+		}
 	}
-	
-	return urls, mRow.Name, mRow.Tag, err
+
+	if len(candidates) == 0 {
+		return nil, fmt.Errorf("no reachable endpoints for smart tag '%s'", smartTag)
+	}
+
+	// Cache the result for 60 seconds to relieve database load
+	h.smartCache.Store(smartTag, smartModelCacheEntry{
+		candidates: candidates,
+		exp:        time.Now().Add(60 * time.Second),
+	})
+
+	return candidates, nil
 }
 
 // parseModel splits "name:tag" into name, tag. If no ":" present, tag = "latest".
@@ -341,11 +357,18 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 
 	name, tag := parseModel(modelRaw)
 	var endpoints []string
+	// For smart models, we keep the full candidate list for cascade fallback
+	var smartCandidates []smartModelCandidate
 
 	if name == "smart" {
-		endpoints, name, tag, err = h.resolveSmartModel(tag)
-		if err == nil {
-			log.Printf("[smart-model] Resolved pseudo-model '%s' directly to '%s:%s'", originalModelRequested, name, tag)
+		smartCandidates, err = h.resolveSmartModel(tag)
+		if err == nil && len(smartCandidates) > 0 {
+			// Start with the best candidate
+			best := smartCandidates[0]
+			name, tag = best.name, best.tag
+			endpoints = best.urls
+			log.Printf("[smart-model] Resolved '%s' → '%s:%s' (%d fallback candidates)",
+				originalModelRequested, name, tag, len(smartCandidates)-1)
 			modelRaw = fmt.Sprintf("%s:%s", name, tag)
 			bodyMap["model"] = modelRaw
 			rawBody, _ = json.Marshal(bodyMap)
@@ -445,10 +468,12 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 	// Launch simultaneous requests to all available endpoints. The first one to answer wins.
 
 	type raceResult struct {
-		resp        *http.Response
-		err         error
-		endpointURL string
-		index       int
+		resp          *http.Response
+		err           error
+		endpointURL   string
+		index         int
+		rateLimited   bool // true if the error was a 429 — don't health-penalize
+		isClientError bool // true if 400 <= status < 500 — bad prompts shouldn't penalize node health
 	}
 
 	resultCh := make(chan raceResult, len(endpoints))
@@ -489,7 +514,16 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 			// Non-200 responses are failures in the race
 			if resp.StatusCode >= 400 {
 				resp.Body.Close()
-				resultCh <- raceResult{err: fmt.Errorf("status %d", resp.StatusCode), endpointURL: url, index: index}
+				if resp.StatusCode == 429 {
+					// Rate-limited: record separately so the endpoint isn't health-penalized
+					resultCh <- raceResult{err: fmt.Errorf("rate-limited (429)"), endpointURL: url, index: index, rateLimited: true}
+				} else if resp.StatusCode < 500 {
+					// Client error (400, 401, etc) - payload is bad, context too long, etc.
+					resultCh <- raceResult{err: fmt.Errorf("status %d", resp.StatusCode), endpointURL: url, index: index, isClientError: true}
+				} else {
+					// Server error (500, 502, 504)
+					resultCh <- raceResult{err: fmt.Errorf("status %d", resp.StatusCode), endpointURL: url, index: index}
+				}
 				return
 			}
 
@@ -589,8 +623,13 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 			failures++
 			utils.FailedRequests.Add(1)
 			log.Printf("[proxy-race] endpoint %s failed: %v", res.endpointURL, res.err)
-			// Record failure for health tracking
-			healthTracker.RecordFailure(res.endpointURL)
+			// 429 rate-limits don't penalize health score — endpoint is fine, just throttled
+			if res.rateLimited {
+				healthTracker.RecordRateLimit(res.endpointURL)
+			} else if !res.isClientError {
+				// Only penalize 5xx server errors or hard connection timeouts
+				healthTracker.RecordFailure(res.endpointURL)
+			}
 		}
 	}
 
@@ -602,8 +641,54 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 	}()
 
 	if winningResp == nil {
-		c.JSON(502, gin.H{"error": "All endpoints failed the race or didn't respond"})
-		return
+		// 🔄 CASCADE FALLBACK: If this was a smart model and the best candidate failed,
+		// try the next ranked candidates one by one before giving up.
+		if len(smartCandidates) > 1 {
+			for _, fallback := range smartCandidates[1:] {
+				fallbackURLs := healthTracker.FilterHealthyEndpoints(fallback.urls)
+				if len(fallbackURLs) == 0 {
+					continue
+				}
+				log.Printf("[smart-cascade] Primary failed, trying fallback model '%s:%s'",
+					fallback.name, fallback.tag)
+
+				fallbackModel := fmt.Sprintf("%s:%s", fallback.name, fallback.tag)
+				bodyMap["model"] = fallbackModel
+				cascadeBody, _ := json.Marshal(bodyMap)
+
+				// Simple single-endpoint attempt for cascade (no nested racer)
+				for _, cascadeURL := range fallbackURLs {
+					creq, cerr := http.NewRequestWithContext(c.Request.Context(), method,
+						cascadeURL+path, bytes.NewReader(cascadeBody))
+					if cerr != nil {
+						continue
+					}
+					creq.Header.Set("Content-Type", "application/json")
+					client := &http.Client{Timeout: 120 * time.Second}
+					cresp, cerr := client.Do(creq)
+					if cerr != nil || cresp.StatusCode >= 400 {
+						if cerr == nil {
+							cresp.Body.Close()
+						}
+						continue
+					}
+					// Cascade winner found!
+					log.Printf("[smart-cascade] 🏁 Cascade winner: %s via %s", fallbackModel, cascadeURL)
+					c.Header("X-Smart-Cascade", fmt.Sprintf("%s→%s", modelRaw, fallbackModel))
+					// Rewrite body for model masking (show original requested model to client)
+					winningResp = cresp
+					modelRaw = fallbackModel
+					break
+				}
+				if winningResp != nil {
+					break
+				}
+			}
+		}
+		if winningResp == nil {
+			c.JSON(502, gin.H{"error": "All endpoints failed the race or didn't respond"})
+			return
+		}
 	}
 
 	resp := winningResp
