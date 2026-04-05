@@ -472,8 +472,10 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 		err           error
 		endpointURL   string
 		index         int
-		rateLimited   bool // true if the error was a 429 — don't health-penalize
-		isClientError bool // true if 400 <= status < 500 — bad prompts shouldn't penalize node health
+		rateLimited   bool   // true if the error was a 429 — don't health-penalize
+		isClientError bool   // true if 400 <= status < 500 — bad prompts shouldn't penalize node health
+		failStatus    int    // Forward upstream error status back to client if race fails
+		failBody      []byte // Forward upstream error body back to client if race fails
 	}
 
 	resultCh := make(chan raceResult, len(endpoints))
@@ -513,16 +515,17 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 
 			// Non-200 responses are failures in the race
 			if resp.StatusCode >= 400 {
+				bodyBytes, _ := io.ReadAll(resp.Body)
 				resp.Body.Close()
 				if resp.StatusCode == 429 {
 					// Rate-limited: record separately so the endpoint isn't health-penalized
-					resultCh <- raceResult{err: fmt.Errorf("rate-limited (429)"), endpointURL: url, index: index, rateLimited: true}
+					resultCh <- raceResult{err: fmt.Errorf("rate-limited (429)"), endpointURL: url, index: index, rateLimited: true, failStatus: resp.StatusCode, failBody: bodyBytes}
 				} else if resp.StatusCode < 500 {
 					// Client error (400, 401, etc) - payload is bad, context too long, etc.
-					resultCh <- raceResult{err: fmt.Errorf("status %d", resp.StatusCode), endpointURL: url, index: index, isClientError: true}
+					resultCh <- raceResult{err: fmt.Errorf("status %d", resp.StatusCode), endpointURL: url, index: index, isClientError: true, failStatus: resp.StatusCode, failBody: bodyBytes}
 				} else {
 					// Server error (500, 502, 504)
-					resultCh <- raceResult{err: fmt.Errorf("status %d", resp.StatusCode), endpointURL: url, index: index}
+					resultCh <- raceResult{err: fmt.Errorf("status %d", resp.StatusCode), endpointURL: url, index: index, failStatus: resp.StatusCode, failBody: bodyBytes}
 				}
 				return
 			}
@@ -595,6 +598,10 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 	var winningResp *http.Response
 	var winningEndpoint string
 	failures := 0
+	
+	// Keep track of the most interesting upstream error to return if the race fails entirely
+	var lastFailStatus int
+	var lastFailBody []byte
 
 	for i := 0; i < len(endpoints); i++ {
 		res := <-resultCh
@@ -623,6 +630,13 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 			failures++
 			utils.FailedRequests.Add(1)
 			log.Printf("[proxy-race] endpoint %s failed: %v", res.endpointURL, res.err)
+			
+			// Save the most recent upstream error to bubble back if the proxy fails
+			if res.failStatus > 0 {
+				lastFailStatus = res.failStatus
+				lastFailBody = res.failBody
+			}
+
 			// 429 rate-limits don't penalize health score — endpoint is fine, just throttled
 			if res.rateLimited {
 				healthTracker.RecordRateLimit(res.endpointURL)
@@ -667,8 +681,14 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 					client := &http.Client{Timeout: 120 * time.Second}
 					cresp, cerr := client.Do(creq)
 					if cerr != nil || cresp.StatusCode >= 400 {
-						if cerr == nil {
-							cresp.Body.Close()
+						if cresp != nil {
+							var b []byte
+							if cresp.Body != nil {
+								b, _ = io.ReadAll(cresp.Body)
+								cresp.Body.Close()
+							}
+							lastFailStatus = cresp.StatusCode
+							lastFailBody = b
 						}
 						continue
 					}
@@ -686,7 +706,13 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 			}
 		}
 		if winningResp == nil {
-			c.JSON(502, gin.H{"error": "All endpoints failed the race or didn't respond"})
+			if lastFailStatus >= 400 {
+				// We have a direct upstream error (like 400 Bad Request) that we should bubble back
+				var errContentType = "application/json"
+				c.Data(lastFailStatus, errContentType, lastFailBody)
+			} else {
+				c.JSON(502, gin.H{"error": "All endpoints failed the race or didn't respond"})
+			}
 			return
 		}
 	}
