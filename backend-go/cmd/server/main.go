@@ -45,6 +45,11 @@ func main() {
 	scraperSvc.Start()
 	defer scraperSvc.Stop()
 
+	// Start discovery scanner
+	discoveryScanner := services.NewDiscoveryScanner(db)
+	discoveryScanner.Start()
+	defer discoveryScanner.Stop()
+
 	// Initialize services
 	services.InitHealthTracker(db)
 	authService := services.NewAuthService(db, cfg)
@@ -57,6 +62,7 @@ func main() {
 	endpointHandler := handlers.NewEndpointHandler(db)
 	modelHandler := handlers.NewAIModelHandler(db)
 	ollamaHandler := handlers.NewOllamaHandler(db)
+	discoveryHandler := handlers.NewDiscoveryHandler(db, discoveryScanner)
 
 	if cfg.App.Env == "prod" {
 		gin.SetMode(gin.ReleaseMode)
@@ -141,6 +147,10 @@ func main() {
 			admin.GET("/ai_model/:id", modelHandler.Get)
 			admin.GET("/ai_model/smart/resolutions", modelHandler.SmartModels)
 			admin.PATCH("/ai_model/:id/toggle", modelHandler.Toggle) // enable/disable
+
+			// Discovery scanner
+			admin.POST("/discovery/scan", discoveryHandler.TriggerManualScan)
+			admin.GET("/discovery/status", discoveryHandler.GetScanStatus)
 		}
 	}
 

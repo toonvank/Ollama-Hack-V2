@@ -481,17 +481,29 @@ const EndpointListPage = () => {
           setVisibleColumns={setVisibleColumns}
           testingEndpointIds={testingEndpointIds}
           topActionContent={
-            isAdmin ? (
+            <div className="flex items-center gap-2">
               <Button
-                color="warning"
-                isLoading={isCleaningUp}
-                startContent={!isCleaningUp && <DeleteIcon />}
+                as="a"
+                color="primary"
+                href="https://en.fofa.info/"
+                rel="noopener noreferrer"
+                target="_blank"
                 variant="flat"
-                onPress={handleCleanupUnscanned}
               >
-                Cleanup Unscanned
+                Search FOFA
               </Button>
-            ) : null
+              {isAdmin && (
+                <Button
+                  color="warning"
+                  isLoading={isCleaningUp}
+                  startContent={!isCleaningUp && <DeleteIcon />}
+                  variant="flat"
+                  onPress={handleCleanupUnscanned}
+                >
+                  Cleanup Unscanned
+                </Button>
+              )}
+            </div>
           }
           totalItems={endpoints?.total}
           totalPages={endpoints?.pages}
