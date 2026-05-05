@@ -56,6 +56,16 @@ var DefaultRoutingRules = []RoutingRule{
 		},
 		PreferModel: "llama3",
 	},
+	{
+		Category: "cloud",
+		Keywords: []string{
+			"complex", "advanced", "expert", "deep thinking", "reasoning",
+			"scientific", "mathematical", "difficult", "comprehensive",
+			"analytical", "precise", "logic", "proof", "detailed explanation",
+			"research", "technical", "architecture", "strategy", "planning",
+		},
+		PreferModel: "smart:cloud",
+	},
 }
 
 // NewSmartRouter creates a new smart router instance

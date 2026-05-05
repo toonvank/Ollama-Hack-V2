@@ -116,6 +116,13 @@ func (h *OllamaHandler) resolveSmartModel(smartTag string) ([]smartModelCandidat
 		heuristic = "(m.name ILIKE '%8b%' OR m.name ILIKE '%7b%' OR m.name ILIKE '%3b%' OR m.name ILIKE '%1.5b%')"
 	case "coding":
 		heuristic = "(m.name ILIKE '%code%' OR m.name ILIKE '%coder%')"
+	case "cloud":
+		// Matches the provided list of frontier cloud models
+		heuristic = `(m.name ILIKE '%kimi%' OR m.name ILIKE '%glm%' OR m.name ILIKE '%deepseek%' 
+		              OR m.name ILIKE '%gemma%' OR m.name ILIKE '%qwen%' OR m.name ILIKE '%ministral%' 
+		              OR m.name ILIKE '%nemotron%' OR m.name ILIKE '%devstral%' OR m.name ILIKE '%minimax%' 
+		              OR m.name ILIKE '%rnj%' OR m.name ILIKE '%gemini%' OR m.name ILIKE '%cogito%' 
+		              OR m.name ILIKE '%mistral-large%' OR m.name ILIKE '%gpt-oss%')`
 	default:
 		heuristic = "1=1"
 	}
@@ -202,7 +209,7 @@ func (h *OllamaHandler) Models(c *gin.Context) {
 	timestamp := time.Now().Unix()
 
 	// Inject pseudo-models FIRST so they appear at the top
-	pseudoModels := []string{"smart:fastest", "smart:large", "smart:small", "smart:coding"}
+	pseudoModels := []string{"smart:fastest", "smart:large", "smart:small", "smart:coding", "smart:cloud"}
 	data := make([]gin.H, 0, len(rows)+len(pseudoModels))
 	for _, pm := range pseudoModels {
 		data = append(data, gin.H{
@@ -259,7 +266,7 @@ func (h *OllamaHandler) Tags(c *gin.Context) {
 	}
 
 	// Inject pseudo-models
-	pseudoModels := []string{"smart:fastest", "smart:large", "smart:small", "smart:coding"}
+	pseudoModels := []string{"smart:fastest", "smart:large", "smart:small", "smart:coding", "smart:cloud"}
 	for _, pm := range pseudoModels {
 		models = append(models, gin.H{
 			"name":        pm,
@@ -333,11 +340,18 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 		// Extract messages for classification
 		if messages, ok := bodyMap["messages"].([]interface{}); ok && len(messages) > 0 {
 			if result := h.smartRouter.ClassifyMessages(messages); result != nil && result.PreferModel != "" {
-				// Check if the preferred model is available
+				// Check if the preferred model is available (real or pseudo-model)
 				preferName, preferTag := parseModel(result.PreferModel)
-				preferEndpoints, preferErr := h.bestEndpointsForModel(preferName, preferTag)
+				var available bool
+				if preferName == "smart" {
+					candidates, err := h.resolveSmartModel(preferTag)
+					available = err == nil && len(candidates) > 0
+				} else {
+					preferEndpoints, preferErr := h.bestEndpointsForModel(preferName, preferTag)
+					available = preferErr == nil && len(preferEndpoints) > 0
+				}
 
-				if preferErr == nil && len(preferEndpoints) > 0 {
+				if available {
 					modelRaw = result.PreferModel
 					smartRouteHeader = services.FormatRouteHeader(result.Category, result.PreferModel)
 

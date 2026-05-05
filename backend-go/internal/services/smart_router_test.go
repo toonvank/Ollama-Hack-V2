@@ -223,6 +223,50 @@ func TestSmartRouterCustomRules(t *testing.T) {
 	}
 }
 
+func TestSmartRouterClassifyCloud(t *testing.T) {
+	os.Setenv("SMART_ROUTING_ENABLED", "true")
+	defer os.Unsetenv("SMART_ROUTING_ENABLED")
+
+	sr := NewSmartRouter()
+
+	tests := []struct {
+		name    string
+		prompt  string
+		wantCat string
+	}{
+		{
+			name:    "complex keyword",
+			prompt:  "This is a complex problem requiring deep thinking",
+			wantCat: "cloud",
+		},
+		{
+			name:    "scientific keyword",
+			prompt:  "Explain the scientific principles of quantum entanglement",
+			wantCat: "cloud",
+		},
+		{
+			name:    "advanced keyword",
+			prompt:  "I need advanced strategic planning for my startup",
+			wantCat: "cloud",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := sr.Classify(tt.prompt)
+			if result == nil {
+				t.Fatal("Expected classification result, got nil")
+			}
+			if result.Category != tt.wantCat {
+				t.Errorf("Expected category %s, got %s", tt.wantCat, result.Category)
+			}
+			if result.PreferModel != "smart:cloud" {
+				t.Errorf("Expected prefer model 'smart:cloud', got %s", result.PreferModel)
+			}
+		})
+	}
+}
+
 func TestFormatRouteHeader(t *testing.T) {
 	header := FormatRouteHeader("coding", "codellama")
 	expected := "coding→codellama"

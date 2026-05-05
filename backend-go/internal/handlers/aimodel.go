@@ -173,7 +173,7 @@ func (h *AIModelHandler) Toggle(c *gin.Context) {
 
 // SmartModels returns the current smart model resolutions
 func (h *AIModelHandler) SmartModels(c *gin.Context) {
-	smartProfiles := []string{"fastest", "large", "small", "coding"}
+	smartProfiles := []string{"fastest", "large", "small", "coding", "cloud"}
 	results := make([]gin.H, 0, len(smartProfiles))
 
 	for _, profile := range smartProfiles {
@@ -193,6 +193,13 @@ func (h *AIModelHandler) SmartModels(c *gin.Context) {
 		case "coding":
 			heuristic = "(m.name ILIKE '%code%' OR m.name ILIKE '%coder%')"
 			description = "Fastest code-specialized model"
+		case "cloud":
+			heuristic = `(m.name ILIKE '%kimi%' OR m.name ILIKE '%glm%' OR m.name ILIKE '%deepseek%' 
+		                  OR m.name ILIKE '%gemma%' OR m.name ILIKE '%qwen%' OR m.name ILIKE '%ministral%' 
+		                  OR m.name ILIKE '%nemotron%' OR m.name ILIKE '%devstral%' OR m.name ILIKE '%minimax%' 
+		                  OR m.name ILIKE '%rnj%' OR m.name ILIKE '%gemini%' OR m.name ILIKE '%cogito%' 
+		                  OR m.name ILIKE '%mistral-large%' OR m.name ILIKE '%gpt-oss%')`
+			description = "Highest performance frontier cloud-class models"
 		}
 
 		query := `
