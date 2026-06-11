@@ -161,6 +161,7 @@ func main() {
 		v1.GET("/models", ollamaHandler.Models)
 		v1.POST("/chat/completions", ollamaHandler.ChatCompletions)
 		v1.POST("/completions", ollamaHandler.Completions)
+		v1.POST("/embeddings", ollamaHandler.Embeddings)
 	}
 
 	// Native Ollama API proxy endpoints
@@ -170,6 +171,8 @@ func main() {
 		apiNative.GET("/tags", ollamaHandler.Tags)
 		apiNative.POST("/generate", ollamaHandler.Generate)
 		apiNative.POST("/chat", ollamaHandler.Chat)
+		apiNative.POST("/embeddings", ollamaHandler.EmbeddingsNative)
+		apiNative.POST("/embed", ollamaHandler.EmbedNative)
 	}
 
 	log.Printf("Starting server on :8000 (env: %s)", cfg.App.Env)

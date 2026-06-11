@@ -298,6 +298,21 @@ func (h *OllamaHandler) Chat(c *gin.Context) {
 	h.proxyRequest(c, "POST", "/api/chat")
 }
 
+// Embeddings proxies OpenAI POST /v1/embeddings
+func (h *OllamaHandler) Embeddings(c *gin.Context) {
+	h.proxyRequest(c, "POST", "/v1/embeddings")
+}
+
+// EmbeddingsNative proxies native Ollama POST /api/embeddings
+func (h *OllamaHandler) EmbeddingsNative(c *gin.Context) {
+	h.proxyRequest(c, "POST", "/api/embeddings")
+}
+
+// EmbedNative proxies native Ollama POST /api/embed
+func (h *OllamaHandler) EmbedNative(c *gin.Context) {
+	h.proxyRequest(c, "POST", "/api/embed")
+}
+
 // proxyRequest reads the model from the request body, finds the best endpoint,
 // and streams or forwards the response.
 func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {

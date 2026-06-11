@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/timlzh/ollama-hack/internal/database"
-	"github.com/timlzh/ollama-hack/internal/utils"
 )
 
 // DiscoveryScanner actively scans IP ranges to discover Ollama endpoints
