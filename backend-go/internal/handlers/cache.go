@@ -76,9 +76,10 @@ func GenerateCacheKey(bodyMap map[string]interface{}) string {
 	prompt, _ := json.Marshal(bodyMap["prompt"])
 	temp, _ := bodyMap["temperature"]
 	topP, _ := bodyMap["top_p"]
+	think, _ := bodyMap["think"]
 
 	fuzzyContent := normalizeText(fmt.Sprintf("%s|%s", string(msgs), string(prompt)))
-	str := fmt.Sprintf("%v|%s|%v|%v", model, fuzzyContent, temp, topP)
+	str := fmt.Sprintf("%v|%s|%v|%v|%v", model, fuzzyContent, temp, topP, think)
 	hash := sha256.Sum256([]byte(str))
 	return hex.EncodeToString(hash[:])
 }

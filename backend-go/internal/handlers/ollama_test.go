@@ -10,6 +10,57 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func TestParseThinkValue(t *testing.T) {
+	if v, ok := parseThinkValue(true); !ok || !v {
+		t.Fatal("expected true")
+	}
+	if v, ok := parseThinkValue("off"); !ok || v {
+		t.Fatal("expected false for off")
+	}
+	if _, ok := parseThinkValue("maybe"); ok {
+		t.Fatal("expected invalid value to be ignored")
+	}
+}
+
+func TestResolveThinkPreference(t *testing.T) {
+	body := map[string]interface{}{"model": "kimi-k2.5:cloud"}
+	if _, explicit := resolveThinkPreference(body, ""); explicit {
+		t.Fatal("expected no default think override")
+	}
+
+	body["think"] = false
+	if v, explicit := resolveThinkPreference(body, ""); !explicit || v {
+		t.Fatal("expected explicit think=false")
+	}
+
+	if v, explicit := resolveThinkPreference(map[string]interface{}{}, "true"); !explicit || !v {
+		t.Fatal("expected header override")
+	}
+}
+
+func TestStripThinkingFromChatResponse(t *testing.T) {
+	raw := []byte(`{"choices":[{"message":{"role":"assistant","content":"hello","reasoning":"internal thoughts"}}]}`)
+	cleaned := stripThinkingFromChatResponse(raw)
+	var payload map[string]interface{}
+	if err := json.Unmarshal(cleaned, &payload); err != nil {
+		t.Fatalf("invalid json: %v", err)
+	}
+	msg := payload["choices"].([]interface{})[0].(map[string]interface{})["message"].(map[string]interface{})
+	if _, ok := msg["reasoning"]; ok {
+		t.Fatal("expected reasoning field to be stripped")
+	}
+	if msg["content"] != "hello" {
+		t.Fatalf("unexpected content: %v", msg["content"])
+	}
+}
+
+func TestStripThinkingText(t *testing.T) {
+	in := "<think>secret</think>\n\nFinal answer"
+	if got := stripThinkingText(in); got != "Final answer" {
+		t.Fatalf("got %q", got)
+	}
+}
+
 func TestOllamaHandler_ChatCompletions_InvalidJSON(t *testing.T) {
 	handler := NewOllamaHandler(nil)
 	w := httptest.NewRecorder()

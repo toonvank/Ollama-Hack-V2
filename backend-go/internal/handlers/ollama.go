@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -187,6 +188,106 @@ func parseModel(model string) (string, string) {
 	return parts[0], "latest"
 }
 
+// parseThinkValue normalizes Ollama's think flag from JSON bodies or headers.
+func parseThinkValue(v interface{}) (bool, bool) {
+	switch t := v.(type) {
+	case bool:
+		return t, true
+	case string:
+		s := strings.ToLower(strings.TrimSpace(t))
+		switch s {
+		case "true", "on", "1", "yes":
+			return true, true
+		case "false", "off", "0", "no":
+			return false, true
+		}
+	}
+	return false, false
+}
+
+// resolveThinkPreference returns an explicit think preference when the client sets one.
+// If nothing is set, thinking is left at the upstream model default.
+func resolveThinkPreference(body map[string]interface{}, thinkHeader string) (value bool, explicit bool) {
+	if thinkHeader != "" {
+		if v, ok := parseThinkValue(thinkHeader); ok {
+			return v, true
+		}
+	}
+	if v, ok := body["think"]; ok {
+		return parseThinkValue(v)
+	}
+	if opts, ok := body["options"].(map[string]interface{}); ok {
+		if v, ok := opts["think"]; ok {
+			return parseThinkValue(v)
+		}
+	}
+	if env := os.Getenv("DEFAULT_THINK"); env != "" {
+		if v, ok := parseThinkValue(env); ok {
+			return v, true
+		}
+	}
+	return false, false
+}
+
+var thinkingTagPattern = regexp.MustCompile(`(?is)<think>.*?</think>|<thinking>.*?</thinking>|<reasoning>.*?</reasoning>`)
+
+func stripThinkingText(content string) string {
+	return strings.TrimSpace(thinkingTagPattern.ReplaceAllString(content, ""))
+}
+
+func stripThinkingFieldsFromMap(msg map[string]interface{}) {
+	for _, key := range []string{"thinking", "reasoning", "reasoning_content"} {
+		delete(msg, key)
+	}
+	if content, ok := msg["content"].(string); ok {
+		msg["content"] = stripThinkingText(content)
+	}
+}
+
+func stripThinkingFromChatResponse(respBytes []byte) []byte {
+	var payload map[string]interface{}
+	if err := json.Unmarshal(respBytes, &payload); err != nil {
+		return respBytes
+	}
+	choices, ok := payload["choices"].([]interface{})
+	if !ok {
+		return respBytes
+	}
+	for _, choiceRaw := range choices {
+		choice, ok := choiceRaw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if msg, ok := choice["message"].(map[string]interface{}); ok {
+			stripThinkingFieldsFromMap(msg)
+		}
+		if delta, ok := choice["delta"].(map[string]interface{}); ok {
+			stripThinkingFieldsFromMap(delta)
+		}
+	}
+	out, err := json.Marshal(payload)
+	if err != nil {
+		return respBytes
+	}
+	return out
+}
+
+func stripThinkingFromStreamLine(line []byte) []byte {
+	trimmed := bytes.TrimSpace(line)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("data: [DONE]")) {
+		return line
+	}
+	if !bytes.HasPrefix(trimmed, []byte("data:")) {
+		return line
+	}
+	jsonPart := bytes.TrimSpace(bytes.TrimPrefix(trimmed, []byte("data:")))
+	if len(jsonPart) == 0 || bytes.Equal(jsonPart, []byte("[DONE]")) {
+		return line
+	}
+	cleaned := stripThinkingFromChatResponse(jsonPart)
+	return append([]byte("data: "), cleaned...)
+}
+
 // Models returns the list of available (enabled) models — OpenAI /v1/models format
 func (h *OllamaHandler) Models(c *gin.Context) {
 	log.Println("[Models] Handler called!")
@@ -340,6 +441,13 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 	}
 
 	originalModelRequested := modelRaw
+	thinkVal, thinkExplicit := resolveThinkPreference(bodyMap, c.GetHeader("X-Ollama-Think"))
+	stripThinking := thinkExplicit && !thinkVal
+	if thinkExplicit {
+		bodyMap["think"] = thinkVal
+		rawBody, _ = json.Marshal(bodyMap)
+		log.Printf("[proxy] Forwarding think=%v for model %s", thinkVal, modelRaw)
+	}
 
 	// 🧠 NEVER-SLEEP INJECTOR: Eliminate Cold-Starts
 	// Inject infinite keep_alive if the user hasn't explicitly set one. This securely
@@ -788,6 +896,9 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 				if originalModelRequested != modelRaw {
 					line = bytes.ReplaceAll(line, targetModelStr, replModelStr)
 				}
+				if stripThinking {
+					line = stripThinkingFromStreamLine(line)
+				}
 
 				c.Writer.Write(line)
 				if ok {
@@ -821,6 +932,9 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 			targetModelStr := []byte(fmt.Sprintf(`"model":"%s"`, modelRaw))
 			replModelStr := []byte(fmt.Sprintf(`"model":"%s"`, originalModelRequested))
 			respBytes = bytes.ReplaceAll(respBytes, targetModelStr, replModelStr)
+		}
+		if stripThinking {
+			respBytes = stripThinkingFromChatResponse(respBytes)
 		}
 
 		if bodyErr == nil {
