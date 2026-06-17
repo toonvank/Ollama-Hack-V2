@@ -1,0 +1,21 @@
+# Proxmox LXC / docker-in-lxc overlay: container-to-container networking often breaks.
+# Routes DB and API through the host gateway instead. Use with:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+services:
+  frontend:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./frontend/nginx-lxc.conf:/etc/nginx/conf.d/default.conf:ro
+
+  backend:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_HOST=host.docker.internal
+
+  db:
+    ports:
+      - "5432:5432"
