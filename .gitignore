@@ -30,3 +30,4 @@
 
 data/*
 docker-compose.yml
+.env.vpn

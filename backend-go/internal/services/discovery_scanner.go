@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/timlzh/ollama-hack/internal/database"
+	"github.com/timlzh/ollama-hack/internal/utils"
 )
 
 // DiscoveryScanner actively scans IP ranges to discover Ollama endpoints
@@ -158,9 +159,7 @@ func (s *DiscoveryScanner) scanHost(ip string, port int) bool {
 		return false
 	}
 
-	client := &http.Client{
-		Timeout: s.httpTimeout,
-	}
+	client := utils.NewHTTPClient(s.httpTimeout)
 
 	resp, err := client.Do(req)
 	if err != nil {

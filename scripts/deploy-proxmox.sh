@@ -12,7 +12,23 @@ fi
 
 git pull origin main
 
-docker compose -f docker-compose.yml -f docker-compose.prod.yml build frontend backend
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+COMPOSE_FILES=(-f docker-compose.yml -f docker-compose.prod.yml)
+ENV_FILE=()
+
+if [[ -f /etc/wireguard/wg0.conf ]]; then
+  bash scripts/setup-vpn-env-from-wg.sh .env.vpn
+  COMPOSE_FILES+=(-f docker-compose.vpn.yml)
+  ENV_FILE=(--env-file .env.vpn)
+  echo "VPN: Gluetun overlay enabled (.env.vpn from wg0.conf)"
+elif [[ -f .env.vpn ]]; then
+  COMPOSE_FILES+=(-f docker-compose.vpn.yml)
+  ENV_FILE=(--env-file .env.vpn)
+  echo "VPN: Gluetun overlay enabled (.env.vpn)"
+else
+  echo "VPN: skipped (no wg0.conf or .env.vpn)"
+fi
+
+docker compose "${COMPOSE_FILES[@]}" "${ENV_FILE[@]}" build frontend backend
+docker compose "${COMPOSE_FILES[@]}" "${ENV_FILE[@]}" up -d
 
 echo "Deployed. UI: http://$(hostname -I | awk '{print $1}'):3000"

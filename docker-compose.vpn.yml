@@ -1,0 +1,43 @@
+# VPN overlay: routes Ollama-Hack backend outbound HTTP through Gluetun (WireGuard).
+# Requires .env.vpn (generate: bash scripts/setup-vpn-env-from-wg.sh)
+# Use with prod overlay:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.vpn.yml --env-file .env.vpn up -d
+services:
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: ollama-hack-gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - VPN_SERVICE_PROVIDER=custom
+      - VPN_TYPE=wireguard
+      - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY}
+      - WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESSES}
+      - WIREGUARD_PUBLIC_KEY=${WIREGUARD_PUBLIC_KEY}
+      - WIREGUARD_ENDPOINT_IP=${WIREGUARD_ENDPOINT_IP}
+      - WIREGUARD_ENDPOINT_PORT=${WIREGUARD_ENDPOINT_PORT}
+      - HTTPPROXY=on
+      - HTTPPROXY_LOG=off
+      - FIREWALL_OUTBOUND_SUBNETS=192.168.0.0/16,172.16.0.0/12,10.0.0.0/8
+    ports:
+      - 127.0.0.1:8888:8888/tcp
+    restart: unless-stopped
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "ping", "-c", "1", "1.1.1.1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  backend:
+    depends_on:
+      gluetun:
+        condition: service_started
+    environment:
+      - HTTP_PROXY=http://gluetun:8888
+      - HTTPS_PROXY=http://gluetun:8888
+      - NO_PROXY=host.docker.internal,db,gluetun,localhost,127.0.0.1,172.17.0.0/16,172.18.0.0/16
