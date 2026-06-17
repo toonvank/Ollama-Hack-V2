@@ -39,5 +39,6 @@ services:
       gluetun:
         condition: service_healthy
     ports: !reset []
+    expose: !reset []
     networks: !reset []
     extra_hosts: !reset []
