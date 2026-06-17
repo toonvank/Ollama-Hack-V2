@@ -15,8 +15,15 @@ export const LiveStats = () => {
   const [history, setHistory] = useState<{ x: number; y: number }[]>([]);
 
   useEffect(() => {
-    const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
-    const evtSource = new EventSource(`${apiUrl}/api/v2/stats/live`);
+    // Use same base as API client for consistency. Prefer relative path ("/api/...") when
+    // VITE_API_BASE_URL is "/" or empty so it works through nginx proxy in deployments.
+    const apiBase = import.meta.env.VITE_API_BASE_URL || "";
+    const normalizedBase =
+      apiBase && apiBase !== "/" && !apiBase.startsWith("/")
+        ? apiBase.replace(/\/$/, "")
+        : "";
+    const sseUrl = `${normalizedBase}/api/v2/stats/live`;
+    const evtSource = new EventSource(sseUrl);
 
     evtSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
@@ -26,6 +33,10 @@ export const LiveStats = () => {
         const newHistory = [...prev, { x: new Date().getTime(), y: data.active_requests }];
         return newHistory.slice(-20); // Keep last 20 seconds
       });
+    };
+
+    evtSource.onerror = () => {
+      // Silently ignore; stats just won't update. Avoids console spam in some envs.
     };
 
     return () => {

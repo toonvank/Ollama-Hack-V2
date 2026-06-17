@@ -248,8 +248,10 @@ const EndpointListPage = () => {
     );
   };
 
-  // Handle delete endpoint
-  const handleDeleteEndpoint = async (id: number) => {
+  // Handle delete endpoint (accepts number id from table, or full object from detail drawer)
+  const handleDeleteEndpoint = async (arg: number | { id?: number } | any) => {
+    const id = typeof arg === "number" ? arg : arg && arg.id;
+    if (!id) return;
     confirm("Are you sure you want to delete this endpoint? This action cannot be undone.", async () => {
       try {
         await endpointApi.deleteEndpoint(id);

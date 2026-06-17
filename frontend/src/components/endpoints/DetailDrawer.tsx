@@ -273,7 +273,9 @@ const EndpointDetailDrawer = ({
       isOpen={isOpen}
       placement="right"
       size="lg"
-      onOpenChange={onClose}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
     >
       <DrawerContent>
         <>
@@ -301,6 +303,7 @@ const EndpointDetailDrawer = ({
                       variant="light"
                       onPress={() => {
                         onEdit(endpoint);
+                        onClose();
                       }}
                     >
                       <EditIcon />

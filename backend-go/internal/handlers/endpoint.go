@@ -154,13 +154,108 @@ func (h *EndpointHandler) List(c *gin.Context) {
 }
 
 func (h *EndpointHandler) Get(c *gin.Context) {
-	id := c.Param("id")
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		utils.BadRequest(c, "Invalid endpoint ID")
+		return
+	}
+
 	var endpoint models.Endpoint
 	if err := h.db.Get(&endpoint, "SELECT * FROM endpoints WHERE id = $1", id); err != nil {
 		utils.NotFound(c, "Endpoint not found")
 		return
 	}
-	utils.Success(c, endpoint)
+
+	// Get recent performances (last 5) - same as list enrichment
+	var performances []models.EndpointPerformance
+	h.db.Select(&performances,
+		"SELECT id, status, ollama_version, created_at FROM endpoint_performances WHERE endpoint_id = $1 ORDER BY created_at DESC LIMIT 5",
+		id)
+	if performances == nil {
+		performances = []models.EndpointPerformance{}
+	}
+
+	// Pagination for ai_models
+	page := 1
+	size := 50
+	if p := c.Query("page"); p != "" {
+		if val, err := strconv.Atoi(p); err == nil && val > 0 {
+			page = val
+		}
+	}
+	if ps := c.Query("size"); ps != "" {
+		if val, err := strconv.Atoi(ps); err == nil && val > 0 {
+			size = val
+		}
+	}
+	offset := (page - 1) * size
+
+	// Counts
+	var totalCount int
+	var availableCount int
+	h.db.Get(&totalCount, "SELECT COUNT(*) FROM endpoint_ai_models WHERE endpoint_id = $1", id)
+	h.db.Get(&availableCount, "SELECT COUNT(*) FROM endpoint_ai_models WHERE endpoint_id = $1 AND status = 'available'", id)
+
+	// Paginated AI models for this endpoint
+	type modelRow struct {
+		ID             int      `db:"id"`
+		Name           string   `db:"name"`
+		Tag            string   `db:"tag"`
+		Status         string   `db:"status"`
+		TokenPerSecond *float64 `db:"token_per_second"`
+		CreatedAt      time.Time `db:"created_at"`
+	}
+	var rows []modelRow
+	aiQuery := `
+		SELECT m.id, m.name, m.tag, eam.status, eam.token_per_second, eam.created_at
+		FROM endpoint_ai_models eam
+		JOIN ai_models m ON m.id = eam.ai_model_id
+		WHERE eam.endpoint_id = $1
+		ORDER BY m.name ASC, m.tag ASC
+		LIMIT $2 OFFSET $3
+	`
+	if err := h.db.Select(&rows, aiQuery, id, size, offset); err != nil {
+		// Non-fatal; return empty list
+		rows = []modelRow{}
+	}
+
+	items := make([]models.EndpointAIModel, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, models.EndpointAIModel{
+			ID:             r.ID,
+			Name:           r.Name,
+			Tag:            r.Tag,
+			Status:         r.Status,
+			TokenPerSecond: r.TokenPerSecond,
+			CreatedAt:      r.CreatedAt,
+		})
+	}
+
+	pages := 0
+	if size > 0 {
+		pages = (totalCount + size - 1) / size
+	}
+
+	resp := models.EndpointWithAIModels{
+		ID:                    endpoint.ID,
+		URL:                   endpoint.URL,
+		Name:                  endpoint.Name,
+		Status:                endpoint.Status,
+		CreatedAt:             endpoint.CreatedAt,
+		RecentPerformances:    performances,
+		TotalAIModelCount:     totalCount,
+		AvailableAIModelCount: availableCount,
+		AIModels: models.EndpointAIModelsPage{
+			Items: items,
+			Total: totalCount,
+			Page:  page,
+			Size:  size,
+			Pages: pages,
+		},
+	}
+
+	utils.Success(c, resp)
 }
 
 func (h *EndpointHandler) Create(c *gin.Context) {

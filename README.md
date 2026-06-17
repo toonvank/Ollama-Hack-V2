@@ -1,7 +1,7 @@
 ![logo](./assets/favicon.svg)
 
-# Ollama-Hack V2 🚀
-*The Next-Generation, High-Performance Go Backend for Ollama Endpoint Aggregation with AI-Powered Smart Routing!*
+# Ollama-Hack 🚀
+*High-Performance Go Backend for Ollama Endpoint Aggregation with AI-Powered Smart Routing (v3)*
 
 ---
 
@@ -15,11 +15,11 @@ Ollama-Hack V2 is a complete rewrite of the original Ollama aggregator, specific
 
 It acts as an intelligent proxy that provides a 100% **OpenAI-compatible API**, while automatically funneling your requests to the best performing underlying Ollama endpoints—now with **AI-powered smart routing**, **semantic caching**, and **zero-latency racing**.
 
-## ✨ Why V2 in Go?
+## ✨ Why Go?
 
 We transitioned from a Python/FastAPI environment directly to **Golang** to maximize throughput. When handling LLM streams, proxying requests, and doing background task polling across dozens of endpoints, Go's goroutines ensure rock-solid stability and zero dropped connections.
 
-V2 doesn't just proxy—it's smart, robust, and designed for heavy production usage.
+It doesn't just proxy—it's smart, robust, and designed for heavy production usage.
 
 ## 🚀 Core Features
 
@@ -33,7 +33,7 @@ V2 doesn't just proxy—it's smart, robust, and designed for heavy production us
 -   📊 **Background Performance Testing**: Built-in background polling continuously tests the health and speed of your managed nodes.
 -   🎨 **Stunning React Frontend**: Polished, dark-mode ready UI built with Vite and NextUI for effortless administration.
 
-### 🧠 V2 Advanced Intelligence
+### 🧠 Advanced Intelligence
 -   🎯 **Smart Routing & Pseudo Models**: AI prompt classification routes tasks dynamically, or simply request `smart:fastest` in your external tools to have V2 instantly proxy you to the top-performing endpoint thresholding on live TPS data!
 -   💾 **Semantic Cache**: Similarity-based caching using embeddings—get instant responses for semantically similar prompts even if not exact matches.
 -   🏥 **Persistent Health Tracking**: Endpoints failing routines are disabled with historical contexts persisted permanently in PostgreSQL, preventing score bleeding across proxy restarts. 

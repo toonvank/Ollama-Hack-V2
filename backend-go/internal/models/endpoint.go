@@ -69,3 +69,35 @@ type EndpointTestTask struct {
 	LastTried   *time.Time `db:"last_tried" json:"last_tried,omitempty"`
 	CreatedAt   time.Time  `db:"created_at" json:"created_at"`
 }
+
+// EndpointAIModel represents an AI model associated with an endpoint (for detail response)
+type EndpointAIModel struct {
+	ID               int      `json:"id"`
+	Name             string   `json:"name"`
+	Tag              string   `json:"tag"`
+	Status           string   `json:"status"`
+	TokenPerSecond   *float64 `json:"token_per_second,omitempty"`
+	CreatedAt        time.Time `json:"created_at"`
+}
+
+// EndpointAIModelsPage is the paginated models inside EndpointWithAIModels
+type EndpointAIModelsPage struct {
+	Items []EndpointAIModel `json:"items"`
+	Total int               `json:"total"`
+	Page  int               `json:"page"`
+	Size  int               `json:"size"`
+	Pages int               `json:"pages"`
+}
+
+// EndpointWithAIModels is the enriched response for GET single endpoint (supports frontend detail drawer)
+type EndpointWithAIModels struct {
+	ID                    int                    `json:"id"`
+	URL                   string                 `json:"url"`
+	Name                  string                 `json:"name"`
+	Status                string                 `json:"status,omitempty"`
+	CreatedAt             time.Time              `json:"created_at"`
+	RecentPerformances    []EndpointPerformance  `json:"recent_performances"`
+	AIModels              EndpointAIModelsPage   `json:"ai_models"`
+	TotalAIModelCount     int                    `json:"total_ai_model_count"`
+	AvailableAIModelCount int                    `json:"avaliable_ai_model_count"`
+}
