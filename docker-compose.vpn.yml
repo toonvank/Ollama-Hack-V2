@@ -37,3 +37,4 @@ services:
       gluetun:
         condition: service_healthy
     ports: !reset []
+    networks: !reset []
