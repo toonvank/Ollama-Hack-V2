@@ -10,6 +10,15 @@ COMPOSE=/root/Ollama-Hack-V2/scripts/compose-prod.sh
 
 log() { echo "[vpn-watchdog $(date -Iseconds)] $*"; }
 
+restart_backend() {
+  log "$1"
+  docker stop "$BACKEND" --time 20 >/dev/null 2>&1 || true
+  docker exec ollama-hack-v2-db-1 psql -U ollama_hack -d ollama_hack -qc \
+    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid() AND state <> 'idle';" \
+    >/dev/null 2>&1 || true
+  "$COMPOSE" up -d backend
+}
+
 container_exists() {
   docker inspect "$1" >/dev/null 2>&1
 }
@@ -63,20 +72,18 @@ fi
 # Backend needs time for DB migrations on cold start — avoid restart loops.
 b_uptime_sec=$(docker inspect "$BACKEND" --format '{{.State.StartedAt}}' 2>/dev/null | xargs -I{} date -d {} +%s 2>/dev/null || echo 0)
 now_sec=$(date +%s)
-if [[ "$b_uptime_sec" -gt 0 && $((now_sec - b_uptime_sec)) -lt 120 ]]; then
+if [[ "$b_uptime_sec" -gt 0 && $((now_sec - b_uptime_sec)) -lt 180 ]]; then
   exit 0
 fi
 
 g_start=$(started_at "$GLUETUN")
 b_start=$(started_at "$BACKEND")
 if [[ -n "$g_start" && -n "$b_start" && "$g_start" > "$b_start" ]]; then
-  log "gluetun restarted after backend — restarting backend"
-  docker restart "$BACKEND"
+  restart_backend "gluetun restarted after backend — restarting backend"
   exit 0
 fi
 
 if ! curl -sf --max-time 8 "$HEALTH_URL" >/dev/null; then
-  log "backend health check failed — restarting backend"
-  docker restart "$BACKEND"
+  restart_backend "backend health check failed — restarting backend"
   exit 0
 fi
