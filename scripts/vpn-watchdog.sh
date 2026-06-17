@@ -60,6 +60,13 @@ if [[ "$backend_state" != "running" ]]; then
   exit 0
 fi
 
+# Backend needs time for DB migrations on cold start — avoid restart loops.
+b_uptime_sec=$(docker inspect "$BACKEND" --format '{{.State.StartedAt}}' 2>/dev/null | xargs -I{} date -d {} +%s 2>/dev/null || echo 0)
+now_sec=$(date +%s)
+if [[ "$b_uptime_sec" -gt 0 && $((now_sec - b_uptime_sec)) -lt 120 ]]; then
+  exit 0
+fi
+
 g_start=$(started_at "$GLUETUN")
 b_start=$(started_at "$BACKEND")
 if [[ -n "$g_start" && -n "$b_start" && "$g_start" > "$b_start" ]]; then
