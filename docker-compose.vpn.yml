@@ -1,7 +1,7 @@
 # VPN overlay: backend shares Gluetun's network stack (all outbound via WireGuard).
 # Requires .env.vpn (generate: bash scripts/setup-vpn-env-from-wg.sh)
 # Use with prod overlay:
-#   docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.vpn.yml --env-file .env.vpn up -d
+#   bash scripts/compose-prod.sh up -d
 services:
   gluetun:
     image: qmcgaw/gluetun:latest
@@ -24,18 +24,21 @@ services:
       - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000/tcp"
-    restart: unless-stopped
+    restart: always
+    labels:
+      - autoheal=true
     networks:
       - app-network
     healthcheck:
       test: ["CMD", "ping", "-c", "1", "1.1.1.1"]
       interval: 30s
       timeout: 10s
-      retries: 5
-      start_period: 60s
+      retries: 3
+      start_period: 90s
 
   backend:
     network_mode: "service:gluetun"
+    restart: always
     depends_on:
       gluetun:
         condition: service_healthy
@@ -43,3 +46,16 @@ services:
     expose: !reset []
     networks: !reset []
     extra_hosts: !reset []
+
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: ollama-hack-autoheal
+    restart: always
+    environment:
+      - AUTOHEAL_CONTAINER_LABEL=all
+      - AUTOHEAL_INTERVAL=30
+      - AUTOHEAL_START_PERIOD=120
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - app-network

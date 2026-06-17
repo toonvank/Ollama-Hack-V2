@@ -5,30 +5,18 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-if [[ ! -f docker-compose.yml ]]; then
-  cp docker-compose.dev.yml docker-compose.yml
-  echo "Created docker-compose.yml from docker-compose.dev.yml — set real secrets before production use."
-fi
+chmod +x scripts/compose-prod.sh scripts/vpn-watchdog.sh scripts/install-ollama-hack-service.sh
 
 git pull origin main
 
-COMPOSE_FILES=(-f docker-compose.yml -f docker-compose.prod.yml)
-ENV_FILE=()
+bash scripts/compose-prod.sh build frontend backend
+bash scripts/compose-prod.sh up -d
 
-if [[ -f /etc/wireguard/wg0.conf ]]; then
-  bash scripts/setup-vpn-env-from-wg.sh .env.vpn
-  COMPOSE_FILES+=(-f docker-compose.vpn.yml)
-  ENV_FILE=(--env-file .env.vpn)
-  echo "VPN: Gluetun overlay enabled (.env.vpn from wg0.conf)"
-elif [[ -f .env.vpn ]]; then
-  COMPOSE_FILES+=(-f docker-compose.vpn.yml)
-  ENV_FILE=(--env-file .env.vpn)
-  echo "VPN: Gluetun overlay enabled (.env.vpn)"
+if [[ -f docker-compose.vpn.yml ]] && { [[ -f /etc/wireguard/wg0.conf ]] || [[ -f .env.vpn ]]; }; then
+  echo "VPN: installing systemd boot + watchdog (survives reboots and Gluetun restarts)"
+  bash scripts/install-ollama-hack-service.sh
 else
   echo "VPN: skipped (no wg0.conf or .env.vpn)"
 fi
-
-docker compose "${COMPOSE_FILES[@]}" "${ENV_FILE[@]}" build frontend backend
-docker compose "${COMPOSE_FILES[@]}" "${ENV_FILE[@]}" up -d
 
 echo "Deployed. UI: http://$(hostname -I | awk '{print $1}'):3000"
