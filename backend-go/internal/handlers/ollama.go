@@ -235,12 +235,20 @@ func stripThinkingText(content string) string {
 	return strings.TrimSpace(thinkingTagPattern.ReplaceAllString(content, ""))
 }
 
-func stripThinkingFieldsFromMap(msg map[string]interface{}) {
+func stripThinkingTextStream(content string) string {
+	return thinkingTagPattern.ReplaceAllString(content, "")
+}
+
+func stripThinkingFieldsFromMap(msg map[string]interface{}, isStream bool) {
 	for _, key := range []string{"thinking", "reasoning", "reasoning_content"} {
 		delete(msg, key)
 	}
 	if content, ok := msg["content"].(string); ok {
-		msg["content"] = stripThinkingText(content)
+		if isStream {
+			msg["content"] = stripThinkingTextStream(content)
+		} else {
+			msg["content"] = stripThinkingText(content)
+		}
 	}
 }
 
@@ -259,10 +267,10 @@ func stripThinkingFromChatResponse(respBytes []byte) []byte {
 			continue
 		}
 		if msg, ok := choice["message"].(map[string]interface{}); ok {
-			stripThinkingFieldsFromMap(msg)
+			stripThinkingFieldsFromMap(msg, false)
 		}
 		if delta, ok := choice["delta"].(map[string]interface{}); ok {
-			stripThinkingFieldsFromMap(delta)
+			stripThinkingFieldsFromMap(delta, true)
 		}
 	}
 	out, err := json.Marshal(payload)
