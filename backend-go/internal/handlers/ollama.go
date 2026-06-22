@@ -59,9 +59,39 @@ func NewOllamaHandler(db *database.DB) *OllamaHandler {
 	}
 }
 
+// EndpointRankMode controls how endpoints are ordered for a fixed model.
+type EndpointRankMode string
+
+const (
+	RankByTPS       EndpointRankMode = "tps"
+	RankByReplyTime EndpointRankMode = "reply"
+	RankByComposite EndpointRankMode = "composite"
+)
+
+func endpointOrderClause(mode EndpointRankMode) string {
+	switch mode {
+	case RankByReplyTime:
+		return "eam.max_connection_time ASC NULLS LAST, eam.token_per_second DESC NULLS LAST"
+	case RankByTPS:
+		return "eam.token_per_second DESC NULLS LAST"
+	default:
+		return utils.EndpointCompositeScoreSQL() + " DESC NULLS LAST, eam.token_per_second DESC NULLS LAST"
+	}
+}
+
+func defaultEndpointRankMode() EndpointRankMode {
+	switch strings.ToLower(os.Getenv("ROUTING_RANK_MODE")) {
+	case "tps":
+		return RankByTPS
+	case "reply":
+		return RankByReplyTime
+	default:
+		return RankByComposite
+	}
+}
+
 // bestEndpointForModel returns the top-ranked endpoint URLs for a model.
-// When preferReplyTime is true, endpoints are ranked by time-to-first-chunk first.
-func (h *OllamaHandler) bestEndpointsForModel(modelName, modelTag string, preferReplyTime bool) ([]string, error) {
+func (h *OllamaHandler) bestEndpointsForModel(modelName, modelTag string, rankMode EndpointRankMode) ([]string, error) {
 	type row struct {
 		URL string `db:"url"`
 	}
@@ -71,10 +101,7 @@ func (h *OllamaHandler) bestEndpointsForModel(modelName, modelTag string, prefer
 		fmt.Sscanf(val, "%f", &minTPS)
 	}
 
-	orderBy := "eam.token_per_second DESC NULLS LAST"
-	if preferReplyTime {
-		orderBy = "eam.max_connection_time ASC NULLS LAST, eam.token_per_second DESC NULLS LAST"
-	}
+	orderBy := endpointOrderClause(rankMode)
 
 	err := h.db.Select(&rows, fmt.Sprintf(`
 		SELECT e.url
@@ -148,7 +175,7 @@ func (h *OllamaHandler) resolveSmartModel(smartTag string) ([]smartModelCandidat
 
 	candidates := make([]smartModelCandidate, 0, len(mRows))
 	for _, mRow := range mRows {
-		urls, err := h.bestEndpointsForModel(mRow.Name, mRow.Tag, true)
+		urls, err := h.bestEndpointsForModel(mRow.Name, mRow.Tag, RankByReplyTime)
 		if err == nil && len(urls) > 0 {
 			candidates = append(candidates, smartModelCandidate{
 				urls: urls,
@@ -470,7 +497,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 					candidates, err := h.resolveSmartModel(preferTag)
 					available = err == nil && len(candidates) > 0
 				} else {
-					preferEndpoints, preferErr := h.bestEndpointsForModel(preferName, preferTag, false)
+					preferEndpoints, preferErr := h.bestEndpointsForModel(preferName, preferTag, defaultEndpointRankMode())
 					available = preferErr == nil && len(preferEndpoints) > 0
 				}
 
@@ -512,7 +539,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 			smartRouteHeader = services.FormatRouteHeader("smart", modelRaw)
 		}
 	} else {
-		endpoints, err = h.bestEndpointsForModel(name, tag, false)
+		endpoints, err = h.bestEndpointsForModel(name, tag, defaultEndpointRankMode())
 	}
 
 	// Attempt blazing fast in-memory fallback route if unavailable
@@ -522,7 +549,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 			log.Printf("[proxy] Model %s unavailable, applying fallback to %s", lookupKey, fallbackRaw)
 
 			name, tag = parseModel(fallbackRaw)
-			endpoints, err = h.bestEndpointsForModel(name, tag, false)
+			endpoints, err = h.bestEndpointsForModel(name, tag, defaultEndpointRankMode())
 			if err == nil && len(endpoints) > 0 {
 				c.Header("X-Model-Fallback", fallbackRaw)
 

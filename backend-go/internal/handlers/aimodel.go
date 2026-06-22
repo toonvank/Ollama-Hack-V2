@@ -26,12 +26,14 @@ func (h *AIModelHandler) List(c *gin.Context) {
 
 	// Validate order_by field
 	validOrderFields := map[string]string{
-		"id":                    "m.id",
-		"name":                  "m.name",
-		"created_at":            "m.created_at",
-		"token_per_second":      "token_per_second",
-		"max_connection_time":   "max_connection_time",
-		"endpoints":             "endpoints",
+		"id":                  "m.id",
+		"name":                "m.name",
+		"created_at":          "m.created_at",
+		"token_per_second":    "token_per_second",
+		"max_connection_time": "max_connection_time",
+		"param_billions":      "param_billions",
+		"composite_score":     "composite_score",
+		"endpoints":           "endpoints",
 	}
 
 	orderField, ok := validOrderFields[orderBy]
@@ -52,6 +54,12 @@ func (h *AIModelHandler) List(c *gin.Context) {
 	if orderBy == "max_connection_time" && order == "asc" {
 		nullsHandling = " NULLS LAST"
 	}
+	if orderBy == "composite_score" && order == "desc" {
+		nullsHandling = " NULLS LAST"
+	}
+	if orderBy == "param_billions" && order == "desc" {
+		nullsHandling = " NULLS LAST"
+	}
 
 	searchQuery := c.Query("search")
 	whereClause := ""
@@ -61,12 +69,17 @@ func (h *AIModelHandler) List(c *gin.Context) {
 		args = append(args, "%"+searchQuery+"%")
 	}
 
+	paramSQL := utils.ParamBillionsSQL("m.name", "m.tag")
+	compositeSQL := utils.ModelListCompositeScoreSQL()
+
 	query := `
 		SELECT 
 			m.id, m.name, m.tag, m.enabled, m.created_at,
 			COUNT(case when eam.status = 'available' then 1 end) as endpoints,
 			MAX(eam.token_per_second) as token_per_second,
-			MIN(eam.max_connection_time) as max_connection_time
+			MIN(eam.max_connection_time) as max_connection_time,
+			` + paramSQL + ` as param_billions,
+			` + compositeSQL + ` as composite_score
 		FROM ai_models m
 		LEFT JOIN endpoint_ai_models eam ON m.id = eam.ai_model_id
 		` + whereClause + `

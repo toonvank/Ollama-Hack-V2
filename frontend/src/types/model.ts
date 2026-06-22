@@ -31,6 +31,8 @@ export interface AIModelInfoWithEndpointCount {
   endpoints: number;
   token_per_second?: number;
   max_connection_time?: number;
+  param_billions?: number;
+  composite_score?: number;
 }
 
 // AI Models details with Endpoints

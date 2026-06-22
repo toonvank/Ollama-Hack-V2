@@ -19,6 +19,8 @@ type AIModelInfo struct {
 	Endpoints         int       `json:"endpoints" db:"endpoints"`
 	TokenPerSecond    *float64  `json:"token_per_second" db:"token_per_second"`
 	MaxConnectionTime *float64  `json:"max_connection_time" db:"max_connection_time"`
+	ParamBillions     *float64  `json:"param_billions" db:"param_billions"`
+	CompositeScore    *float64  `json:"composite_score" db:"composite_score"`
 }
 
 type AIModelToggle struct {

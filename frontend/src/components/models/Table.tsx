@@ -70,17 +70,17 @@ const ModelTable: React.FC<ModelTableProps> = ({
 
   // Sort state
   const [sortDescriptor, setSortDescriptor] = React.useState<SortDescriptor>({
-    column: orderBy || "token_per_second",
+    column: orderBy || "composite_score",
     direction:
       order === SortOrder.ASC
         ? "ascending"
-        : "descending", // Default fallback is descending for TPS
+        : "descending",
   });
 
   // Sync external sort changes to internal state
   React.useEffect(() => {
     setSortDescriptor({
-      column: orderBy || "token_per_second",
+      column: orderBy || "composite_score",
       direction: order === SortOrder.ASC ? "ascending" : "descending",
     });
   }, [orderBy, order]);
@@ -90,8 +90,10 @@ const ModelTable: React.FC<ModelTableProps> = ({
     { key: "id", label: "ID", allowsSorting: true },
     { key: "name", label: "Name", allowsSorting: true },
     { key: "tag", label: "Tag", allowsSorting: true },
+    { key: "composite_score", label: "Score", allowsSorting: true },
     { key: "token_per_second", label: "Speed (tps)", allowsSorting: true },
     { key: "max_connection_time", label: "Reply (s)", allowsSorting: true },
+    { key: "param_billions", label: "Params (B)", allowsSorting: true },
     { key: "endpoints", label: "Endpoints" },
     { key: "enabled", label: "Enabled" },
     { key: "status", label: "Status" },
@@ -137,11 +139,31 @@ const ModelTable: React.FC<ModelTableProps> = ({
             {model.tag}
           </span>
         );
+      case "composite_score":
+        return (
+          <Tooltip content="tps × (1/reply_s) × ln(1 + params_B) — higher is better">
+            <span className="whitespace-nowrap text-sm font-semibold text-primary">
+              {model.composite_score != null
+                ? model.composite_score.toFixed(0)
+                : "-"}
+            </span>
+          </Tooltip>
+        );
       case "token_per_second":
         return (
           <span className="whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
             {model.token_per_second ? `${model.token_per_second.toFixed(1)}` : "-"}
           </span>
+        );
+      case "param_billions":
+        return (
+          <Tooltip content="Parameter size guessed from model name/tag (e.g. 7b, 70b)">
+            <span className="whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+              {model.param_billions != null
+                ? `${model.param_billions % 1 === 0 ? model.param_billions.toFixed(0) : model.param_billions}B`
+                : "-"}
+            </span>
+          </Tooltip>
         );
       case "max_connection_time":
         return (
