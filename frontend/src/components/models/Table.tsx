@@ -1,6 +1,6 @@
 import React from "react";
 import { Button } from "@heroui/button";
-import { SortDescriptor } from "@heroui/table";
+import { SortDescriptor, Selection } from "@heroui/table";
 import { Tooltip } from "@heroui/tooltip";
 
 import { DataTable } from "@/components/DataTable";
@@ -54,6 +54,23 @@ const ModelTable: React.FC<ModelTableProps> = ({
   totalPages,
   totalItems,
 }) => {
+  const INITIAL_VISIBLE_COLUMNS = [
+    "name",
+    "tag",
+    "composite_score",
+    "token_per_second",
+    "max_connection_time",
+    "param_billions",
+    "endpoints",
+    "enabled",
+    "status",
+    "created_at",
+    "actions",
+  ];
+  const [visibleColumns, setVisibleColumns] = React.useState<Selection>(
+    new Set(INITIAL_VISIBLE_COLUMNS),
+  );
+
   // Get model status
   const getModelStatus = (
     model: AIModelInfoWithEndpointCount,
@@ -225,6 +242,8 @@ const ModelTable: React.FC<ModelTableProps> = ({
       autoSearchDelay={1000}
       columns={columns}
       data={models || []}
+      setVisibleColumns={setVisibleColumns}
+      visibleColumns={visibleColumns}
       emptyContent={
         <p className="text-xl text-gray-600 dark:text-gray-400">No model data</p>
       }

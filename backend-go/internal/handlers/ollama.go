@@ -48,7 +48,7 @@ func NewOllamaHandler(db *database.DB) *OllamaHandler {
 		for _, pair := range pairs {
 			kv := strings.Split(pair, "=")
 			if len(kv) == 2 {
-				fallbacks[strings.TrimSpace(kv[0])] = strings.TrimSpace(kv[1])
+				fallbacks[strings.ToLower(strings.TrimSpace(kv[0]))] = strings.TrimSpace(kv[1])
 			}
 		}
 	}
@@ -90,10 +90,20 @@ func defaultEndpointRankMode() EndpointRankMode {
 	}
 }
 
-// bestEndpointForModel returns the top-ranked endpoint URLs for a model.
-func (h *OllamaHandler) bestEndpointsForModel(modelName, modelTag string, rankMode EndpointRankMode) ([]string, error) {
+type resolvedModelRoute struct {
+	Name string
+	Tag  string
+	URLs []string
+}
+
+// bestEndpointsForModel returns the top-ranked endpoint URLs for a model.
+// Name/tag matching is case-insensitive so clients like Open WebUI can send
+// "Llama3.2:3b" while the catalog stores "llama3.2:3b".
+func (h *OllamaHandler) bestEndpointsForModel(modelName, modelTag string, rankMode EndpointRankMode) (*resolvedModelRoute, error) {
 	type row struct {
-		URL string `db:"url"`
+		URL  string `db:"url"`
+		Name string `db:"name"`
+		Tag  string `db:"tag"`
 	}
 	var rows []row
 	minTPS := 0.0
@@ -104,12 +114,12 @@ func (h *OllamaHandler) bestEndpointsForModel(modelName, modelTag string, rankMo
 	orderBy := endpointOrderClause(rankMode)
 
 	err := h.db.Select(&rows, fmt.Sprintf(`
-		SELECT e.url
+		SELECT e.url, m.name, m.tag
 		FROM endpoint_ai_models eam
 		JOIN endpoints e ON e.id = eam.endpoint_id
 		JOIN ai_models m ON m.id = eam.ai_model_id
 		LEFT JOIN endpoint_health eh ON eh.url = e.url
-		WHERE m.name = $1 AND m.tag = $2
+		WHERE LOWER(m.name) = LOWER($1) AND LOWER(m.tag) = LOWER($2)
 		  AND m.enabled = TRUE
 		  AND eam.status = 'available'
 		  AND e.status = 'available'
@@ -121,11 +131,24 @@ func (h *OllamaHandler) bestEndpointsForModel(modelName, modelTag string, rankMo
 	if err != nil {
 		return nil, err
 	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
 	urls := make([]string, 0, len(rows))
 	for _, r := range rows {
 		urls = append(urls, r.URL)
 	}
-	return urls, nil
+	return &resolvedModelRoute{
+		Name: rows[0].Name,
+		Tag:  rows[0].Tag,
+		URLs: urls,
+	}, nil
+}
+
+func setCanonicalModelInBody(bodyMap map[string]interface{}, name, tag string) string {
+	canonical := fmt.Sprintf("%s:%s", name, tag)
+	bodyMap["model"] = canonical
+	return canonical
 }
 
 // resolveSmartModel dynamically calculates the best real models for a pseudo-model tag.
@@ -175,12 +198,12 @@ func (h *OllamaHandler) resolveSmartModel(smartTag string) ([]smartModelCandidat
 
 	candidates := make([]smartModelCandidate, 0, len(mRows))
 	for _, mRow := range mRows {
-		urls, err := h.bestEndpointsForModel(mRow.Name, mRow.Tag, RankByReplyTime)
-		if err == nil && len(urls) > 0 {
+		resolved, err := h.bestEndpointsForModel(mRow.Name, mRow.Tag, RankByReplyTime)
+		if err == nil && resolved != nil && len(resolved.URLs) > 0 {
 			candidates = append(candidates, smartModelCandidate{
-				urls: urls,
-				name: mRow.Name,
-				tag:  mRow.Tag,
+				urls: resolved.URLs,
+				name: resolved.Name,
+				tag:  resolved.Tag,
 			})
 		}
 	}
@@ -497,8 +520,8 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 					candidates, err := h.resolveSmartModel(preferTag)
 					available = err == nil && len(candidates) > 0
 				} else {
-					preferEndpoints, preferErr := h.bestEndpointsForModel(preferName, preferTag, defaultEndpointRankMode())
-					available = preferErr == nil && len(preferEndpoints) > 0
+					preferResolved, preferErr := h.bestEndpointsForModel(preferName, preferTag, defaultEndpointRankMode())
+					available = preferErr == nil && preferResolved != nil && len(preferResolved.URLs) > 0
 				}
 
 				if available {
@@ -539,22 +562,31 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 			smartRouteHeader = services.FormatRouteHeader("smart", modelRaw)
 		}
 	} else {
-		endpoints, err = h.bestEndpointsForModel(name, tag, defaultEndpointRankMode())
+		var resolved *resolvedModelRoute
+		resolved, err = h.bestEndpointsForModel(name, tag, defaultEndpointRankMode())
+		if resolved != nil && len(resolved.URLs) > 0 {
+			name, tag = resolved.Name, resolved.Tag
+			endpoints = resolved.URLs
+			modelRaw = setCanonicalModelInBody(bodyMap, name, tag)
+			rawBody, _ = json.Marshal(bodyMap)
+		}
 	}
 
 	// Attempt blazing fast in-memory fallback route if unavailable
 	if err != nil || len(endpoints) == 0 {
-		lookupKey := fmt.Sprintf("%s:%s", name, tag)
+		lookupKey := strings.ToLower(fmt.Sprintf("%s:%s", name, tag))
 		if fallbackRaw, ok := h.fallbacks[lookupKey]; ok {
 			log.Printf("[proxy] Model %s unavailable, applying fallback to %s", lookupKey, fallbackRaw)
 
 			name, tag = parseModel(fallbackRaw)
-			endpoints, err = h.bestEndpointsForModel(name, tag, defaultEndpointRankMode())
-			if err == nil && len(endpoints) > 0 {
+			var resolved *resolvedModelRoute
+			resolved, err = h.bestEndpointsForModel(name, tag, defaultEndpointRankMode())
+			if resolved != nil && len(resolved.URLs) > 0 {
+				name, tag = resolved.Name, resolved.Tag
+				endpoints = resolved.URLs
 				c.Header("X-Model-Fallback", fallbackRaw)
 
-				// Rewrite the model name in the payload to match the fallback
-				bodyMap["model"] = fallbackRaw
+				modelRaw = setCanonicalModelInBody(bodyMap, name, tag)
 				rawBody, _ = json.Marshal(bodyMap)
 			}
 		}
