@@ -13,7 +13,7 @@ Ollama-Hack V2 is a complete rewrite of the original Ollama aggregator, specific
 > 
 > **Ollama-Hack V2** is your unified command center. It seamlessly manages, categorizes, tests, and load-balances public or private Ollama endpoints under one ultra-fast API roof. 
 
-It acts as an intelligent proxy that provides a 100% **OpenAI-compatible API**, while automatically funneling your requests to the best performing underlying Ollama endpoints—now with **AI-powered smart routing**, **semantic caching**, and **zero-latency racing**.
+It acts as an intelligent proxy that provides a 100% **OpenAI-compatible API**, while automatically funneling your requests to the best underlying Ollama endpoints using live speed, reply latency, and model-size scoring—plus **AI-powered smart routing**, **semantic caching**, and **zero-latency racing**.
 
 ## ✨ Why Go?
 
@@ -26,7 +26,8 @@ It doesn't just proxy—it's smart, robust, and designed for heavy production us
 ### 🔧 Foundation
 -   ⚡ **Go-Powered Backend**: Rewritten from the ground up in Go for extreme scalability and efficiency.
 -   🔄 **Unified Endpoint Aggregation**: Centrally manage multiple Ollama endpoints. Supports batch importing!
--   ⚖️ **Smart Load Balancing**: The proxy evaluates underlying token-per-second (`token/s`) metrics to automatically select the optimal route for your OpenAI requests.
+-   ⚖️ **Smart Load Balancing**: The proxy ranks endpoints with a **composite score** that balances throughput, reply latency, and model size—higher is better. Pick a model by name (e.g. `llama3:8b`) and routing uses that score automatically.
+-   📈 **Performance Metrics**: Background tests record **tokens/sec**, **reply time** (request → first stream chunk), and a derived **composite score** on the models page. Sort and compare models without guessing.
 -   🧩 **100% OpenAI API Compatible**: Drop-in replacement for OpenAI endpoints in LangChain, LlamaIndex, or any common UI.
 -   🔑 **API Key Generation**: Secure and distribute API Keys to clients without exposing your raw Ollama instances.
 -   💰 **Custom Usage Plans**: Create tiered plans (Limits for RPM & RPD), including unlimited request plans (-1 limit)!
@@ -34,7 +35,7 @@ It doesn't just proxy—it's smart, robust, and designed for heavy production us
 -   🎨 **Stunning React Frontend**: Polished, dark-mode ready UI built with Vite and NextUI for effortless administration.
 
 ### 🧠 Advanced Intelligence
--   🎯 **Smart Routing & Pseudo Models**: AI prompt classification routes tasks dynamically, or simply request `smart:fastest` in your external tools to have V2 instantly proxy you to the top-performing endpoint thresholding on live TPS data!
+-   🎯 **Smart Routing & Pseudo Models**: AI prompt classification routes tasks dynamically. Pseudo-models like `smart:fastest`, `smart:large`, and `smart:coding` resolve to real models ranked by **reply time first**, then TPS (optional—use named models + composite score if you prefer).
 -   💾 **Semantic Cache**: Similarity-based caching using embeddings—get instant responses for semantically similar prompts even if not exact matches.
 -   🏥 **Persistent Health Tracking**: Endpoints failing routines are disabled with historical contexts persisted permanently in PostgreSQL, preventing score bleeding across proxy restarts. 
 -   🚀 **Zero-Latency Racer**: Launches parallel requests to all available endpoints simultaneously—first response wins!
@@ -46,7 +47,7 @@ It doesn't just proxy—it's smart, robust, and designed for heavy production us
 
 ## 🛠️ Stack & Requirements
 
--   **Backend**: Go 1.22+, Gin, PostgreSQL
+-   **Backend**: Go 1.25+, Gin, PostgreSQL
 -   **Frontend**: React, Vite, TypeScript, TailwindCSS
 -   **Infrastructure**: Docker & Docker Compose (Highly Recommended)
 
@@ -56,8 +57,8 @@ If you have Docker installed, you can spin up the entire ecosystem in seconds:
 
 ```bash
 # Clone the repository
-git clone https://github.com/timlzh/ollama-hack.git
-cd ollama-hack
+git clone https://github.com/toonvank/Ollama-Hack-V2.git
+cd Ollama-Hack-V2
 
 # The repository contains the fully composed V2 ecosystem
 docker compose up -d --build
@@ -137,10 +138,25 @@ environment:
     - HEALTH_TRACKER_PROBE_INTERVAL=30s # Health check interval
 
     # ⏱️ Performance & Integrations
-    - MIN_TPS_THRESHOLD=5.0 # Minimum tokens/sec required for smart routing validation
+    - ROUTING_RANK_MODE=composite # Endpoint pick for named models: composite (default), tps, or reply
+    - MIN_TPS_THRESHOLD=5.0 # Minimum tokens/sec required for endpoint eligibility
     - POLL_TIMEOUT_SECS=300 # Testing worker timeouts
     - SHODAN_API_KEY=your_key_here # For background automatic target harvesting
 ```
+
+### 📊 Composite score
+
+When you request a specific model (not `smart:*`), the proxy picks the best endpoint using:
+
+```
+composite_score = token_per_second × (1 / reply_seconds) × ln(1 + param_billions)
+```
+
+- **token_per_second** — generation speed from background stream tests  
+- **reply_seconds** — time from test prompt to first stream chunk (`max_connection_time`)  
+- **param_billions** — parsed from model name/tag (e.g. `7b`, `70b`; defaults to `1` if unknown)
+
+Higher score is better. The admin **Models** page shows **Score**, **Speed (tps)**, **Reply (s)**, and **Params (B)**, sorted by score by default.
 
 ### 🎯 Smart Routing Categories
 
