@@ -79,6 +79,16 @@ const SmartModelsCard: React.FC = () => {
                         {sm.endpoint}
                       </span>
                     </div>
+                    {sm.max_connection_time != null && (
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-xs text-default-400 min-w-[80px]">
+                          Reply:
+                        </span>
+                        <span className="text-sm text-primary font-medium">
+                          {sm.max_connection_time.toFixed(2)}s
+                        </span>
+                      </div>
+                    )}
                     {sm.token_per_second && (
                       <div className="flex items-baseline gap-2">
                         <span className="text-xs text-default-400 min-w-[80px]">

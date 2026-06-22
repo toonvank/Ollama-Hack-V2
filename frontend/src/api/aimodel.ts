@@ -49,6 +49,7 @@ export const aiModelApi = {
         model_full?: string;
         endpoint?: string;
         token_per_second?: number;
+        max_connection_time?: number;
         error?: string;
       }>;
     }>(`/api/v2/ai_model/smart/resolutions`);

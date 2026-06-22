@@ -182,37 +182,15 @@ func (h *AIModelHandler) SmartModels(c *gin.Context) {
 	results := make([]gin.H, 0, len(smartProfiles))
 
 	for _, profile := range smartProfiles {
-		var heuristic string
-		var description string
-
-		switch profile {
-		case "fastest":
-			heuristic = "1=1"
-			description = "Highest tokens per second across all available models"
-		case "large":
-			heuristic = "(m.name ILIKE '%70b%' OR m.name ILIKE '%104b%' OR m.name ILIKE '%72b%')"
-			description = "Large models (70B, 72B, 104B parameters)"
-		case "small":
-			heuristic = "(m.name ILIKE '%8b%' OR m.name ILIKE '%7b%' OR m.name ILIKE '%3b%' OR m.name ILIKE '%1.5b%')"
-			description = "Small models (1.5B, 3B, 7B, 8B parameters)"
-		case "coding":
-			heuristic = "(m.name ILIKE '%code%' OR m.name ILIKE '%coder%')"
-			description = "Fastest code-specialized model"
-		case "cloud":
-			heuristic = `(m.name ILIKE '%kimi%' OR m.name ILIKE '%glm%' OR m.name ILIKE '%deepseek%' 
-		                  OR m.name ILIKE '%gemma%' OR m.name ILIKE '%qwen%' OR m.name ILIKE '%ministral%' 
-		                  OR m.name ILIKE '%nemotron%' OR m.name ILIKE '%devstral%' OR m.name ILIKE '%minimax%' 
-		                  OR m.name ILIKE '%rnj%' OR m.name ILIKE '%gemini%' OR m.name ILIKE '%cogito%' 
-		                  OR m.name ILIKE '%mistral-large%' OR m.name ILIKE '%gpt-oss%')`
-			description = "Highest performance frontier cloud-class models"
-		}
+		heuristic, description, rankingClause := smartProfileConfig(profile)
 
 		query := `
 			SELECT 
 				m.name, 
 				m.tag,
 				e.name as endpoint_name,
-				eam.token_per_second
+				eam.token_per_second,
+				eam.max_connection_time
 			FROM endpoint_ai_models eam
 			JOIN endpoints e ON e.id = eam.endpoint_id
 			JOIN ai_models m ON m.id = eam.ai_model_id
@@ -220,15 +198,16 @@ func (h *AIModelHandler) SmartModels(c *gin.Context) {
 			  AND m.enabled = TRUE
 			  AND eam.status = 'available'
 			  AND e.status = 'available'
-			ORDER BY eam.token_per_second DESC NULLS LAST
+			ORDER BY ` + rankingClause + `
 			LIMIT 1
 		`
 
 		type resultRow struct {
-			Name           string   `db:"name"`
-			Tag            string   `db:"tag"`
-			EndpointName   string   `db:"endpoint_name"`
-			TokenPerSecond *float64 `db:"token_per_second"`
+			Name              string   `db:"name"`
+			Tag               string   `db:"tag"`
+			EndpointName      string   `db:"endpoint_name"`
+			TokenPerSecond    *float64 `db:"token_per_second"`
+			MaxConnectionTime *float64 `db:"max_connection_time"`
 		}
 
 		var row resultRow
@@ -248,6 +227,9 @@ func (h *AIModelHandler) SmartModels(c *gin.Context) {
 			result["endpoint"] = row.EndpointName
 			if row.TokenPerSecond != nil {
 				result["token_per_second"] = *row.TokenPerSecond
+			}
+			if row.MaxConnectionTime != nil {
+				result["max_connection_time"] = *row.MaxConnectionTime
 			}
 		} else {
 			result["error"] = "No available models match this profile"

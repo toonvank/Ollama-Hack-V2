@@ -59,9 +59,9 @@ func NewOllamaHandler(db *database.DB) *OllamaHandler {
 	}
 }
 
-// bestEndpointForModel returns the URL of the top-ranked endpoint for a model
-// (by token_per_second desc), respecting the model's enabled flag.
-func (h *OllamaHandler) bestEndpointsForModel(modelName, modelTag string) ([]string, error) {
+// bestEndpointForModel returns the top-ranked endpoint URLs for a model.
+// When preferReplyTime is true, endpoints are ranked by time-to-first-chunk first.
+func (h *OllamaHandler) bestEndpointsForModel(modelName, modelTag string, preferReplyTime bool) ([]string, error) {
 	type row struct {
 		URL string `db:"url"`
 	}
@@ -71,7 +71,12 @@ func (h *OllamaHandler) bestEndpointsForModel(modelName, modelTag string) ([]str
 		fmt.Sscanf(val, "%f", &minTPS)
 	}
 
-	err := h.db.Select(&rows, `
+	orderBy := "eam.token_per_second DESC NULLS LAST"
+	if preferReplyTime {
+		orderBy = "eam.max_connection_time ASC NULLS LAST, eam.token_per_second DESC NULLS LAST"
+	}
+
+	err := h.db.Select(&rows, fmt.Sprintf(`
 		SELECT e.url
 		FROM endpoint_ai_models eam
 		JOIN endpoints e ON e.id = eam.endpoint_id
@@ -83,9 +88,9 @@ func (h *OllamaHandler) bestEndpointsForModel(modelName, modelTag string) ([]str
 		  AND e.status = 'available'
 		  AND (eh.disabled IS NULL OR eh.disabled = FALSE)
 		  AND (eam.token_per_second >= $3 OR eam.token_per_second IS NULL)
-		ORDER BY eam.token_per_second DESC NULLS LAST
+		ORDER BY %s
 		LIMIT 5
-	`, modelName, modelTag, minTPS)
+	`, orderBy), modelName, modelTag, minTPS)
 	if err != nil {
 		return nil, err
 	}
@@ -107,42 +112,29 @@ func (h *OllamaHandler) resolveSmartModel(smartTag string) ([]smartModelCandidat
 		}
 	}
 
-	var heuristic string
-	switch smartTag {
-	case "fastest":
-		heuristic = "1=1"
-	case "large":
-		heuristic = "(m.name ILIKE '%70b%' OR m.name ILIKE '%104b%' OR m.name ILIKE '%72b%')"
-	case "small":
-		heuristic = "(m.name ILIKE '%8b%' OR m.name ILIKE '%7b%' OR m.name ILIKE '%3b%' OR m.name ILIKE '%1.5b%')"
-	case "coding":
-		heuristic = "(m.name ILIKE '%code%' OR m.name ILIKE '%coder%')"
-	case "cloud":
-		// Matches the provided list of frontier cloud models
-		heuristic = `(m.name ILIKE '%kimi%' OR m.name ILIKE '%glm%' OR m.name ILIKE '%deepseek%' 
-		              OR m.name ILIKE '%gemma%' OR m.name ILIKE '%qwen%' OR m.name ILIKE '%ministral%' 
-		              OR m.name ILIKE '%nemotron%' OR m.name ILIKE '%devstral%' OR m.name ILIKE '%minimax%' 
-		              OR m.name ILIKE '%rnj%' OR m.name ILIKE '%gemini%' OR m.name ILIKE '%cogito%' 
-		              OR m.name ILIKE '%mistral-large%' OR m.name ILIKE '%gpt-oss%')`
-	default:
-		heuristic = "1=1"
-	}
+	heuristic, _, rankingClause := smartProfileConfig(smartTag)
 
-	// Fetch top 3 distinct (name, tag) candidates ranked by speed
+	// Fetch top 3 models ranked by reply time (best endpoint per model, then global sort)
 	query := fmt.Sprintf(`
-		SELECT DISTINCT ON (m.name, m.tag) m.name, m.tag
-		FROM endpoint_ai_models eam
-		JOIN endpoints e ON e.id = eam.endpoint_id
-		JOIN ai_models m ON m.id = eam.ai_model_id
-		LEFT JOIN endpoint_health eh ON eh.url = e.url
-		WHERE %s
-		  AND m.enabled = TRUE
-		  AND eam.status = 'available'
-		  AND e.status = 'available'
-		  AND (eh.disabled IS NULL OR eh.disabled = FALSE)
-		ORDER BY m.name, m.tag, eam.token_per_second DESC NULLS LAST
+		SELECT name, tag FROM (
+			SELECT DISTINCT ON (m.name, m.tag)
+				m.name, m.tag,
+				eam.max_connection_time,
+				eam.token_per_second
+			FROM endpoint_ai_models eam
+			JOIN endpoints e ON e.id = eam.endpoint_id
+			JOIN ai_models m ON m.id = eam.ai_model_id
+			LEFT JOIN endpoint_health eh ON eh.url = e.url
+			WHERE %s
+			  AND m.enabled = TRUE
+			  AND eam.status = 'available'
+			  AND e.status = 'available'
+			  AND (eh.disabled IS NULL OR eh.disabled = FALSE)
+			ORDER BY m.name, m.tag, %s
+		) ranked_models
+		ORDER BY max_connection_time ASC NULLS LAST, token_per_second DESC NULLS LAST
 		LIMIT 3
-	`, heuristic)
+	`, heuristic, rankingClause)
 
 	type modelRow struct {
 		Name string `db:"name"`
@@ -156,7 +148,7 @@ func (h *OllamaHandler) resolveSmartModel(smartTag string) ([]smartModelCandidat
 
 	candidates := make([]smartModelCandidate, 0, len(mRows))
 	for _, mRow := range mRows {
-		urls, err := h.bestEndpointsForModel(mRow.Name, mRow.Tag)
+		urls, err := h.bestEndpointsForModel(mRow.Name, mRow.Tag, true)
 		if err == nil && len(urls) > 0 {
 			candidates = append(candidates, smartModelCandidate{
 				urls: urls,
@@ -478,7 +470,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 					candidates, err := h.resolveSmartModel(preferTag)
 					available = err == nil && len(candidates) > 0
 				} else {
-					preferEndpoints, preferErr := h.bestEndpointsForModel(preferName, preferTag)
+					preferEndpoints, preferErr := h.bestEndpointsForModel(preferName, preferTag, false)
 					available = preferErr == nil && len(preferEndpoints) > 0
 				}
 
@@ -520,7 +512,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 			smartRouteHeader = services.FormatRouteHeader("smart", modelRaw)
 		}
 	} else {
-		endpoints, err = h.bestEndpointsForModel(name, tag)
+		endpoints, err = h.bestEndpointsForModel(name, tag, false)
 	}
 
 	// Attempt blazing fast in-memory fallback route if unavailable
@@ -530,7 +522,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 			log.Printf("[proxy] Model %s unavailable, applying fallback to %s", lookupKey, fallbackRaw)
 
 			name, tag = parseModel(fallbackRaw)
-			endpoints, err = h.bestEndpointsForModel(name, tag)
+			endpoints, err = h.bestEndpointsForModel(name, tag, false)
 			if err == nil && len(endpoints) > 0 {
 				c.Header("X-Model-Fallback", fallbackRaw)
 
