@@ -26,11 +26,12 @@ func (h *AIModelHandler) List(c *gin.Context) {
 
 	// Validate order_by field
 	validOrderFields := map[string]string{
-		"id":               "m.id",
-		"name":             "m.name",
-		"created_at":       "m.created_at",
-		"token_per_second": "token_per_second",
-		"endpoints":        "endpoints",
+		"id":                    "m.id",
+		"name":                  "m.name",
+		"created_at":            "m.created_at",
+		"token_per_second":      "token_per_second",
+		"max_connection_time":   "max_connection_time",
+		"endpoints":             "endpoints",
 	}
 
 	orderField, ok := validOrderFields[orderBy]
@@ -43,9 +44,12 @@ func (h *AIModelHandler) List(c *gin.Context) {
 		order = "asc"
 	}
 
-	// For token_per_second, put NULLs last when sorting desc (highest first)
+	// Put NULLs last when sorting by performance metrics
 	nullsHandling := ""
 	if orderBy == "token_per_second" && order == "desc" {
+		nullsHandling = " NULLS LAST"
+	}
+	if orderBy == "max_connection_time" && order == "asc" {
 		nullsHandling = " NULLS LAST"
 	}
 
@@ -61,7 +65,8 @@ func (h *AIModelHandler) List(c *gin.Context) {
 		SELECT 
 			m.id, m.name, m.tag, m.enabled, m.created_at,
 			COUNT(case when eam.status = 'available' then 1 end) as endpoints,
-			MAX(eam.token_per_second) as token_per_second
+			MAX(eam.token_per_second) as token_per_second,
+			MIN(eam.max_connection_time) as max_connection_time
 		FROM ai_models m
 		LEFT JOIN endpoint_ai_models eam ON m.id = eam.ai_model_id
 		` + whereClause + `

@@ -30,6 +30,7 @@ export interface AIModelInfoWithEndpointCount {
   created_at: string;
   endpoints: number;
   token_per_second?: number;
+  max_connection_time?: number;
 }
 
 // AI Models details with Endpoints

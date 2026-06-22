@@ -209,6 +209,20 @@ func (db *DB) CreateTables() error {
 			ALTER TABLE api_keys ALTER COLUMN key TYPE VARCHAR(128);
 		END IF;
 	END $$;
+
+	-- Backfill endpoint_ai_models.max_connection_time from latest performance tests
+	UPDATE endpoint_ai_models eam
+	SET max_connection_time = latest.max_connection_time
+	FROM (
+		SELECT DISTINCT ON (endpoint_ai_model_id)
+			endpoint_ai_model_id,
+			max_connection_time
+		FROM ai_model_performances
+		WHERE max_connection_time IS NOT NULL AND max_connection_time > 0
+		ORDER BY endpoint_ai_model_id, created_at DESC
+	) latest
+	WHERE eam.id = latest.endpoint_ai_model_id
+	  AND eam.max_connection_time IS NULL;
 	`
 
 	_, err = db.Exec(migrations)

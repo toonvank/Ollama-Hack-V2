@@ -101,13 +101,22 @@ const ModelDetailDrawer = ({ id, isOpen, onClose }: ModelDetailProps) => {
         );
       case "performance":
         return endpoint.status === AIModelStatusEnum.AVAILABLE ? (
-          <Tooltip content="Generation speed (tokens per second)">
-            <div>
-              {endpoint.token_per_second
-                ? `${endpoint.token_per_second.toFixed(1)} tps`
-                : "Not tested"}
-            </div>
-          </Tooltip>
+          <div className="flex flex-col gap-0.5">
+            <Tooltip content="Generation speed (tokens per second)">
+              <span>
+                {endpoint.token_per_second
+                  ? `${endpoint.token_per_second.toFixed(1)} tps`
+                  : "Not tested"}
+              </span>
+            </Tooltip>
+            {endpoint.max_connection_time != null && (
+              <Tooltip content="Time from request to first stream chunk">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  {endpoint.max_connection_time.toFixed(2)}s reply
+                </span>
+              </Tooltip>
+            )}
+          </div>
         ) : (
           "Unavailable"
         );

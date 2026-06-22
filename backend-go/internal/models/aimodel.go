@@ -16,8 +16,9 @@ type AIModelInfo struct {
 	Tag            string    `json:"tag" db:"tag"`
 	Enabled        bool      `json:"enabled" db:"enabled"`
 	CreatedAt      time.Time `json:"created_at" db:"created_at"`
-	Endpoints      int       `json:"endpoints" db:"endpoints"`
-	TokenPerSecond *float64  `json:"token_per_second" db:"token_per_second"`
+	Endpoints         int       `json:"endpoints" db:"endpoints"`
+	TokenPerSecond    *float64  `json:"token_per_second" db:"token_per_second"`
+	MaxConnectionTime *float64  `json:"max_connection_time" db:"max_connection_time"`
 }
 
 type AIModelToggle struct {

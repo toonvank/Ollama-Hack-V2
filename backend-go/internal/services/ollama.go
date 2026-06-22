@@ -606,14 +606,21 @@ func (t *Tester) executeTask(task pendingTask) {
 		}
 
 		// Upsert endpoint_ai_model link
+		var connectionTime *float64
+		if mr.Status == StatusAvailable && mr.ConnectionTime > 0 {
+			connectionTime = &mr.ConnectionTime
+		}
+
 		var linkID int
 		err = tx.QueryRow(`
-			INSERT INTO endpoint_ai_models (endpoint_id, ai_model_id, status, token_per_second)
-			VALUES ($1, $2, $3, $4)
+			INSERT INTO endpoint_ai_models (endpoint_id, ai_model_id, status, token_per_second, max_connection_time)
+			VALUES ($1, $2, $3, $4, $5)
 			ON CONFLICT (endpoint_id, ai_model_id) DO UPDATE
-				SET status = EXCLUDED.status, token_per_second = EXCLUDED.token_per_second
+				SET status = EXCLUDED.status,
+				    token_per_second = EXCLUDED.token_per_second,
+				    max_connection_time = EXCLUDED.max_connection_time
 			RETURNING id`,
-			task.EndpointID, modelID, mr.Status, mr.TokenPerSecond,
+			task.EndpointID, modelID, mr.Status, mr.TokenPerSecond, connectionTime,
 		).Scan(&linkID)
 		if err != nil {
 			log.Printf("[tester] could not upsert endpoint_ai_model: %v", err)

@@ -91,6 +91,7 @@ const ModelTable: React.FC<ModelTableProps> = ({
     { key: "name", label: "Name", allowsSorting: true },
     { key: "tag", label: "Tag", allowsSorting: true },
     { key: "token_per_second", label: "Speed (tps)", allowsSorting: true },
+    { key: "max_connection_time", label: "Reply (s)", allowsSorting: true },
     { key: "endpoints", label: "Endpoints" },
     { key: "enabled", label: "Enabled" },
     { key: "status", label: "Status" },
@@ -141,6 +142,16 @@ const ModelTable: React.FC<ModelTableProps> = ({
           <span className="whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
             {model.token_per_second ? `${model.token_per_second.toFixed(1)}` : "-"}
           </span>
+        );
+      case "max_connection_time":
+        return (
+          <Tooltip content="Time from request to first stream chunk (best endpoint)">
+            <span className="whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+              {model.max_connection_time != null
+                ? `${model.max_connection_time.toFixed(2)}s`
+                : "-"}
+            </span>
+          </Tooltip>
         );
       case "endpoints":
         return model.endpoints || 0;
