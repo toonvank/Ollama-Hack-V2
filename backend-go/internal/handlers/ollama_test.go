@@ -283,3 +283,25 @@ func TestOllamaHandler_Completions_EmptyModel(t *testing.T) {
 		t.Errorf("Expected status 400, got %d", w.Code)
 	}
 }
+
+func TestIsQuotaExceededError(t *testing.T) {
+	testCases := []struct {
+		statusCode int
+		body       string
+		expected   bool
+	}{
+		{429, `{"error":{"message":"You exceeded your current quota, please check your plan and billing details.","type":"insufficient_quota","param":null,"code":"insufficient_quota"}}`, true},
+		{400, `{"error":{"message":"Insufficient Balance","type":"billing_not_active"}}`, true},
+		{403, `{"error":{"message":"free_trial_quota_exceeded"}}`, true},
+		{429, `rate limit exceeded, try again in 5s`, false},
+		{200, `{"choices":[]}`, false},
+		{500, `internal server error`, false},
+	}
+
+	for _, tc := range testCases {
+		res := isQuotaExceededError(tc.statusCode, []byte(tc.body))
+		if res != tc.expected {
+			t.Errorf("Expected isQuotaExceededError(%d, %q) = %v, got %v", tc.statusCode, tc.body, tc.expected, res)
+		}
+	}
+}

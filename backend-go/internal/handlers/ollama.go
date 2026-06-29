@@ -550,16 +550,33 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 	if name == "smart" {
 		smartCandidates, err = h.resolveSmartModel(tag)
 		if err == nil && len(smartCandidates) > 0 {
-			// Start with the best candidate
-			best := smartCandidates[0]
-			name, tag = best.name, best.tag
-			endpoints = best.urls
-			log.Printf("[smart-model] Resolved '%s' → '%s:%s' (%d fallback candidates)",
-				originalModelRequested, name, tag, len(smartCandidates)-1)
-			modelRaw = fmt.Sprintf("%s:%s", name, tag)
-			bodyMap["model"] = modelRaw
-			rawBody, _ = json.Marshal(bodyMap)
-			smartRouteHeader = services.FormatRouteHeader("smart", modelRaw)
+			healthTracker := services.GetHealthTracker()
+			var best smartModelCandidate
+			foundHealthy := false
+			for i, candidate := range smartCandidates {
+				healthyURLs := healthTracker.FilterHealthyEndpoints(candidate.urls)
+				if len(healthyURLs) > 0 {
+					best = candidate
+					endpoints = healthyURLs
+					// Rearrange smartCandidates so that the chosen candidate is at index 0,
+					// and the rest are available as fallback candidates.
+					smartCandidates = append([]smartModelCandidate{candidate}, append(smartCandidates[:i], smartCandidates[i+1:]...)...)
+					foundHealthy = true
+					break
+				}
+			}
+			if foundHealthy {
+				name, tag = best.name, best.tag
+				log.Printf("[smart-model] Resolved '%s' → '%s:%s' (%d fallback candidates)",
+					originalModelRequested, name, tag, len(smartCandidates)-1)
+				modelRaw = fmt.Sprintf("%s:%s", name, tag)
+				bodyMap["model"] = modelRaw
+				rawBody, _ = json.Marshal(bodyMap)
+				smartRouteHeader = services.FormatRouteHeader("smart", modelRaw)
+			} else {
+				endpoints = nil
+				err = fmt.Errorf("no healthy endpoints for smart candidates")
+			}
 		}
 	} else {
 		var resolved *resolvedModelRoute
@@ -668,6 +685,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 		err           error
 		endpointURL   string
 		index         int
+		quotaExceeded bool   // true if the error was a quota/balance limit error
 		rateLimited   bool   // true if the error was a 429 — don't health-penalize
 		isClientError bool   // true if 400 <= status < 500 — bad prompts shouldn't penalize node health
 		failStatus    int    // Forward upstream error status back to client if race fails
@@ -713,7 +731,10 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 			if resp.StatusCode >= 400 {
 				bodyBytes, _ := io.ReadAll(resp.Body)
 				resp.Body.Close()
-				if resp.StatusCode == 429 {
+				isQuota := isQuotaExceededError(resp.StatusCode, bodyBytes)
+				if isQuota {
+					resultCh <- raceResult{err: fmt.Errorf("quota exceeded"), endpointURL: url, index: index, quotaExceeded: true, failStatus: resp.StatusCode, failBody: bodyBytes}
+				} else if resp.StatusCode == 429 {
 					// Rate-limited: record separately so the endpoint isn't health-penalized
 					resultCh <- raceResult{err: fmt.Errorf("rate-limited (429)"), endpointURL: url, index: index, rateLimited: true, failStatus: resp.StatusCode, failBody: bodyBytes}
 				} else if resp.StatusCode < 500 {
@@ -764,7 +785,8 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 				// Aggressively reject JSON error payloads wrapped in 200 OK
 				if strings.HasPrefix(sniffStr, `{"error"`) || strings.HasPrefix(sniffStr, `{"message"`) {
 					resp.Body.Close()
-					resultCh <- raceResult{err: fmt.Errorf("rejected node: returned 200 OK error JSON payload"), endpointURL: url, index: index}
+					isQuota := isQuotaExceededError(200, []byte(sniffStr))
+					resultCh <- raceResult{err: fmt.Errorf("rejected node: returned 200 OK error JSON payload"), endpointURL: url, index: index, quotaExceeded: isQuota}
 					return
 				}
 
@@ -778,7 +800,8 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 					}
 					if strings.Contains(sniffStr, `"error"`) {
 						resp.Body.Close()
-						resultCh <- raceResult{err: fmt.Errorf("rejected node: upstream model threw an API error hidden in the SSE stream"), endpointURL: url, index: index}
+						isQuota := isQuotaExceededError(200, []byte(sniffStr))
+						resultCh <- raceResult{err: fmt.Errorf("rejected node: upstream model threw an API error hidden in the SSE stream"), endpointURL: url, index: index, quotaExceeded: isQuota}
 						return
 					}
 				}
@@ -833,8 +856,10 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 				lastFailBody = res.failBody
 			}
 
-			// 429 rate-limits don't penalize health score — endpoint is fine, just throttled
-			if res.rateLimited {
+			// Handle different error categories for health scoring
+			if res.quotaExceeded {
+				healthTracker.RecordQuotaExceeded(res.endpointURL)
+			} else if res.rateLimited {
 				healthTracker.RecordRateLimit(res.endpointURL)
 			} else if !res.isClientError {
 				// Only penalize 5xx server errors or hard connection timeouts
@@ -885,6 +910,17 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 							}
 							lastFailStatus = cresp.StatusCode
 							lastFailBody = b
+
+							// Record health failure/quota/rate limit for fallback endpoint
+							if isQuotaExceededError(cresp.StatusCode, b) {
+								healthTracker.RecordQuotaExceeded(cascadeURL)
+							} else if cresp.StatusCode == 429 {
+								healthTracker.RecordRateLimit(cascadeURL)
+							} else if cresp.StatusCode >= 500 {
+								healthTracker.RecordFailure(cascadeURL)
+							}
+						} else {
+							healthTracker.RecordFailure(cascadeURL)
 						}
 						continue
 					}
@@ -1180,4 +1216,29 @@ func (h *OllamaHandler) mapReduceProxy(c *gin.Context, method, path string, body
 		}
 		c.JSON(200, ans)
 	}
+}
+
+// isQuotaExceededError checks if status code or error response body indicates billing or quota limit has been reached
+func isQuotaExceededError(statusCode int, body []byte) bool {
+	quotaKeywords := []string{
+		"insufficient_quota",
+		"insufficient_balance",
+		"insufficient balance",
+		"quota_exceeded",
+		"quota exceeded",
+		"exceeded your current quota",
+		"billing_not_active",
+		"out of balance",
+		"run out of balance",
+		"credit limit reached",
+		"free_trial_quota",
+	}
+
+	bodyStr := strings.ToLower(string(body))
+	for _, kw := range quotaKeywords {
+		if strings.Contains(bodyStr, kw) {
+			return true
+		}
+	}
+	return false
 }

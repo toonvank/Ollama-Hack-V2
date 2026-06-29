@@ -70,6 +70,11 @@ func GetHealthTracker() *HealthTracker {
 	return globalHealthTracker
 }
 
+// SetGlobalHealthTracker sets the global health tracker instance (mainly for testing)
+func SetGlobalHealthTracker(ht *HealthTracker) {
+	globalHealthTracker = ht
+}
+
 // loadHealthConfig loads configuration from environment variables
 func loadHealthConfig() HealthTrackerConfig {
 	config := HealthTrackerConfig{
@@ -227,6 +232,26 @@ func (ht *HealthTracker) RecordRateLimit(url string) {
 	h.LastFail = time.Now()
 	log.Printf("[health-tracker] Rate-limited by %s (total 429s: %d) — score preserved at %d",
 		url, h.RateLimitCount, h.Score)
+}
+
+// RecordQuotaExceeded records a quota/balance exhaustion error.
+// It immediately disables the endpoint and sets its score to 0 to prevent reuse.
+func (ht *HealthTracker) RecordQuotaExceeded(url string) {
+	if !ht.config.Enabled {
+		return
+	}
+
+	ht.mu.Lock()
+	defer ht.mu.Unlock()
+
+	h := ht.getOrCreateHealth(url)
+	h.Score = 0
+	h.Disabled = true
+	// Disable for 1 hour to prevent constant retrying of exhausted keys
+	h.DisabledUntil = time.Now().Add(1 * time.Hour)
+	h.LastFail = time.Now()
+	log.Printf("[health-tracker] Endpoint %s DISABLED due to QUOTA EXCEEDED (score: %d, until: %v)",
+		url, h.Score, h.DisabledUntil.Format(time.RFC3339))
 }
 
 // IsDisabled checks if an endpoint is currently disabled
