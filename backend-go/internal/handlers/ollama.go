@@ -937,6 +937,24 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 				}
 			}
 		}
+		if winningResp == nil && isCloudTaggedModel(name, tag, originalModelRequested) {
+			if fallbackRoute, fbErr := h.resolveLocalFallbackRoute(originalModelRequested); fbErr == nil && fallbackRoute != nil {
+				log.Printf("[cloud-fallback] Cloud model '%s' unavailable, trying local fallback '%s:%s'",
+					originalModelRequested, fallbackRoute.Name, fallbackRoute.Tag)
+
+				fbResp, fbModel, fbFailStatus, fbFailBody := h.attemptModelFallback(
+					c.Request.Context(), method, path, fallbackRoute, bodyMap, healthTracker)
+				if fbResp != nil {
+					winningResp = fbResp
+					c.Header("X-Cloud-Fallback", fmt.Sprintf("%s→%s", originalModelRequested, fbModel))
+					modelRaw = fbModel
+				} else {
+					lastFailStatus = fbFailStatus
+					lastFailBody = fbFailBody
+				}
+			}
+		}
+
 		if winningResp == nil {
 			if lastFailStatus >= 400 {
 				// We have a direct upstream error (like 400 Bad Request) that we should bubble back
@@ -1218,7 +1236,97 @@ func (h *OllamaHandler) mapReduceProxy(c *gin.Context, method, path string, body
 	}
 }
 
-// isQuotaExceededError checks if status code or error response body indicates billing or quota limit has been reached
+// isCloudTaggedModel reports whether the request targets an Ollama cloud model.
+func isCloudTaggedModel(name, tag, originalRequested string) bool {
+	if strings.EqualFold(tag, "cloud") {
+		return true
+	}
+	return strings.HasSuffix(strings.ToLower(originalRequested), ":cloud")
+}
+
+// resolveLocalFallbackRoute picks a non-cloud model when cloud access is unavailable.
+func (h *OllamaHandler) resolveLocalFallbackRoute(lookupModel string) (*resolvedModelRoute, error) {
+	lookupKey := strings.ToLower(lookupModel)
+	if fallbackRaw, ok := h.fallbacks[lookupKey]; ok {
+		fbName, fbTag := parseModel(fallbackRaw)
+		return h.bestEndpointsForModel(fbName, fbTag, defaultEndpointRankMode())
+	}
+
+	candidates, err := h.resolveSmartModel("fastest")
+	if err != nil {
+		return nil, err
+	}
+
+	healthTracker := services.GetHealthTracker()
+	for _, candidate := range candidates {
+		if strings.EqualFold(candidate.tag, "cloud") {
+			continue
+		}
+		urls := healthTracker.FilterHealthyEndpoints(candidate.urls)
+		if len(urls) > 0 {
+			return &resolvedModelRoute{
+				Name: candidate.name,
+				Tag:  candidate.tag,
+				URLs: urls,
+			}, nil
+		}
+	}
+	return nil, fmt.Errorf("no local fallback models available")
+}
+
+// attemptModelFallback tries ranked endpoints for a fallback model after cloud access fails.
+func (h *OllamaHandler) attemptModelFallback(
+	ctx context.Context,
+	method, path string,
+	fallbackRoute *resolvedModelRoute,
+	bodyMap map[string]interface{},
+	healthTracker *services.HealthTracker,
+) (*http.Response, string, int, []byte) {
+	fallbackModel := fmt.Sprintf("%s:%s", fallbackRoute.Name, fallbackRoute.Tag)
+	bodyMap["model"] = fallbackModel
+	fallbackBody, _ := json.Marshal(bodyMap)
+
+	var lastStatus int
+	var lastBody []byte
+
+	for _, fallbackURL := range fallbackRoute.URLs {
+		req, err := http.NewRequestWithContext(ctx, method, fallbackURL+path, bytes.NewReader(fallbackBody))
+		if err != nil {
+			continue
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		client := utils.NewHTTPClient(120 * time.Second)
+		resp, err := client.Do(req)
+		if err != nil || resp.StatusCode >= 400 {
+			if resp != nil {
+				var b []byte
+				if resp.Body != nil {
+					b, _ = io.ReadAll(resp.Body)
+					resp.Body.Close()
+				}
+				lastStatus = resp.StatusCode
+				lastBody = b
+
+				if isQuotaExceededError(resp.StatusCode, b) {
+					healthTracker.RecordQuotaExceeded(fallbackURL)
+				} else if resp.StatusCode == 429 {
+					healthTracker.RecordRateLimit(fallbackURL)
+				} else if resp.StatusCode >= 500 {
+					healthTracker.RecordFailure(fallbackURL)
+				}
+			} else {
+				healthTracker.RecordFailure(fallbackURL)
+			}
+			continue
+		}
+		return resp, fallbackModel, 0, nil
+	}
+	return nil, "", lastStatus, lastBody
+}
+
+// isQuotaExceededError checks if an upstream response indicates cloud billing, quota,
+// or subscription access is unavailable.
 func isQuotaExceededError(statusCode int, body []byte) bool {
 	quotaKeywords := []string{
 		"insufficient_quota",
@@ -1232,6 +1340,11 @@ func isQuotaExceededError(statusCode int, body []byte) bool {
 		"run out of balance",
 		"credit limit reached",
 		"free_trial_quota",
+		"requires a subscription",
+		"requires subscription",
+		"subscription required",
+		"upgrade for access",
+		"ollama.com/upgrade",
 	}
 
 	bodyStr := strings.ToLower(string(body))
