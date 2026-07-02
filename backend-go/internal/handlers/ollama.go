@@ -509,7 +509,11 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 
 	// 🧠 SMART ROUTING: Classify prompt and route to optimal model
 	var smartRouteHeader string
-	if h.smartRouter.IsEnabled() {
+	skipSmartRoute := strings.EqualFold(c.GetHeader("X-Skip-Smart-Route"), "true")
+	if messages, ok := bodyMap["messages"].([]interface{}); ok && messagesContainImages(messages) {
+		skipSmartRoute = true
+	}
+	if h.smartRouter.IsEnabled() && !skipSmartRoute {
 		// Extract messages for classification
 		if messages, ok := bodyMap["messages"].([]interface{}); ok && len(messages) > 0 {
 			if result := h.smartRouter.ClassifyMessages(messages); result != nil && result.PreferModel != "" {
@@ -1248,6 +1252,44 @@ func (h *OllamaHandler) mapReduceProxy(c *gin.Context, method, path string, body
 		}
 		c.JSON(200, ans)
 	}
+}
+
+// messagesContainImages reports whether any chat message still carries image input.
+func messagesContainImages(messages []interface{}) bool {
+	for _, raw := range messages {
+		msg, ok := raw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		if images, ok := msg["images"].([]interface{}); ok && len(images) > 0 {
+			return true
+		}
+
+		switch content := msg["content"].(type) {
+		case string:
+			if strings.Contains(content, "data:image") {
+				return true
+			}
+		case []interface{}:
+			for _, partRaw := range content {
+				part, ok := partRaw.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				partType, _ := part["type"].(string)
+				switch partType {
+				case "image_url", "image", "input_image":
+					return true
+				case "text":
+					if text, ok := part["text"].(string); ok && strings.Contains(text, "data:image") {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
 }
 
 // isCloudTaggedModel reports whether the request targets an Ollama cloud model.

@@ -284,6 +284,39 @@ func TestOllamaHandler_Completions_EmptyModel(t *testing.T) {
 	}
 }
 
+func TestMessagesContainImages(t *testing.T) {
+	messages := []interface{}{
+		map[string]interface{}{
+			"role": "user",
+			"content": []interface{}{
+				map[string]interface{}{
+					"type": "text",
+					"text": "What is this?",
+				},
+				map[string]interface{}{
+					"type": "image_url",
+					"image_url": map[string]interface{}{
+						"url": "data:image/png;base64,abc",
+					},
+				},
+			},
+		},
+	}
+	if !messagesContainImages(messages) {
+		t.Fatal("expected image content to be detected")
+	}
+
+	textOnly := []interface{}{
+		map[string]interface{}{
+			"role":    "user",
+			"content": "follow up question",
+		},
+	}
+	if messagesContainImages(textOnly) {
+		t.Fatal("expected text-only history to have no images")
+	}
+}
+
 func TestIsQuotaExceededError(t *testing.T) {
 	testCases := []struct {
 		statusCode int
