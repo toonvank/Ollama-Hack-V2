@@ -1439,6 +1439,10 @@ func isQuotaExceededError(statusCode int, body []byte) bool {
 		"subscription required",
 		"upgrade for access",
 		"ollama.com/upgrade",
+		"ollama.com/settings",
+		"session usage limit",
+		"reached your session usage limit",
+		"upgrade for higher limits",
 	}
 
 	bodyStr := strings.ToLower(string(body))

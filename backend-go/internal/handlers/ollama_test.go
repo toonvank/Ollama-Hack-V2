@@ -327,6 +327,7 @@ func TestIsQuotaExceededError(t *testing.T) {
 		{400, `{"error":{"message":"Insufficient Balance","type":"billing_not_active"}}`, true},
 		{403, `{"error":{"message":"free_trial_quota_exceeded"}}`, true},
 		{403, `Forbidden: this model requires a subscription, upgrade for access: https://ollama.com/upgrade`, true},
+		{429, `{"error":"you (novelantig7) have reached your session usage limit, upgrade for higher limits: https://ollama.com/upgrade or add extra usage: https://ollama.com/settings"}`, true},
 		{403, `{"error":{"message":"this model requires a subscription, upgrade for access: https://ollama.com/upgrade"}}`, true},
 		{429, `rate limit exceeded, try again in 5s`, false},
 		{200, `{"choices":[]}`, false},
