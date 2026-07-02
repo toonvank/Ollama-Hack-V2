@@ -938,17 +938,31 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 			}
 		}
 		if winningResp == nil && isCloudTaggedModel(name, tag, originalModelRequested) {
-			if fallbackRoute, fbErr := h.resolveLocalFallbackRoute(originalModelRequested); fbErr == nil && fallbackRoute != nil {
-				log.Printf("[cloud-fallback] Cloud model '%s' unavailable, trying local fallback '%s:%s'",
+			triedCloudModels := collectTriedCloudModels(name, tag, smartCandidates)
+			fbResp, fbModel, fbFailStatus, fbFailBody := h.attemptCloudProviderCascade(
+				c.Request.Context(), method, path, bodyMap, healthTracker, triedCloudModels)
+			if fbResp != nil {
+				winningResp = fbResp
+				c.Header("X-Cloud-Provider-Fallback", fmt.Sprintf("%s→%s", originalModelRequested, fbModel))
+				modelRaw = fbModel
+			} else if fbFailStatus > 0 {
+				lastFailStatus = fbFailStatus
+				lastFailBody = fbFailBody
+			}
+		}
+
+		if winningResp == nil && isCloudTaggedModel(name, tag, originalModelRequested) {
+			if fallbackRoute, fbErr := h.resolveConfiguredFallbackRoute(originalModelRequested); fbErr == nil && fallbackRoute != nil {
+				log.Printf("[cloud-fallback] No cloud providers left for '%s', using configured fallback '%s:%s'",
 					originalModelRequested, fallbackRoute.Name, fallbackRoute.Tag)
 
-				fbResp, fbModel, fbFailStatus, fbFailBody := h.attemptModelFallback(
+				fbResp, fbModel, fbFailStatus, fbFailBody := h.attemptModelOnEndpoints(
 					c.Request.Context(), method, path, fallbackRoute, bodyMap, healthTracker)
 				if fbResp != nil {
 					winningResp = fbResp
-					c.Header("X-Cloud-Fallback", fmt.Sprintf("%s→%s", originalModelRequested, fbModel))
+					c.Header("X-Model-Fallback", fmt.Sprintf("%s→%s", originalModelRequested, fbModel))
 					modelRaw = fbModel
-				} else {
+				} else if fbFailStatus > 0 {
 					lastFailStatus = fbFailStatus
 					lastFailBody = fbFailBody
 				}
@@ -1244,38 +1258,76 @@ func isCloudTaggedModel(name, tag, originalRequested string) bool {
 	return strings.HasSuffix(strings.ToLower(originalRequested), ":cloud")
 }
 
-// resolveLocalFallbackRoute picks a non-cloud model when cloud access is unavailable.
-func (h *OllamaHandler) resolveLocalFallbackRoute(lookupModel string) (*resolvedModelRoute, error) {
-	lookupKey := strings.ToLower(lookupModel)
-	if fallbackRaw, ok := h.fallbacks[lookupKey]; ok {
-		fbName, fbTag := parseModel(fallbackRaw)
-		return h.bestEndpointsForModel(fbName, fbTag, defaultEndpointRankMode())
+func collectTriedCloudModels(name, tag string, smartCandidates []smartModelCandidate) map[string]bool {
+	tried := map[string]bool{
+		strings.ToLower(fmt.Sprintf("%s:%s", name, tag)): true,
 	}
-
-	candidates, err := h.resolveSmartModel("fastest")
-	if err != nil {
-		return nil, err
+	for _, candidate := range smartCandidates {
+		tried[strings.ToLower(fmt.Sprintf("%s:%s", candidate.name, candidate.tag))] = true
 	}
-
-	healthTracker := services.GetHealthTracker()
-	for _, candidate := range candidates {
-		if strings.EqualFold(candidate.tag, "cloud") {
-			continue
-		}
-		urls := healthTracker.FilterHealthyEndpoints(candidate.urls)
-		if len(urls) > 0 {
-			return &resolvedModelRoute{
-				Name: candidate.name,
-				Tag:  candidate.tag,
-				URLs: urls,
-			}, nil
-		}
-	}
-	return nil, fmt.Errorf("no local fallback models available")
+	return tried
 }
 
-// attemptModelFallback tries ranked endpoints for a fallback model after cloud access fails.
-func (h *OllamaHandler) attemptModelFallback(
+// attemptCloudProviderCascade tries alternate cloud models/providers before giving up.
+func (h *OllamaHandler) attemptCloudProviderCascade(
+	ctx context.Context,
+	method, path string,
+	bodyMap map[string]interface{},
+	healthTracker *services.HealthTracker,
+	triedModels map[string]bool,
+) (*http.Response, string, int, []byte) {
+	cloudCandidates, err := h.resolveSmartModel("cloud")
+	if err != nil {
+		return nil, "", 0, nil
+	}
+
+	var lastStatus int
+	var lastBody []byte
+
+	for _, candidate := range cloudCandidates {
+		candidateModel := strings.ToLower(fmt.Sprintf("%s:%s", candidate.name, candidate.tag))
+		if triedModels[candidateModel] {
+			continue
+		}
+
+		urls := healthTracker.FilterHealthyEndpoints(candidate.urls)
+		if len(urls) == 0 {
+			continue
+		}
+
+		log.Printf("[cloud-provider-cascade] Trying alternate cloud provider '%s:%s'", candidate.name, candidate.tag)
+		route := &resolvedModelRoute{
+			Name: candidate.name,
+			Tag:  candidate.tag,
+			URLs: urls,
+		}
+		resp, model, failStatus, failBody := h.attemptModelOnEndpoints(ctx, method, path, route, bodyMap, healthTracker)
+		if resp != nil {
+			return resp, model, 0, nil
+		}
+		if failStatus > 0 {
+			lastStatus = failStatus
+			lastBody = failBody
+		}
+		triedModels[candidateModel] = true
+	}
+
+	return nil, "", lastStatus, lastBody
+}
+
+// resolveConfiguredFallbackRoute returns an explicit APP_FALLBACK_MODELS mapping only.
+func (h *OllamaHandler) resolveConfiguredFallbackRoute(lookupModel string) (*resolvedModelRoute, error) {
+	lookupKey := strings.ToLower(lookupModel)
+	fallbackRaw, ok := h.fallbacks[lookupKey]
+	if !ok {
+		return nil, fmt.Errorf("no configured fallback for %s", lookupModel)
+	}
+	fbName, fbTag := parseModel(fallbackRaw)
+	return h.bestEndpointsForModel(fbName, fbTag, defaultEndpointRankMode())
+}
+
+// attemptModelOnEndpoints tries ranked endpoints for a fallback model.
+func (h *OllamaHandler) attemptModelOnEndpoints(
 	ctx context.Context,
 	method, path string,
 	fallbackRoute *resolvedModelRoute,
