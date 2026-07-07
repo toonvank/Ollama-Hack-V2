@@ -47,9 +47,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const userData = await authApi.getCurrentUser();
 
       setUser(userData);
-    } catch {
-      localStorage.removeItem("auth_token");
-      setToken(null);
+    } catch (error: unknown) {
+      const status = (error as { response?: { status?: number } })?.response
+        ?.status;
+
+      // Only clear session on explicit auth failure — not on 502/timeouts during VPN flaps
+      if (status === 401 || status === 403) {
+        localStorage.removeItem("auth_token");
+        setToken(null);
+        setUser(null);
+      }
     } finally {
       setIsLoading(false);
     }

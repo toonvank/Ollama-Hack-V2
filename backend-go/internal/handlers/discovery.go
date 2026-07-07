@@ -27,6 +27,11 @@ type ManualScanRequest struct {
 
 // TriggerManualScan triggers a manual discovery scan
 func (h *DiscoveryHandler) TriggerManualScan(c *gin.Context) {
+	if h.scanner == nil {
+		utils.BadRequest(c, "Discovery scanner is disabled (BACKGROUND_ENDPOINT_OUTBOUND=false)")
+		return
+	}
+
 	var req ManualScanRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.BadRequest(c, "Invalid request: "+err.Error())
@@ -46,10 +51,16 @@ func (h *DiscoveryHandler) TriggerManualScan(c *gin.Context) {
 
 // GetScanStatus returns the current status of the discovery scanner
 func (h *DiscoveryHandler) GetScanStatus(c *gin.Context) {
-	// For now, return basic status info
-	// Can be extended to track active scans, last scan time, etc.
+	if h.scanner == nil {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "disabled",
+			"message": "Discovery scanner disabled (BACKGROUND_ENDPOINT_OUTBOUND=false)",
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"status": "running",
+		"status":  "running",
 		"message": "Discovery scanner is active",
 	})
 }

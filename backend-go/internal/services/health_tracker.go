@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	appconfig "github.com/timlzh/ollama-hack/internal/config"
 	"github.com/timlzh/ollama-hack/internal/database"
 	"github.com/timlzh/ollama-hack/internal/utils"
 )
@@ -139,12 +140,17 @@ func NewHealthTracker(config HealthTrackerConfig, db *database.DB) *HealthTracke
 	}
 
 	if config.Enabled {
-		go ht.probeLoop()
+		activeProbing := appconfig.BackgroundEndpointOutboundEnabled()
+		if activeProbing {
+			go ht.probeLoop()
+		} else {
+			log.Println("[health-tracker] Active probing disabled (live request scoring still enabled)")
+		}
 		if ht.db != nil {
 			go ht.persistLoop()
 		}
-		log.Printf("[health-tracker] Started with threshold=%d, disable_duration=%v, probe_interval=%v",
-			config.DisableThreshold, config.DisableDuration, config.ProbeInterval)
+		log.Printf("[health-tracker] Started with threshold=%d, disable_duration=%v, probe_interval=%v, active_probing=%v",
+			config.DisableThreshold, config.DisableDuration, config.ProbeInterval, activeProbing)
 	} else {
 		log.Println("[health-tracker] Health tracking is disabled")
 	}

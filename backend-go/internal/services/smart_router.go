@@ -213,7 +213,8 @@ func (sr *SmartRouter) SetRules(rules []RoutingRule) {
 	sr.rules = rules
 }
 
-// FormatRouteHeader creates the X-Smart-Route header value
+// FormatRouteHeader creates the X-Smart-Route header value.
+// ASCII "->" only — Unicode arrows break OpenWebUI (latin-1 header encoding).
 func FormatRouteHeader(category, preferModel string) string {
-	return category + "→" + preferModel
+	return category + "->" + preferModel
 }

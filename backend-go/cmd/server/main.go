@@ -30,25 +30,27 @@ func main() {
 		log.Fatalf("Failed to create tables: %v", err)
 	}
 
-	// Start background endpoint tester
-	tester := services.NewTester(db)
-	tester.Start()
-	defer tester.Stop()
+	var discoveryScanner *services.DiscoveryScanner
+	if config.BackgroundEndpointOutboundEnabled() {
+		tester := services.NewTester(db)
+		tester.Start()
+		defer tester.Stop()
+
+		scraperSvc := services.NewBackgroundScraperService(db)
+		scraperSvc.Start()
+		defer scraperSvc.Stop()
+
+		discoveryScanner = services.NewDiscoveryScanner(db)
+		discoveryScanner.Start()
+		defer discoveryScanner.Stop()
+	} else {
+		log.Println("[privacy] BACKGROUND_ENDPOINT_OUTBOUND=false — skipping tester, scraper, discovery scanner, and active health probes")
+	}
 
 	// Start background cleanup
 	cleanupSvc := services.NewBackgroundCleanupService(db)
 	cleanupSvc.Start()
 	defer cleanupSvc.Stop()
-
-	// Start background scraper
-	scraperSvc := services.NewBackgroundScraperService(db)
-	scraperSvc.Start()
-	defer scraperSvc.Stop()
-
-	// Start discovery scanner
-	discoveryScanner := services.NewDiscoveryScanner(db)
-	discoveryScanner.Start()
-	defer discoveryScanner.Stop()
 
 	// Initialize services
 	services.InitHealthTracker(db)

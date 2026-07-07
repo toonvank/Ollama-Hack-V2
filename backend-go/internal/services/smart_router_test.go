@@ -269,7 +269,7 @@ func TestSmartRouterClassifyCloud(t *testing.T) {
 
 func TestFormatRouteHeader(t *testing.T) {
 	header := FormatRouteHeader("coding", "codellama")
-	expected := "coding→codellama"
+	expected := "coding->codellama"
 	if header != expected {
 		t.Errorf("Expected %s, got %s", expected, header)
 	}

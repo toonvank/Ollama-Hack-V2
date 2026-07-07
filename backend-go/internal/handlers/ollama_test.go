@@ -2,12 +2,15 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/timlzh/ollama-hack/internal/services"
 )
 
 func TestParseThinkValue(t *testing.T) {
@@ -51,6 +54,43 @@ func TestStripThinkingFromChatResponse(t *testing.T) {
 	}
 	if msg["content"] != "hello" {
 		t.Fatalf("unexpected content: %v", msg["content"])
+	}
+}
+
+func TestRecordRaceFailure_SkipsCanceledLosers(t *testing.T) {
+	handler := NewOllamaHandler(nil)
+	tracker := services.NewHealthTracker(services.HealthTrackerConfig{
+		Enabled:          true,
+		DisableThreshold: 30,
+		DisableDuration:  5 * time.Minute,
+		ProbeInterval:    time.Hour,
+		FailPenalty:      10,
+		SuccessReward:    2,
+		MaxScore:         100,
+		InitialScore:     100,
+	}, nil)
+
+	url := "http://example.test:11434"
+	var failures, lastStatus int
+	var lastBody []byte
+	handler.recordRaceFailure(raceResult{
+		err:          context.Canceled,
+		endpointURL:  url,
+		raceCanceled: true,
+	}, tracker, &failures, &lastStatus, &lastBody)
+
+	if tracker.IsDisabled(url) {
+		t.Fatal("canceled race loser should not disable endpoint")
+	}
+}
+
+func TestGlmFamilyAlternates(t *testing.T) {
+	alts := glmFamilyAlternates("glm-5.1")
+	if len(alts) == 0 || alts[0] != "glm-5.2" {
+		t.Fatalf("unexpected glm-5.1 alternates: %v", alts)
+	}
+	if got := glmFamilyAlternates("llama3"); got != nil {
+		t.Fatalf("expected nil alternates for non-glm model, got %v", got)
 	}
 }
 

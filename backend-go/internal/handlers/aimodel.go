@@ -191,7 +191,7 @@ func (h *AIModelHandler) Toggle(c *gin.Context) {
 
 // SmartModels returns the current smart model resolutions
 func (h *AIModelHandler) SmartModels(c *gin.Context) {
-	smartProfiles := []string{"fastest", "large", "small", "coding", "cloud"}
+	smartProfiles := []string{"fastest", "large", "small", "coding", "cloud", "abliterated"}
 	results := make([]gin.H, 0, len(smartProfiles))
 
 	for _, profile := range smartProfiles {

@@ -1,7 +1,8 @@
-# VPN overlay: backend shares Gluetun's network stack (all outbound via WireGuard).
-# Requires .env.vpn (generate: bash scripts/setup-vpn-env-from-wg.sh)
-# Use with prod overlay:
+# VPN overlay: backend shares Gluetun's network — all outbound (probes, HTTP, TCP) via WireGuard.
+# API published on gluetun :8000. Requires .env.vpn (bash scripts/setup-vpn-env-from-wg.sh)
 #   bash scripts/compose-prod.sh up -d
+# Rollback:
+#   bash scripts/vpn-rollback.sh
 services:
   gluetun:
     image: qmcgaw/gluetun:latest
@@ -20,21 +21,24 @@ services:
       - WIREGUARD_ENDPOINT_PORT=${WIREGUARD_ENDPOINT_PORT}
       - FIREWALL_OUTBOUND_SUBNETS=192.168.0.0/16,172.16.0.0/12,10.0.0.0/8
       - HTTP_CONTROL_SERVER_ADDRESS=:9998
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - HEALTH_TARGET_ADDRESSES=1.1.1.1:443,8.8.8.8:443
+      - HEALTH_ICMP_TARGET_IPS=1.1.1.1,8.8.8.8
+      - HEALTH_VPN_DURATION_INITIAL=45s
     ports:
       - "8000:8000/tcp"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: always
     labels:
       - autoheal=true
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "ping", "-c", "1", "1.1.1.1"]
-      interval: 30s
+      test: ["CMD", "ping", "-c", "1", "-W", "3", "1.1.1.1"]
+      interval: 60s
       timeout: 10s
-      retries: 3
-      start_period: 90s
+      retries: 5
+      start_period: 120s
 
   backend:
     network_mode: "service:gluetun"
@@ -53,9 +57,13 @@ services:
     restart: always
     environment:
       - AUTOHEAL_CONTAINER_LABEL=all
-      - AUTOHEAL_INTERVAL=30
-      - AUTOHEAL_START_PERIOD=120
+      - AUTOHEAL_INTERVAL=60
+      - AUTOHEAL_START_PERIOD=180
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - app-network
+
+networks:
+  app-network:
+    driver: bridge

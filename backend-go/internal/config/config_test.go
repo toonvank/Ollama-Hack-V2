@@ -343,6 +343,34 @@ func TestLoadAccessTokenExpireMinutes(t *testing.T) {
 	}
 }
 
+func TestBackgroundEndpointOutboundEnabled(t *testing.T) {
+	orig := os.Getenv("BACKGROUND_ENDPOINT_OUTBOUND")
+	defer func() {
+		if orig == "" {
+			os.Unsetenv("BACKGROUND_ENDPOINT_OUTBOUND")
+		} else {
+			os.Setenv("BACKGROUND_ENDPOINT_OUTBOUND", orig)
+		}
+	}()
+
+	os.Unsetenv("BACKGROUND_ENDPOINT_OUTBOUND")
+	if !BackgroundEndpointOutboundEnabled() {
+		t.Fatal("expected default enabled")
+	}
+
+	for _, off := range []string{"false", "0", "off", "no"} {
+		os.Setenv("BACKGROUND_ENDPOINT_OUTBOUND", off)
+		if BackgroundEndpointOutboundEnabled() {
+			t.Fatalf("expected disabled for %q", off)
+		}
+	}
+
+	os.Setenv("BACKGROUND_ENDPOINT_OUTBOUND", "true")
+	if !BackgroundEndpointOutboundEnabled() {
+		t.Fatal("expected enabled for true")
+	}
+}
+
 func TestLoadSecretKey(t *testing.T) {
 	os.Setenv("APP_SECRET_KEY", "custom-secret-key")
 	defer os.Unsetenv("APP_SECRET_KEY")

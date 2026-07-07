@@ -31,3 +31,7 @@
 data/*
 docker-compose.yml
 .env.vpn
+scripts/monitor.env
+scripts/weekly_summary_v2.py
+backend-go/server
+discovery-service/coverage.out

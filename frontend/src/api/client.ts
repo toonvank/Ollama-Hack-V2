@@ -85,15 +85,17 @@ export class ApiClient {
           }
         }
 
-        // Handle 401 error (unauthorized)
+        // Handle auth errors — ignore 401 on login/init (wrong password)
+        const status = error.response?.status;
+        const path = window.location.pathname;
+        const isAuthRoute = path === "/init" || path === "/login";
+
         if (
-          error.response?.status === 401 &&
+          (status === 401 || status === 403) &&
           !originalRequest._retry &&
-          window.location.pathname !== "/init" &&
-          window.location.pathname !== "/login"
+          !isAuthRoute &&
+          originalRequest.url?.includes("/api/v2/user/me")
         ) {
-          // If token refresh is needed, add logic here
-          // Current simple implementation: clear token on 401 and redirect to login
           localStorage.removeItem("auth_token");
           window.location.href = "/login";
 

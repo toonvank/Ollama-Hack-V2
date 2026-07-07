@@ -2,6 +2,7 @@ package config
 
 import (
 	"log"
+	"os"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -66,4 +67,21 @@ func Load() (*Config, error) {
 	}
 
 	return &config, nil
+}
+
+// BackgroundEndpointOutboundEnabled reports whether background jobs may reach out to
+// third-party Ollama endpoints (cyclical testing, discovery scans, Shodan, health probes).
+// Default true for backwards compatibility; set BACKGROUND_ENDPOINT_OUTBOUND=false on prod
+// when you mainly use cloud and want to avoid broadcasting your egress IP during probes.
+func BackgroundEndpointOutboundEnabled() bool {
+	val := strings.TrimSpace(os.Getenv("BACKGROUND_ENDPOINT_OUTBOUND"))
+	if val == "" {
+		return true
+	}
+	switch strings.ToLower(val) {
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return true
+	}
 }

@@ -360,7 +360,6 @@ func (h *OllamaHandler) Models(c *gin.Context) {
 	timestamp := time.Now().Unix()
 
 	// Inject pseudo-models FIRST so they appear at the top
-	pseudoModels := []string{"smart:fastest", "smart:large", "smart:small", "smart:coding", "smart:cloud"}
 	data := make([]gin.H, 0, len(rows)+len(pseudoModels))
 	for _, pm := range pseudoModels {
 		data = append(data, gin.H{
@@ -406,22 +405,22 @@ func (h *OllamaHandler) Tags(c *gin.Context) {
 	}
 
 	now := time.Now().Format(time.RFC3339)
-	models := make([]gin.H, 0, len(rows)+4)
+	models := make([]gin.H, 0, len(rows)+len(pseudoModels))
+
+	// Inject pseudo-models first (OpenWebUI-friendly names at the top)
+	for _, pm := range pseudoModels {
+		models = append(models, gin.H{
+			"name":        pm,
+			"model":       pm,
+			"modified_at": now,
+		})
+	}
+
 	for _, r := range rows {
 		modelName := fmt.Sprintf("%s:%s", r.Name, r.Tag)
 		models = append(models, gin.H{
 			"name":        modelName,
 			"model":       modelName,
-			"modified_at": now,
-		})
-	}
-
-	// Inject pseudo-models
-	pseudoModels := []string{"smart:fastest", "smart:large", "smart:small", "smart:coding", "smart:cloud"}
-	for _, pm := range pseudoModels {
-		models = append(models, gin.H{
-			"name":        pm,
-			"model":       pm,
 			"modified_at": now,
 		})
 	}
@@ -551,8 +550,12 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 	// For smart models, we keep the full candidate list for cascade fallback
 	var smartCandidates []smartModelCandidate
 
-	if name == "smart" {
-		smartCandidates, err = h.resolveSmartModel(tag)
+	if name == "smart" || name == "best-abliterated" {
+		profile := tag
+		if name == "best-abliterated" {
+			profile = "abliterated"
+		}
+		smartCandidates, err = h.resolveSmartModel(profile)
 		if err == nil && len(smartCandidates) > 0 {
 			healthTracker := services.GetHealthTracker()
 			var best smartModelCandidate
@@ -930,7 +933,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 					}
 					// Cascade winner found!
 					log.Printf("[smart-cascade] 🏁 Cascade winner: %s via %s", fallbackModel, cascadeURL)
-					c.Header("X-Smart-Cascade", fmt.Sprintf("%s→%s", modelRaw, fallbackModel))
+					c.Header("X-Smart-Cascade", fmt.Sprintf("%s->%s", modelRaw, fallbackModel))
 					// Rewrite body for model masking (show original requested model to client)
 					winningResp = cresp
 					modelRaw = fallbackModel
@@ -947,7 +950,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 				c.Request.Context(), method, path, bodyMap, healthTracker, triedCloudModels)
 			if fbResp != nil {
 				winningResp = fbResp
-				c.Header("X-Cloud-Provider-Fallback", fmt.Sprintf("%s→%s", originalModelRequested, fbModel))
+				c.Header("X-Cloud-Provider-Fallback", fmt.Sprintf("%s->%s", originalModelRequested, fbModel))
 				modelRaw = fbModel
 			} else if fbFailStatus > 0 {
 				lastFailStatus = fbFailStatus
@@ -964,7 +967,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 					c.Request.Context(), method, path, fallbackRoute, bodyMap, healthTracker)
 				if fbResp != nil {
 					winningResp = fbResp
-					c.Header("X-Model-Fallback", fmt.Sprintf("%s→%s", originalModelRequested, fbModel))
+					c.Header("X-Model-Fallback", fmt.Sprintf("%s->%s", originalModelRequested, fbModel))
 					modelRaw = fbModel
 				} else if fbFailStatus > 0 {
 					lastFailStatus = fbFailStatus
