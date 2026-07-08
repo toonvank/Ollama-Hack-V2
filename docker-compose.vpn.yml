@@ -21,6 +21,7 @@ services:
       - WIREGUARD_ENDPOINT_IP=${WIREGUARD_ENDPOINT_IP}
       - WIREGUARD_ENDPOINT_PORT=${WIREGUARD_ENDPOINT_PORT}
       - FIREWALL_OUTBOUND_SUBNETS=192.168.0.0/16,172.16.0.0/12,10.0.0.0/8
+      - FIREWALL_INPUT_PORTS=8888
       - HTTP_CONTROL_SERVER_ADDRESS=:9998
       - HEALTH_TARGET_ADDRESSES=1.1.1.1:443,8.8.8.8:443
       - HEALTH_ICMP_TARGET_IPS=1.1.1.1,8.8.8.8
@@ -46,8 +47,6 @@ services:
     network_mode: !reset null
     networks:
       - app-network
-    environment:
-      - VPN_HTTP_PROXY=http://ollama-hack-gluetun:8888
     restart: always
     depends_on:
       gluetun:
