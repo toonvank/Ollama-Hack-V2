@@ -24,8 +24,8 @@ services:
 
   backend:
     environment:
-      # Backend reaches racer via Gluetun container on app-network (racer shares its netns).
-      - RACER_URL=http://ollama-hack-gluetun:8787
+      # Gluetun firewall blocks app-network → container ports; use host-published :8787.
+      - RACER_URL=http://host.docker.internal:8787
       - RACER_RELAY_ENABLED=false
       - RACER_RACE_ENABLED=true
       - BACKGROUND_ENDPOINT_OUTBOUND=rust
