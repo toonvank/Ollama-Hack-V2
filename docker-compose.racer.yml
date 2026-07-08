@@ -24,8 +24,8 @@ services:
 
   backend:
     environment:
-      - RACER_URL=http://127.0.0.1:8787
+      # Backend reaches racer via Gluetun container on app-network (racer shares its netns).
+      - RACER_URL=http://ollama-hack-gluetun:8787
       - RACER_RELAY_ENABLED=false
-      - RACER_RACE_ENABLED=false
-      # Phase 3: route background probes/tester via racer (VPN netns). Off by default.
-      # - BACKGROUND_ENDPOINT_OUTBOUND=rust
+      - RACER_RACE_ENABLED=true
+      - BACKGROUND_ENDPOINT_OUTBOUND=rust
