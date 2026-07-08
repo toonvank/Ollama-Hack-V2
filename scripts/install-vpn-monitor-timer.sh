@@ -13,7 +13,7 @@ if [[ ! -f "$ROOT/scripts/monitor.env" ]]; then
   exit 1
 fi
 
-chmod +x "$ROOT/scripts/vpn-monitor-once.sh" "$ROOT/scripts/vpn-hourly-monitor.sh"
+chmod +x "$ROOT/scripts/vpn-monitor-once.sh" "$ROOT/scripts/vpn-hourly-monitor.sh" "$ROOT/scripts/monitor-common.sh"
 
 mkdir -p "$UNIT_DIR"
 
@@ -26,7 +26,9 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 WorkingDirectory=$ROOT
-ExecStart=$ROOT/scripts/vpn-monitor-once.sh
+TimeoutStartSec=90
+TimeoutStopSec=15
+ExecStart=/usr/bin/timeout 90 $ROOT/scripts/vpn-monitor-once.sh
 EOF
 
 cat >"$UNIT_DIR/${SERVICE_NAME}.timer" <<EOF
