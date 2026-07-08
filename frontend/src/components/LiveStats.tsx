@@ -1,48 +1,15 @@
-import { useEffect, useState } from "react";
 import ReactApexChart from "react-apexcharts";
-import { Card, CardHeader } from "@heroui/card";
 
-export const LiveStats = () => {
-  const [stats, setStats] = useState({
-    total_requests: 0,
-    active_requests: 0,
-    cache_hits: 0,
-    failed_requests: 0,
-    tester_speed: 0,
-    tester_pending: 0,
-  });
+import SectionCard from "@/components/SectionCard";
+import { LiveStatsData } from "@/hooks/useLiveStats";
 
-  const [history, setHistory] = useState<{ x: number; y: number }[]>([]);
+interface LiveStatsProps {
+  stats: LiveStatsData;
+  history: { x: number; y: number }[];
+  connected: boolean;
+}
 
-  useEffect(() => {
-    // Use same base as API client for consistency. Prefer relative path ("/api/...") when
-    // VITE_API_BASE_URL is "/" or empty so it works through nginx proxy in deployments.
-    const apiBase = import.meta.env.VITE_API_BASE_URL || "";
-    const normalizedBase =
-      apiBase && apiBase !== "/" && !apiBase.startsWith("/")
-        ? apiBase.replace(/\/$/, "")
-        : "";
-    const sseUrl = `${normalizedBase}/api/v2/stats/live`;
-    const evtSource = new EventSource(sseUrl);
-
-    evtSource.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      setStats(data);
-
-      setHistory((prev) => {
-        const newHistory = [...prev, { x: new Date().getTime(), y: data.active_requests }];
-        return newHistory.slice(-20); // Keep last 20 seconds
-      });
-    };
-
-    evtSource.onerror = () => {
-      // Silently ignore; stats just won't update. Avoids console spam in some envs.
-    };
-
-    return () => {
-      evtSource.close();
-    };
-  }, []);
+export const LiveStats = ({ stats, history, connected }: LiveStatsProps) => {
 
   const chartOptions = {
     chart: {
@@ -73,54 +40,78 @@ export const LiveStats = () => {
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-      <Card className="col-span-1 p-6 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col justify-between">
-        <div>
-          <h4 className="text-gray-500 text-sm font-semibold uppercase">Total Requests (Proxy)</h4>
-          <p className="text-3xl font-bold text-primary">{stats.total_requests}</p>
-        </div>
-        <div className="mt-4">
-          <h4 className="text-gray-500 text-sm font-semibold uppercase flex justify-between">
-            Cache Hits <span className="text-success">{stats.total_requests > 0 ? Math.round((stats.cache_hits / stats.total_requests) * 100) : 0}%</span>
-          </h4>
-          <p className="text-3xl font-bold text-success">{stats.cache_hits}</p>
-        </div>
-        <div className="mt-4 border-t border-gray-100 dark:border-gray-800 pt-4">
-          <h4 className="text-gray-500 text-sm font-semibold uppercase">Tester Polling Queue</h4>
-          <div className="flex justify-between items-end">
-            <div>
-               <p className="text-2xl font-bold text-warning">{stats.tester_pending}</p>
-               <span className="text-xs text-gray-500 uppercase">Pending</span>
-            </div>
-            <div className="text-right">
-               <p className="text-2xl font-bold text-primary">{stats.tester_speed}</p>
-               <span className="text-xs text-gray-500 uppercase">Tests / Min</span>
+    <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+      <SectionCard
+        bodyClassName="pt-2"
+        className="lg:col-span-1"
+        title="Live Proxy"
+        live={connected}
+      >
+        <div className="space-y-4">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-default-500 font-semibold">
+              Total Requests
+            </p>
+            <p className="text-3xl font-bold text-primary">
+              {stats.total_requests}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-wide text-default-500 font-semibold flex justify-between">
+              Cache Hits
+              <span className="text-success">
+                {stats.total_requests > 0
+                  ? Math.round((stats.cache_hits / stats.total_requests) * 100)
+                  : 0}
+                %
+              </span>
+            </p>
+            <p className="text-2xl font-bold text-success">{stats.cache_hits}</p>
+          </div>
+          <div className="border-t border-default-200 pt-4">
+            <p className="text-xs uppercase tracking-wide text-default-500 font-semibold mb-2">
+              Tester Queue
+            </p>
+            <div className="flex justify-between items-end">
+              <div>
+                <p className="text-2xl font-bold text-warning">
+                  {stats.tester_pending}
+                </p>
+                <span className="text-xs text-default-500 uppercase">
+                  Pending
+                </span>
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-bold text-primary">
+                  {stats.tester_speed}
+                </p>
+                <span className="text-xs text-default-500 uppercase">
+                  Tests / Min
+                </span>
+              </div>
             </div>
           </div>
         </div>
-      </Card>
-      
-      <Card className="col-span-3 p-4 shadow-sm border border-gray-100 dark:border-gray-800">
-        <CardHeader className="p-0 pb-2">
-          <h3 className="font-semibold flex items-center text-lg">
-            <span className="relative flex h-3 w-3 mr-3 mt-1">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-success"></span>
-            </span>
-            Live Proxy Traffic 
-          </h3>
-        </CardHeader>
-        <div className="h-64 mt-2">
+      </SectionCard>
+
+      <SectionCard
+        bodyClassName="pt-2"
+        className="lg:col-span-3"
+        live={connected}
+        subtitle="Active prompts over the last 20 seconds"
+        title="Live Proxy Traffic"
+      >
+        <div className="h-64">
           {typeof window !== "undefined" && (
             <ReactApexChart
+              height="100%"
               options={chartOptions}
               series={[{ name: "Active Prompts", data: history }]}
               type="area"
-              height="100%"
             />
           )}
         </div>
-      </Card>
+      </SectionCard>
     </div>
   );
 };

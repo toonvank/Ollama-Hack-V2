@@ -1,8 +1,7 @@
-import { Card, CardHeader } from "@heroui/card";
-import { Progress } from "@heroui/progress";
+import { Card } from "@heroui/card";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { useCustomQuery } from "@/hooks";
+import { useCustomQuery, useLiveStats } from "@/hooks";
 import { endpointApi, aiModelApi, planApi } from "@/api";
 import {
   PageResponse,
@@ -15,11 +14,13 @@ import DashboardLayout from "@/layouts/Main";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorDisplay from "@/components/ErrorDisplay";
 import { LiveStats } from "@/components/LiveStats";
+import OverviewKpis from "@/components/dashboard/OverviewKpis";
+import ModelRankingsCharts from "@/components/dashboard/ModelRankingsCharts";
 
 const DashboardPage = () => {
   const { user } = useAuth();
+  const { stats: liveStats, history, connected } = useLiveStats();
 
-  // Fetch user current plan
   const {
     data: userPlan,
     isLoading: isLoadingPlan,
@@ -29,21 +30,6 @@ const DashboardPage = () => {
     () => planApi.getCurrentUserPlan(),
     { enabled: !!user },
   );
-
-  // AdminStatistics
-  // const {
-  //   data: users,
-  //   isLoading: isLoadingUsers,
-  //   error: usersError,
-  // } = useCustomQuery<PageResponse<UserInfo>>(
-  //   ["users", "stats"],
-  //   () =>
-  //     authApi.getUsers({
-  //       page: 1,
-  //       size: 1,
-  //     }),
-  //   { enabled: !!isAdmin },
-  // );
 
   const {
     data: endpoints,
@@ -103,26 +89,40 @@ const DashboardPage = () => {
     { enabled: true },
   );
 
+  const {
+    data: topModels,
+    isLoading: isLoadingTopModel,
+    error: topModelError,
+  } = useCustomQuery<PageResponse<AIModelInfoWithEndpointCount>>(
+    ["models", "stats", "top"],
+    () =>
+      aiModelApi.getAIModels({
+        page: 1,
+        size: 1,
+        order_by: "composite_score",
+        order: "desc",
+      }),
+    { enabled: true },
+  );
+
   const isLoading =
     isLoadingPlan ||
-    // (isAdmin && isLoadingUsers) ||
     isLoadingEndpoints ||
     isLoadingModels ||
     isLoadingAvailableEndpoints ||
-    isLoadingAvailableModels;
+    isLoadingAvailableModels ||
+    isLoadingTopModel;
   const error =
     planError ||
-    // (isAdmin && usersError) ||
     endpointsError ||
     modelsError ||
     availableEndpointsError ||
-    availableModelsError;
+    availableModelsError ||
+    topModelError;
 
-  // Createfor ErrorDisplay of Error object
   const getErrorForDisplay = () => {
     if (!error) return null;
 
-    // Convert ApiError to Error object
     return new Error((error as ApiError)?.message || "An error occurred");
   };
 
@@ -136,137 +136,58 @@ const DashboardPage = () => {
     );
   }
 
+  const topModel = topModels?.items?.[0];
+
   return (
     <DashboardLayout current_root_href="/">
       {error && <ErrorDisplay error={getErrorForDisplay()} />}
 
-      {/* Welcome card */}
-      <Card className="mb-6 p-6">
-        <h2 className="text-xl font-semibold mb-2">
-          👋 Hello, {user?.username}
-        </h2>
-        <p className="text-gray-600 dark:text-gray-400">
-          Welcome to the Ollama Hack platform. Manage your Ollama endpoints and AI models here.
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold">Overview</h1>
+        <p className="text-default-500 mt-1">
+          Fleet health, model performance, and live proxy activity
         </p>
-      </Card>
-
-      {/* Live Polling & Proxy Stats */}
-      <LiveStats />
-
-      {/* Statistics cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        <Card className="p-6">
-          <CardHeader className="p-0">
-            <h3 className="text-primary-400 text-lg font-bold">Endpoints</h3>
-          </CardHeader>
-          <p className="text-3xl font-bold">{endpoints?.total || 0}</p>
-          <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-2">
-            Total endpoints added
-          </p>
-          <div className="flex flex-col gap-2 justify-center">
-            <Progress
-              color="primary"
-              formatOptions={{ style: "percent", maximumFractionDigits: 0 }}
-              maxValue={endpoints?.total || 0}
-              value={availableEndpoints?.total || 0}
-            />
-            <div className="flex flex-row gap-2 justify-between">
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                Available Endpoints
-              </span>
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                {availableEndpoints?.total || 0} / {endpoints?.total || 0}
-              </span>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-6">
-          <CardHeader className="p-0">
-            <h3 className="text-success-400 text-lg font-bold">AI Models</h3>
-          </CardHeader>
-          <p className="text-3xl font-bold">{models?.total || 0}</p>
-          <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-2">
-            Total AI models discovered
-          </p>
-          <div className="flex flex-col gap-2 justify-center">
-            <Progress
-              color="success"
-              formatOptions={{ style: "percent", maximumFractionDigits: 0 }}
-              maxValue={models?.total || 0}
-              value={availableModels?.total || 0}
-            />
-            <div className="flex flex-row gap-2 justify-between">
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                Available AI Models
-              </span>
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                {availableModels?.total || 0} / {models?.total || 0}
-              </span>
-            </div>
-          </div>
-        </Card>
-        {/* {isAdmin && (
-          <Card className="p-6">
-            <CardHeader className="p-0">
-              <h3 className="text-primary-300 text-lg font-bold">User</h3>
-            </CardHeader>
-            <p className="text-3xl font-bold">{users?.total || 0}</p>
-            <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mb-2">
-              Total registered users
-            </p>
-            <div className="flex flex-col gap-2 justify-center">
-              <Progress
-                color="primary"
-                formatOptions={{ style: "percent", maximumFractionDigits: 0 }}
-                maxValue={users?.total || 0}
-                value={users?.total || 0}
-              />
-              <div className="flex flex-row gap-2 justify-between">
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  Registered users
-                </span>
-                <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  {users?.total || 0} / {users?.total || 0}
-                </span>
-              </div>
-            </div>
-          </Card>
-        )} */}
       </div>
 
-      {/* Current Plan */}
+      <OverviewKpis
+        endpointsAvailable={availableEndpoints?.total || 0}
+        endpointsTotal={endpoints?.total || 0}
+        liveStats={liveStats}
+        modelsAvailable={availableModels?.total || 0}
+        modelsTotal={models?.total || 0}
+        topModel={topModel}
+      />
+
+      <ModelRankingsCharts />
+
+      <LiveStats connected={connected} history={history} stats={liveStats} />
+
       {userPlan && (
-        <Card className="mb-6 p-6">
+        <Card className="p-6 shadow-sm border border-default-200">
           <h3 className="font-semibold text-lg mb-4">Current Plan</h3>
-          <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">
-                Plan Name:
-              </span>
-              <span className="font-medium">{userPlan.name}</span>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-default-500 font-semibold">
+                Plan
+              </p>
+              <p className="font-medium mt-1">{userPlan.name}</p>
             </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">
-                Requests Per Minute Limit:
-              </span>
-              <span className="font-medium">{userPlan.rpm}</span>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-default-500 font-semibold">
+                Requests / Minute
+              </p>
+              <p className="font-medium mt-1">{userPlan.rpm}</p>
             </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">
-                Requests Per Day Limit:
-              </span>
-              <span className="font-medium">{userPlan.rpd}</span>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-default-500 font-semibold">
+                Requests / Day
+              </p>
+              <p className="font-medium mt-1">{userPlan.rpd}</p>
             </div>
-            {userPlan.description && (
-              <div className="pt-2">
-                <span className="text-gray-600 dark:text-gray-400">
-                  Plan Description:
-                </span>
-                <p className="mt-1">{userPlan.description}</p>
-              </div>
-            )}
           </div>
+          {userPlan.description && (
+            <p className="text-default-500 text-sm mt-4">{userPlan.description}</p>
+          )}
         </Card>
       )}
     </DashboardLayout>
