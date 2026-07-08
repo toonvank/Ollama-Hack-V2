@@ -11,7 +11,6 @@ import {
   ApiError,
 } from "@/types";
 import DashboardLayout from "@/layouts/Main";
-import LoadingSpinner from "@/components/LoadingSpinner";
 import ErrorDisplay from "@/components/ErrorDisplay";
 import { LiveStats } from "@/components/LiveStats";
 import OverviewKpis from "@/components/dashboard/OverviewKpis";
@@ -105,8 +104,7 @@ const DashboardPage = () => {
     { enabled: true },
   );
 
-  const isLoading =
-    isLoadingPlan ||
+  const isLoadingStats =
     isLoadingEndpoints ||
     isLoadingModels ||
     isLoadingAvailableEndpoints ||
@@ -126,16 +124,6 @@ const DashboardPage = () => {
     return new Error((error as ApiError)?.message || "An error occurred");
   };
 
-  if (isLoading) {
-    return (
-      <DashboardLayout current_root_href="/">
-        <div className="flex justify-center items-center h-64">
-          <LoadingSpinner size="large" />
-        </div>
-      </DashboardLayout>
-    );
-  }
-
   const topModel = topModels?.items?.[0];
 
   return (
@@ -153,6 +141,7 @@ const DashboardPage = () => {
         endpointsAvailable={availableEndpoints?.total || 0}
         endpointsTotal={endpoints?.total || 0}
         liveStats={liveStats}
+        loading={isLoadingStats}
         modelsAvailable={availableModels?.total || 0}
         modelsTotal={models?.total || 0}
         topModel={topModel}
@@ -162,7 +151,7 @@ const DashboardPage = () => {
 
       <LiveStats connected={connected} history={history} stats={liveStats} />
 
-      {userPlan && (
+      {!isLoadingPlan && userPlan && (
         <Card className="p-6 shadow-sm border border-default-200">
           <h3 className="font-semibold text-lg mb-4">Current Plan</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

@@ -10,6 +10,7 @@ interface OverviewKpisProps {
   modelsAvailable: number;
   topModel?: AIModelInfoWithEndpointCount;
   liveStats: LiveStatsData;
+  loading?: boolean;
 }
 
 interface KpiCardProps {
@@ -26,12 +27,20 @@ const accentClasses = {
   secondary: "text-secondary",
 };
 
-const KpiCard = ({ label, value, context, accent = "primary" }: KpiCardProps) => (
+const KpiCard = ({
+  label,
+  value,
+  context,
+  accent = "primary",
+  loading = false,
+}: KpiCardProps & { loading?: boolean }) => (
   <Card className="p-4 shadow-sm border border-default-200">
     <p className="text-xs uppercase tracking-wide text-default-500 font-semibold">
       {label}
     </p>
-    <p className={`text-3xl font-bold mt-2 ${accentClasses[accent]}`}>{value}</p>
+    <p className={`text-3xl font-bold mt-2 ${loading ? "text-default-300 animate-pulse" : accentClasses[accent]}`}>
+      {loading ? "…" : value}
+    </p>
     <p className="text-sm text-default-400 mt-1 truncate" title={context}>
       {context}
     </p>
@@ -55,6 +64,7 @@ const OverviewKpis = ({
   modelsAvailable,
   topModel,
   liveStats,
+  loading = false,
 }: OverviewKpisProps) => {
   const successfulRequests = Math.max(
     liveStats.total_requests - liveStats.failed_requests,
@@ -73,14 +83,24 @@ const OverviewKpis = ({
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
       <KpiCard
         accent="primary"
-        context={`${endpointsAvailable} of ${endpointsTotal} available (${formatPercent(endpointsAvailable, endpointsTotal)}%)`}
+        context={
+          loading
+            ? "Loading endpoint stats…"
+            : `${endpointsAvailable} of ${endpointsTotal} available (${formatPercent(endpointsAvailable, endpointsTotal)}%)`
+        }
         label="Endpoints"
+        loading={loading}
         value={`${endpointsAvailable}/${endpointsTotal}`}
       />
       <KpiCard
         accent="success"
-        context={`${modelsAvailable} of ${modelsTotal} available (${formatPercent(modelsAvailable, modelsTotal)}%)`}
+        context={
+          loading
+            ? "Loading model stats…"
+            : `${modelsAvailable} of ${modelsTotal} available (${formatPercent(modelsAvailable, modelsTotal)}%)`
+        }
         label="AI Models"
+        loading={loading}
         value={`${modelsAvailable}/${modelsTotal}`}
       />
       <KpiCard
@@ -103,6 +123,7 @@ const OverviewKpis = ({
             : "No scored models yet"
         }
         label="Top Model"
+        loading={loading}
         value={formatModelName(topModel)}
       />
       <KpiCard
