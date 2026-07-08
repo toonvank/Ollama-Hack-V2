@@ -39,21 +39,24 @@ check_once() {
     fail=""
     gh=$(docker inspect ollama-hack-gluetun --format "{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}" 2>/dev/null || echo missing)
     bs=$(docker inspect ollama-hack-v2-backend-1 --format "{{.State.Status}}" 2>/dev/null || echo missing)
-    h8000=$(curl -sf --max-time 8 http://127.0.0.1:8000/api/v2/health 2>/dev/null || echo FAIL)
+    health=$(curl -sf --max-time 8 http://127.0.0.1:8000/api/v2/health 2>/dev/null || echo FAIL)
     h3000=$(curl -sf --max-time 8 http://192.168.0.74:3000/api/v2/health 2>/dev/null || echo FAIL)
+    vpn_mode=$(echo "$health" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('vpn',{}).get('mode',''))" 2>/dev/null || echo "")
+    vpn_err=$(echo "$health" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('vpn',{}).get('last_error','')[:80])" 2>/dev/null || echo "")
     vpn=$(docker exec ollama-hack-gluetun wget -qO- --timeout=10 http://api.ipify.org 2>/dev/null || echo FAIL)
     crit=$(docker logs ollama-hack-v2-backend-1 2>&1 | tail -80 | grep -iE "panic|fatal|failed to connect to postgres" | tail -1 || true)
     [[ "$gh" != "healthy" ]] && fail+=" gluetun=$gh"
     [[ "$bs" != "running" ]] && fail+=" backend=$bs"
-    [[ "$h8000" == *FAIL* ]] && fail+=" api8000=down"
+    [[ "$health" == *FAIL* ]] && fail+=" api8000=down"
     [[ "$h3000" == *FAIL* ]] && fail+=" api3000=down"
+    [[ "$vpn_mode" == "direct_fallback" ]] && fail+=" vpn=direct_fallback($vpn_err)"
     [[ "${VPN_HOME_IP:-}" != "" && "$vpn" == "$VPN_HOME_IP" ]] && fail+=" vpn=home_ip_leak"
     [[ "$vpn" == "FAIL" || -z "$vpn" ]] && fail+=" vpn=egress_fail"
     [[ -n "$crit" ]] && fail+=" log=$(echo "$crit" | head -c 120)"
     if [[ -n "$fail" ]]; then
       echo "ALERT|$fail|vpn_ip=$vpn|gluetun=$gh|backend=$bs"
     else
-      echo "OK|vpn_ip=$vpn|gluetun=$gh|backend=$bs|api=healthy"
+      echo "OK|vpn_ip=$vpn|vpn_mode=$vpn_mode|gluetun=$gh|backend=$bs|api=healthy"
     fi
   '
 }

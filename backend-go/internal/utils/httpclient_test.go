@@ -131,6 +131,9 @@ func TestNewVPNHTTPClient_UsesVPNProxy(t *testing.T) {
 	os.Setenv("VPN_HTTP_PROXY", "http://gluetun:8888")
 	defer os.Unsetenv("VPN_HTTP_PROXY")
 
+	globalVPNHealth.proxyURL = "http://gluetun:8888"
+	globalVPNHealth.healthy.Store(true)
+
 	transport := NewVPNHTTPClient(5 * time.Second).Transport.(*http.Transport)
 	parsed, err := transport.Proxy(&http.Request{})
 	if err != nil {

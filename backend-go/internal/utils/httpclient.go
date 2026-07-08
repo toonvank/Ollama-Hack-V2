@@ -104,15 +104,7 @@ func vpnProxyURL() string {
 }
 
 func vpnProxy(req *http.Request) (*url.URL, error) {
-	proxyURL := vpnProxyURL()
-	if proxyURL == "" {
-		return nil, nil
-	}
-	parsed, err := url.Parse(proxyURL)
-	if err != nil {
-		return nil, err
-	}
-	return parsed, nil
+	return vpnProxyOrDirect(req)
 }
 
 func newHTTPTransport(dialTimeout time.Duration, proxy func(*http.Request) (*url.URL, error)) *http.Transport {
@@ -170,7 +162,7 @@ func NewHTTPClient(timeout time.Duration) *http.Client {
 
 // NewVPNHTTPClient routes outbound traffic through VPN_HTTP_PROXY (Gluetun HTTP proxy).
 func NewVPNHTTPClient(timeout time.Duration) *http.Client {
-	return newHTTPClient(timeout, 30*time.Second, vpnProxy)
+	return newHTTPClient(timeout, 30*time.Second, vpnProxyOrDirect)
 }
 
 var (
@@ -183,7 +175,7 @@ var (
 // SharedProxyClient returns a process-wide VPN-masked client for user proxy requests.
 func SharedProxyClient() *http.Client {
 	sharedProxyClientOnce.Do(func() {
-		sharedProxyClient = newHTTPClient(120*time.Second, 30*time.Second, vpnProxy)
+		sharedProxyClient = newHTTPClient(120*time.Second, 30*time.Second, vpnProxyOrDirect)
 	})
 	return sharedProxyClient
 }
@@ -197,7 +189,7 @@ func SharedRaceClient() *http.Client {
 				dialTimeout = d
 			}
 		}
-		sharedRaceClient = newHTTPClient(120*time.Second, dialTimeout, vpnProxy)
+		sharedRaceClient = newHTTPClient(120*time.Second, dialTimeout, vpnProxyOrDirect)
 	})
 	return sharedRaceClient
 }

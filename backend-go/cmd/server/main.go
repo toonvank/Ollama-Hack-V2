@@ -9,6 +9,7 @@ import (
 	"github.com/timlzh/ollama-hack/internal/handlers"
 	"github.com/timlzh/ollama-hack/internal/middleware"
 	"github.com/timlzh/ollama-hack/internal/services"
+	"github.com/timlzh/ollama-hack/internal/utils"
 )
 
 func main() {
@@ -52,6 +53,9 @@ func main() {
 	cleanupSvc.Start()
 	defer cleanupSvc.Stop()
 
+	// VPN proxy health probes (fail-open to direct if Gluetun breaks)
+	utils.StartVPNHealthProbes()
+
 	// Initialize services
 	services.InitHealthTracker(db)
 	authService := services.NewAuthService(db, cfg)
@@ -89,7 +93,8 @@ func main() {
 		public.POST("/user/login", authHandler.Login)
 		public.POST("/user/init", authHandler.InitializeAdmin)
 		public.GET("/health", func(c *gin.Context) {
-			c.JSON(200, gin.H{"status": "healthy"})
+			vpn := utils.GetVPNStatus()
+			c.JSON(200, gin.H{"status": "healthy", "vpn": vpn})
 		})
 
 		// Unprotected live stats endpoint for frontend dashboard EventSource
