@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -91,7 +92,30 @@ func JoinEndpointURL(base, path string) string {
 	return base + path
 }
 
-func newHTTPTransport(dialTimeout time.Duration) *http.Transport {
+func noProxy(*http.Request) (*url.URL, error) {
+	return nil, nil
+}
+
+func vpnProxyURL() string {
+	if val := strings.TrimSpace(os.Getenv("VPN_HTTP_PROXY")); val != "" {
+		return val
+	}
+	return strings.TrimSpace(os.Getenv("HTTP_PROXY"))
+}
+
+func vpnProxy(req *http.Request) (*url.URL, error) {
+	proxyURL := vpnProxyURL()
+	if proxyURL == "" {
+		return nil, nil
+	}
+	parsed, err := url.Parse(proxyURL)
+	if err != nil {
+		return nil, err
+	}
+	return parsed, nil
+}
+
+func newHTTPTransport(dialTimeout time.Duration, proxy func(*http.Request) (*url.URL, error)) *http.Transport {
 	allowLocal := os.Getenv("ALLOW_LOCAL_ENDPOINTS") == "true"
 
 	dialer := &net.Dialer{
@@ -100,7 +124,7 @@ func newHTTPTransport(dialTimeout time.Duration) *http.Transport {
 	}
 
 	return &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
+		Proxy: proxy,
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			host, port, err := net.SplitHostPort(addr)
 			if err != nil {
@@ -131,17 +155,22 @@ func newHTTPTransport(dialTimeout time.Duration) *http.Transport {
 	}
 }
 
-func newHTTPClient(requestTimeout, dialTimeout time.Duration) *http.Client {
+func newHTTPClient(requestTimeout, dialTimeout time.Duration, proxy func(*http.Request) (*url.URL, error)) *http.Client {
 	return &http.Client{
-		Transport: newHTTPTransport(dialTimeout),
+		Transport: newHTTPTransport(dialTimeout, proxy),
 		Timeout:   requestTimeout,
 	}
 }
 
-// NewHTTPClient returns an http.Client that prevents SSRF by blocking connections to private IPs.
-// It also automatically respects HTTP_PROXY and HTTPS_PROXY environment variables out of the box.
+// NewHTTPClient returns a direct (non-VPN) client for background probing and discovery.
+// It does not use HTTP_PROXY/VPN_HTTP_PROXY so endpoint tests keep the host egress IP.
 func NewHTTPClient(timeout time.Duration) *http.Client {
-	return newHTTPClient(timeout, 30*time.Second)
+	return newHTTPClient(timeout, 30*time.Second, noProxy)
+}
+
+// NewVPNHTTPClient routes outbound traffic through VPN_HTTP_PROXY (Gluetun HTTP proxy).
+func NewVPNHTTPClient(timeout time.Duration) *http.Client {
+	return newHTTPClient(timeout, 30*time.Second, vpnProxy)
 }
 
 var (
@@ -151,15 +180,15 @@ var (
 	sharedRaceClientOnce  sync.Once
 )
 
-// SharedProxyClient returns a process-wide client for proxy requests with connection reuse.
+// SharedProxyClient returns a process-wide VPN-masked client for user proxy requests.
 func SharedProxyClient() *http.Client {
 	sharedProxyClientOnce.Do(func() {
-		sharedProxyClient = newHTTPClient(120*time.Second, 30*time.Second)
+		sharedProxyClient = newHTTPClient(120*time.Second, 30*time.Second, vpnProxy)
 	})
 	return sharedProxyClient
 }
 
-// SharedRaceClient returns a client tuned for endpoint racing: short dial timeout, shared pool.
+// SharedRaceClient returns a VPN-masked client tuned for endpoint racing.
 func SharedRaceClient() *http.Client {
 	sharedRaceClientOnce.Do(func() {
 		dialTimeout := 5 * time.Second
@@ -168,7 +197,7 @@ func SharedRaceClient() *http.Client {
 				dialTimeout = d
 			}
 		}
-		sharedRaceClient = newHTTPClient(120*time.Second, dialTimeout)
+		sharedRaceClient = newHTTPClient(120*time.Second, dialTimeout, vpnProxy)
 	})
 	return sharedRaceClient
 }

@@ -1,5 +1,6 @@
-# VPN overlay: backend shares Gluetun's network — all outbound (probes, HTTP, TCP) via WireGuard.
-# API published on gluetun :8000. Requires .env.vpn (bash scripts/setup-vpn-env-from-wg.sh)
+# VPN overlay: Gluetun HTTP proxy masks outbound proxy/race traffic only.
+# Background probing (tester, scraper, health checks) stays direct on app-network.
+# Requires .env.vpn (bash scripts/setup-vpn-env-from-wg.sh)
 #   bash scripts/compose-prod.sh up -d
 # Rollback:
 #   bash scripts/vpn-rollback.sh
@@ -24,8 +25,9 @@ services:
       - HEALTH_TARGET_ADDRESSES=1.1.1.1:443,8.8.8.8:443
       - HEALTH_ICMP_TARGET_IPS=1.1.1.1,8.8.8.8
       - HEALTH_VPN_DURATION_INITIAL=45s
-    ports:
-      - "8000:8000/tcp"
+      - DOT=off
+      - DNS_ADDRESS=1.1.1.1
+      - HTTPPROXY=on
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: always
@@ -41,15 +43,15 @@ services:
       start_period: 120s
 
   backend:
-    network_mode: "service:gluetun"
+    network_mode: !reset null
+    networks:
+      - app-network
+    environment:
+      - VPN_HTTP_PROXY=http://ollama-hack-gluetun:8888
     restart: always
     depends_on:
       gluetun:
         condition: service_healthy
-    ports: !reset []
-    expose: !reset []
-    networks: !reset []
-    extra_hosts: !reset []
 
   autoheal:
     image: willfarrell/autoheal:latest

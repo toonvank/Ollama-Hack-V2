@@ -1,5 +1,5 @@
 #!/bin/bash
-# Fast rollback: restore pre-VPN compose overlay and recreate backend on app-network.
+# Fast rollback: restore pre-VPN compose overlay and recreate backend without Gluetun proxy.
 # Run inside CT 112: bash scripts/vpn-rollback.sh
 set -euo pipefail
 
@@ -15,8 +15,8 @@ if [[ -f docker-compose.vpn.yml.rollback-snapshot ]]; then
   log "restoring docker-compose.vpn.yml from snapshot"
   cp docker-compose.vpn.yml.rollback-snapshot docker-compose.vpn.yml
 else
-  log "no snapshot found — stripping HTTP_PROXY from running backend"
-  docker update --env-rm HTTP_PROXY --env-rm HTTPS_PROXY --env-rm NO_PROXY "$BACKEND" 2>/dev/null || true
+  log "no snapshot found — stripping VPN proxy env from running backend"
+  docker update --env-rm VPN_HTTP_PROXY --env-rm HTTP_PROXY --env-rm HTTPS_PROXY --env-rm NO_PROXY "$BACKEND" 2>/dev/null || true
   log "recreating backend without proxy overlay env"
   "$COMPOSE" up -d --force-recreate backend
   exit 0

@@ -117,6 +117,30 @@ func TestSharedRaceClient_ReusesInstance(t *testing.T) {
 	}
 }
 
+func TestNewHTTPClient_DoesNotUseVPNProxy(t *testing.T) {
+	os.Setenv("VPN_HTTP_PROXY", "http://gluetun:8888")
+	defer os.Unsetenv("VPN_HTTP_PROXY")
+
+	transport := NewHTTPClient(5 * time.Second).Transport.(*http.Transport)
+	if parsed, _ := transport.Proxy(&http.Request{}); parsed != nil {
+		t.Fatal("expected direct client to bypass VPN_HTTP_PROXY")
+	}
+}
+
+func TestNewVPNHTTPClient_UsesVPNProxy(t *testing.T) {
+	os.Setenv("VPN_HTTP_PROXY", "http://gluetun:8888")
+	defer os.Unsetenv("VPN_HTTP_PROXY")
+
+	transport := NewVPNHTTPClient(5 * time.Second).Transport.(*http.Transport)
+	parsed, err := transport.Proxy(&http.Request{})
+	if err != nil {
+		t.Fatalf("proxy resolution failed: %v", err)
+	}
+	if parsed == nil || parsed.Host != "gluetun:8888" {
+		t.Fatalf("expected gluetun proxy, got %v", parsed)
+	}
+}
+
 func TestHTTPClient_AllowLocalEndpoints(t *testing.T) {
 	os.Setenv("ALLOW_LOCAL_ENDPOINTS", "true")
 	defer os.Unsetenv("ALLOW_LOCAL_ENDPOINTS")

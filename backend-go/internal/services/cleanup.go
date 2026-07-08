@@ -47,19 +47,19 @@ func (s *BackgroundCleanupService) Stop() {
 }
 
 func (s *BackgroundCleanupService) cleanupDeadNodes() {
-	log.Println("[cleanup] checking for dead nodes > 3 days")
+	log.Println("[cleanup] checking for nodes unavailable > 3 days")
 
+	// Only purge endpoints that have been confirmed unavailable for 3+ days.
+	// Use the most recent probe time (not created_at) so VPN/DNS blips that briefly
+	// flip healthy nodes to unavailable are not deleted on the next hourly run.
 	query := `
-		DELETE FROM endpoints
-		WHERE status = 'unavailable'
-		AND (
-			EXISTS (
-				SELECT 1 FROM endpoint_health eh 
-				WHERE eh.url = endpoints.url 
-				AND (eh.last_success < NOW() - INTERVAL '3 days' OR eh.last_success IS NULL)
-			)
-			OR created_at < NOW() - INTERVAL '3 days'
-		)
+		DELETE FROM endpoints e
+		WHERE e.status = 'unavailable'
+		AND COALESCE(
+			(SELECT MAX(ett.last_tried) FROM endpoint_test_tasks ett WHERE ett.endpoint_id = e.id),
+			(SELECT eh.last_fail FROM endpoint_health eh WHERE eh.url = e.url),
+			e.created_at
+		) < NOW() - INTERVAL '3 days'
 	`
 
 	res, err := s.db.Exec(query)

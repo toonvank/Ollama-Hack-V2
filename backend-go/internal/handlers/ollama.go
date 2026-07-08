@@ -726,7 +726,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 				}
 			}
 
-			client := utils.NewHTTPClient(120 * time.Second)
+			client := utils.SharedRaceClient()
 			resp, err := client.Do(req)
 
 			if err != nil {
@@ -906,7 +906,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 						continue
 					}
 					creq.Header.Set("Content-Type", "application/json")
-					client := utils.NewHTTPClient(120 * time.Second)
+					client := utils.SharedProxyClient()
 					cresp, cerr := client.Do(creq)
 					if cerr != nil || cresp.StatusCode >= 400 {
 						if cresp != nil {
@@ -1179,7 +1179,7 @@ func (h *OllamaHandler) mapReduceProxy(c *gin.Context, method, path string, body
 				}
 			}
 
-			client := utils.NewHTTPClient(300 * time.Second)
+			client := utils.NewVPNHTTPClient(300 * time.Second)
 			resp, err := client.Do(req)
 			if err != nil {
 				resultCh <- mrResult{index: idx, err: err}
@@ -1393,7 +1393,7 @@ func (h *OllamaHandler) attemptModelOnEndpoints(
 		}
 		req.Header.Set("Content-Type", "application/json")
 
-		client := utils.NewHTTPClient(120 * time.Second)
+		client := utils.SharedProxyClient()
 		resp, err := client.Do(req)
 		if err != nil || resp.StatusCode >= 400 {
 			if resp != nil {

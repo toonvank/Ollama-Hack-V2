@@ -1,5 +1,5 @@
 #!/bin/bash
-# Keep Gluetun + backend (shared network stack) healthy across VPN flaps.
+# Keep Gluetun healthy; backend uses Gluetun HTTP proxy for user traffic only.
 # Install via scripts/install-ollama-hack-service.sh (systemd timer, every minute).
 set -euo pipefail
 
@@ -14,13 +14,13 @@ log() { echo "[vpn-watchdog $(date -Iseconds)] $*"; }
 
 mkdir -p "$STATE_DIR"
 
-restart_stack() {
+restart_backend() {
   log "$1"
   docker stop "$BACKEND" --time 20 >/dev/null 2>&1 || true
   docker exec ollama-hack-v2-db-1 psql -U ollama_hack -d ollama_hack -qc \
     "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid() AND state <> 'idle';" \
     >/dev/null 2>&1 || true
-  "$COMPOSE" up -d gluetun backend
+  "$COMPOSE" up -d backend
 }
 
 container_exists() {
@@ -56,11 +56,9 @@ elif [[ "$gh" == "unhealthy" ]]; then
   fi
   bad_since=$(cat "$GLUETUN_BAD_SINCE")
   if (( now_sec - bad_since >= 300 )); then
-    log "gluetun unhealthy for 5m+ — restarting gluetun + backend"
+    log "gluetun unhealthy for 5m+ — restarting gluetun (backend keeps direct probing)"
     docker restart "$GLUETUN"
     rm -f "$GLUETUN_BAD_SINCE"
-    sleep 15
-    "$COMPOSE" up -d backend
     exit 0
   fi
 fi
@@ -84,6 +82,6 @@ if [[ "$b_uptime_sec" -gt 0 && $((now_sec - b_uptime_sec)) -lt 180 ]]; then
 fi
 
 if ! curl -sf --max-time 8 "$HEALTH_URL" >/dev/null; then
-  restart_stack "backend health check failed — restarting gluetun + backend"
+  restart_backend "backend health check failed — restarting backend"
   exit 0
 fi
