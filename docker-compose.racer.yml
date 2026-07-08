@@ -6,7 +6,9 @@ services:
   gluetun:
     environment:
       - FIREWALL_INPUT_PORTS=8888,8787
+      - HTTPPROXY_LISTENING_ADDRESS=0.0.0.0:8888
     ports:
+      - "8888:8888/tcp"
       - "8787:8787/tcp"
 
   racer:
