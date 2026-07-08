@@ -685,8 +685,24 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 		}
 	}
 
-	// Phase 1: optional Rust sidecar relay (single best endpoint, no Go race).
-	if racer.RelayEnabled() {
+	// Phase 2: optional Rust parallel race (replaces Go goroutine racer).
+	if racer.RaceEnabled() {
+		deliver := racerDeliverContext{
+			stream:                 stream,
+			rawBody:                rawBody,
+			bodyMap:                bodyMap,
+			modelRaw:               modelRaw,
+			originalModelRequested: originalModelRequested,
+			stripThinking:          stripThinking,
+			smartRouteHeader:       smartRouteHeader,
+			cacheKey:               cacheKey,
+			promptEmbedding:        promptEmbedding,
+		}
+		if h.proxyViaRacerRace(c, method, path, endpoints, deliver, healthTracker) {
+			return
+		}
+		log.Printf("[racer-race] sidecar unavailable or failed — falling back to Go race")
+	} else if racer.RelayEnabled() {
 		deliver := racerDeliverContext{
 			stream:                 stream,
 			rawBody:                rawBody,

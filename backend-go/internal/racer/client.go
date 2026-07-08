@@ -26,6 +26,26 @@ type RelayRequest struct {
 	Timeouts    RelayTimeouts     `json:"timeouts"`
 }
 
+type RaceRequest struct {
+	Method            string            `json:"method"`
+	Path              string            `json:"path"`
+	Endpoints         []string          `json:"endpoints"`
+	Headers           map[string]string `json:"headers"`
+	Body              []byte            `json:"body"`
+	Timeouts          RelayTimeouts     `json:"timeouts"`
+	Stream            bool              `json:"stream"`
+	CancelOnFirstWin  bool              `json:"cancel_on_first_win"`
+}
+
+type RaceFailureMeta struct {
+	Endpoint       string `json:"endpoint"`
+	Status         int    `json:"status"`
+	QuotaExceeded  bool   `json:"quota_exceeded"`
+	RateLimited    bool   `json:"rate_limited"`
+	ClientError    bool   `json:"client_error"`
+	Message        string `json:"message"`
+}
+
 type Client struct {
 	baseURL    string
 	httpClient *http.Client
@@ -35,7 +55,7 @@ func NewClient() *Client {
 	return &Client{
 		baseURL: BaseURL(),
 		httpClient: &http.Client{
-			Timeout: 0, // streaming; upstream timeouts enforced by racer
+			Timeout: 0,
 		},
 	}
 }
@@ -57,6 +77,19 @@ func (c *Client) Health(ctx context.Context) error {
 	return nil
 }
 
+func (c *Client) postJSON(ctx context.Context, path string, payload any) (*http.Response, error) {
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, bytes.NewReader(raw))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	return c.httpClient.Do(req)
+}
+
 func (c *Client) Relay(ctx context.Context, relayReq RelayRequest) (*http.Response, error) {
 	payload := struct {
 		Method      string            `json:"method"`
@@ -71,19 +104,45 @@ func (c *Client) Relay(ctx context.Context, relayReq RelayRequest) (*http.Respon
 		Body:        base64.StdEncoding.EncodeToString(relayReq.Body),
 		Timeouts:    relayReq.Timeouts,
 	}
+	return c.postJSON(ctx, "/relay", payload)
+}
 
-	raw, err := json.Marshal(payload)
+func (c *Client) Race(ctx context.Context, raceReq RaceRequest) (*http.Response, error) {
+	payload := struct {
+		Method           string            `json:"method"`
+		Path             string            `json:"path"`
+		Endpoints        []string          `json:"endpoints"`
+		Headers          map[string]string `json:"headers"`
+		Body             string            `json:"body"`
+		Timeouts         RelayTimeouts     `json:"timeouts"`
+		Stream           bool              `json:"stream"`
+		CancelOnFirstWin bool              `json:"cancel_on_first_win"`
+	}{
+		Method:           raceReq.Method,
+		Path:             raceReq.Path,
+		Endpoints:        raceReq.Endpoints,
+		Headers:          raceReq.Headers,
+		Body:             base64.StdEncoding.EncodeToString(raceReq.Body),
+		Timeouts:         raceReq.Timeouts,
+		Stream:           raceReq.Stream,
+		CancelOnFirstWin: raceReq.CancelOnFirstWin,
+	}
+	return c.postJSON(ctx, "/race", payload)
+}
+
+func ParseRaceFailures(header string) ([]RaceFailureMeta, error) {
+	if strings.TrimSpace(header) == "" {
+		return nil, nil
+	}
+	raw, err := base64.StdEncoding.DecodeString(header)
 	if err != nil {
 		return nil, err
 	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/relay", bytes.NewReader(raw))
-	if err != nil {
+	var failures []RaceFailureMeta
+	if err := json.Unmarshal(raw, &failures); err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/json")
-
-	return c.httpClient.Do(req)
+	return failures, nil
 }
 
 func DefaultTimeouts() RelayTimeouts {

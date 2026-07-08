@@ -1,12 +1,36 @@
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result}; // Context used by next_chunk
 use bytes::Bytes;
-use futures_util::StreamExt;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::{Client, Method, Response};
 use serde::{Deserialize, Serialize};
+
+pub mod race;
+pub use race::{join_endpoint_path, prefixed_byte_stream, RaceFailureMeta, RaceRequest, RaceWinner};
+
+mod base64_bytes {
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S>(bytes: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&STANDARD.encode(bytes))
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        STANDARD
+            .decode(s)
+            .map_err(serde::de::Error::custom)
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RelayTimeouts {
@@ -50,28 +74,6 @@ pub struct RelayRequest {
     pub timeouts: RelayTimeouts,
 }
 
-mod base64_bytes {
-    use base64::{engine::general_purpose::STANDARD, Engine as _};
-    use serde::{Deserialize, Deserializer, Serializer};
-
-    pub fn serialize<S>(bytes: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&STANDARD.encode(bytes))
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        STANDARD
-            .decode(s)
-            .map_err(serde::de::Error::custom)
-    }
-}
-
 #[derive(Debug)]
 pub struct RelayStarted {
     pub status: u16,
@@ -80,8 +82,9 @@ pub struct RelayStarted {
     pub upstream: Response,
 }
 
+#[derive(Clone)]
 pub struct RacerClient {
-    http: Client,
+    pub(crate) http: Client,
 }
 
 impl RacerClient {
