@@ -8,7 +8,8 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use racer_core::{
-    prefixed_byte_stream, RaceRequest, RacerClient, RelayRequest,
+    prefixed_byte_stream, ProbeBatchRequest, ProbeRequest, RaceRequest, RacerClient,
+    RelayRequest,
 };
 use serde::Serialize;
 use tokio::net::TcpListener;
@@ -44,6 +45,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/health", get(health))
         .route("/relay", post(relay))
         .route("/race", post(race))
+        .route("/probe", post(probe))
+        .route("/probe/batch", post(probe_batch))
         .layer(TraceLayer::new_for_http())
         .with_state(state);
 
@@ -57,8 +60,39 @@ async fn health() -> Json<HealthResponse> {
     Json(HealthResponse {
         status: "healthy",
         service: "ollama-racer",
-        version: "phase2",
+        version: "phase3",
     })
+}
+
+async fn probe(State(state): State<AppState>, Json(req): Json<ProbeRequest>) -> Response {
+    match state.client.probe_endpoint(req).await {
+        Ok(result) => Json(result).into_response(),
+        Err(err) => {
+            tracing::warn!("probe failed: {err:#}");
+            (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": err.to_string() })),
+            )
+                .into_response()
+        }
+    }
+}
+
+async fn probe_batch(
+    State(state): State<AppState>,
+    Json(req): Json<ProbeBatchRequest>,
+) -> Response {
+    match state.client.probe_batch(req).await {
+        Ok(result) => Json(result).into_response(),
+        Err(err) => {
+            tracing::warn!("probe batch failed: {err:#}");
+            (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": err.to_string() })),
+            )
+                .into_response()
+        }
+    }
 }
 
 async fn relay(State(state): State<AppState>, Json(req): Json<RelayRequest>) -> Response {

@@ -369,6 +369,23 @@ func TestBackgroundEndpointOutboundEnabled(t *testing.T) {
 	if !BackgroundEndpointOutboundEnabled() {
 		t.Fatal("expected enabled for true")
 	}
+	if BackgroundEndpointOutboundRust() {
+		t.Fatal("expected direct go mode for true")
+	}
+	if BackgroundEndpointOutboundMode() != BackgroundOutboundGo {
+		t.Fatalf("expected go mode, got %v", BackgroundEndpointOutboundMode())
+	}
+
+	os.Setenv("BACKGROUND_ENDPOINT_OUTBOUND", "rust")
+	if !BackgroundEndpointOutboundEnabled() {
+		t.Fatal("expected enabled for rust")
+	}
+	if !BackgroundEndpointOutboundRust() {
+		t.Fatal("expected rust mode")
+	}
+	if BackgroundEndpointOutboundMode() != BackgroundOutboundRust {
+		t.Fatalf("expected rust mode enum, got %v", BackgroundEndpointOutboundMode())
+	}
 }
 
 func TestLoadSecretKey(t *testing.T) {

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"database/sql"
 	"log"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 
 	appconfig "github.com/timlzh/ollama-hack/internal/config"
 	"github.com/timlzh/ollama-hack/internal/database"
+	"github.com/timlzh/ollama-hack/internal/racer"
 	"github.com/timlzh/ollama-hack/internal/utils"
 )
 
@@ -149,8 +151,12 @@ func NewHealthTracker(config HealthTrackerConfig, db *database.DB) *HealthTracke
 		if ht.db != nil {
 			go ht.persistLoop()
 		}
-		log.Printf("[health-tracker] Started with threshold=%d, disable_duration=%v, probe_interval=%v, active_probing=%v",
-			config.DisableThreshold, config.DisableDuration, config.ProbeInterval, activeProbing)
+		outboundMode := "direct"
+		if appconfig.BackgroundEndpointOutboundRust() {
+			outboundMode = "rust"
+		}
+		log.Printf("[health-tracker] Started with threshold=%d, disable_duration=%v, probe_interval=%v, active_probing=%v, outbound=%s",
+			config.DisableThreshold, config.DisableDuration, config.ProbeInterval, activeProbing, outboundMode)
 	} else {
 		log.Println("[health-tracker] Health tracking is disabled")
 	}
@@ -480,8 +486,40 @@ func (ht *HealthTracker) probeDisabledEndpoints() {
 	}
 	ht.mu.RUnlock()
 
+	if appconfig.BackgroundEndpointOutboundRust() {
+		ht.probeDisabledEndpointsViaRacer(toProbe)
+		return
+	}
+
 	for _, url := range toProbe {
 		go ht.probeEndpoint(url)
+	}
+}
+
+func (ht *HealthTracker) probeDisabledEndpointsViaRacer(urls []string) {
+	if len(urls) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	batch, err := racer.DefaultClient().ProbeBatch(ctx, racer.ProbeBatchRequest{
+		Endpoints: urls,
+		Path:      "/api/version",
+		Timeouts:  racer.DefaultProbeTimeouts(),
+	})
+	if err != nil {
+		log.Printf("[health-tracker] racer probe batch failed, falling back to direct: %v", err)
+		for _, url := range urls {
+			go ht.probeEndpoint(url)
+		}
+		return
+	}
+
+	log.Printf("[health-tracker] racer probed %d endpoints in %dms", batch.Probed, batch.DurationMS)
+	for _, result := range batch.Results {
+		ht.applyProbeResult(result.Endpoint, result.OK, result.Status, result.Error)
 	}
 }
 
@@ -496,12 +534,48 @@ func (ht *HealthTracker) probeEndpoint(url string) {
 	h.LastProbe = time.Now()
 	ht.mu.Unlock()
 
-	// Simple health check - just check if the endpoint responds
-	client := utils.NewHTTPClient(10 * time.Second)
+	if appconfig.BackgroundEndpointOutboundRust() {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		result, err := racer.DefaultClient().Probe(ctx, racer.ProbeRequest{
+			Endpoint: url,
+			Path:     "/api/version",
+			Timeouts: racer.DefaultProbeTimeouts(),
+		})
+		if err != nil {
+			log.Printf("[health-tracker] racer probe failed for %s, falling back to direct: %v", url, err)
+		} else {
+			ht.applyProbeResult(result.Endpoint, result.OK, result.Status, result.Error)
+			return
+		}
+	}
+
+	client := utils.BackgroundHTTPClient(10 * time.Second)
 	resp, err := client.Get(url + "/api/version")
 	if err != nil {
-		log.Printf("[health-tracker] Probe failed for %s: %v", url, err)
-		// Keep it disabled, extend the disable period
+		ht.applyProbeResult(url, false, 0, err.Error())
+		return
+	}
+	defer resp.Body.Close()
+	ht.applyProbeResult(url, resp.StatusCode == http.StatusOK, resp.StatusCode, "")
+}
+
+func (ht *HealthTracker) applyProbeResult(url string, ok bool, status int, errMsg string) {
+	ht.mu.Lock()
+	h, exists := ht.health[url]
+	if !exists {
+		ht.mu.Unlock()
+		return
+	}
+	h.LastProbe = time.Now()
+	ht.mu.Unlock()
+
+	if !ok {
+		if errMsg != "" {
+			log.Printf("[health-tracker] Probe failed for %s: %s", url, errMsg)
+		} else {
+			log.Printf("[health-tracker] Probe got status %d for %s", status, url)
+		}
 		ht.mu.Lock()
 		if h, exists := ht.health[url]; exists && h.Disabled {
 			h.DisabledUntil = time.Now().Add(ht.config.DisableDuration)
@@ -509,28 +583,15 @@ func (ht *HealthTracker) probeEndpoint(url string) {
 		ht.mu.Unlock()
 		return
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode == http.StatusOK {
-		// Endpoint is responding, give it a chance
-		ht.mu.Lock()
-		if h, exists := ht.health[url]; exists {
-			h.Disabled = false
-			h.DisabledUntil = time.Time{}
-			// Give it a partial score boost
-			h.Score = ht.config.DisableThreshold + 10
-			log.Printf("[health-tracker] Probe successful for %s, re-enabled with score %d", url, h.Score)
-		}
-		ht.mu.Unlock()
-	} else {
-		log.Printf("[health-tracker] Probe got status %d for %s", resp.StatusCode, url)
-		// Extend disable period
-		ht.mu.Lock()
-		if h, exists := ht.health[url]; exists && h.Disabled {
-			h.DisabledUntil = time.Now().Add(ht.config.DisableDuration)
-		}
-		ht.mu.Unlock()
+	ht.mu.Lock()
+	if h, exists := ht.health[url]; exists {
+		h.Disabled = false
+		h.DisabledUntil = time.Time{}
+		h.Score = ht.config.DisableThreshold + 10
+		log.Printf("[health-tracker] Probe successful for %s, re-enabled with score %d", url, h.Score)
 	}
+	ht.mu.Unlock()
 }
 
 // Stop stops the health tracker's background probing

@@ -10,6 +10,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	appconfig "github.com/timlzh/ollama-hack/internal/config"
+	"github.com/timlzh/ollama-hack/internal/racer"
 )
 
 var privateIPBlocks []*net.IPNet
@@ -158,6 +161,15 @@ func newHTTPClient(requestTimeout, dialTimeout time.Duration, proxy func(*http.R
 // It does not use HTTP_PROXY/VPN_HTTP_PROXY so endpoint tests keep the host egress IP.
 func NewHTTPClient(timeout time.Duration) *http.Client {
 	return newHTTPClient(timeout, 30*time.Second, noProxy)
+}
+
+// BackgroundHTTPClient returns the HTTP client for background Ollama endpoint I/O.
+// When BACKGROUND_ENDPOINT_OUTBOUND=rust, requests egress via ollama-racer (Gluetun netns).
+func BackgroundHTTPClient(timeout time.Duration) *http.Client {
+	if appconfig.BackgroundEndpointOutboundRust() {
+		return racer.NewRelayHTTPClient(timeout)
+	}
+	return NewHTTPClient(timeout)
 }
 
 // NewVPNHTTPClient routes outbound traffic through VPN_HTTP_PROXY (Gluetun HTTP proxy).

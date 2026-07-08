@@ -33,6 +33,9 @@ func main() {
 
 	var discoveryScanner *services.DiscoveryScanner
 	if config.BackgroundEndpointOutboundEnabled() {
+		if config.BackgroundEndpointOutboundRust() {
+			log.Println("[outbound] BACKGROUND_ENDPOINT_OUTBOUND=rust — tester and health probes egress via ollama-racer")
+		}
 		tester := services.NewTester(db)
 		tester.Start()
 		defer tester.Stop()

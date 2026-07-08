@@ -116,7 +116,7 @@ func TestOpenAIEndpoint(endpointURL string, apiKey *string) *EndpointTestResult 
 		OllamaVersion:  "OpenAI Compatible",
 	}
 
-	client := utils.NewHTTPClient(getPollTimeout())
+	client := utils.BackgroundHTTPClient(getPollTimeout())
 
 	// Test /v1/models endpoint
 	req, err := http.NewRequest("GET", endpointURL+"/v1/models", nil)
@@ -177,7 +177,7 @@ func TestEndpoint(endpointURL string) *EndpointTestResult {
 		EndpointStatus: StatusUnavailable,
 	}
 
-	client := utils.NewHTTPClient(10 * time.Second)
+	client := utils.BackgroundHTTPClient(10 * time.Second)
 
 	// 1. Check version
 	versionResp, err := client.Get(endpointURL + "/api/version")
@@ -257,7 +257,7 @@ func testModel(endpointURL, name, tag string) ModelTestResult {
 		"stream": true,
 	})
 
-	client := utils.NewHTTPClient(getPollTimeout())
+	client := utils.BackgroundHTTPClient(getPollTimeout())
 	req, err := http.NewRequest("POST", endpointURL+"/api/generate", strings.NewReader(string(body)))
 	if err != nil {
 		return mr

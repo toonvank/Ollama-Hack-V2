@@ -16,6 +16,7 @@ services:
     environment:
       - RUST_LOG=info
       - RACER_BIND=0.0.0.0:8787
+      - RACER_PROBE_CONCURRENCY=50
     depends_on:
       gluetun:
         condition: service_healthy
@@ -26,3 +27,5 @@ services:
       - RACER_URL=http://127.0.0.1:8787
       - RACER_RELAY_ENABLED=false
       - RACER_RACE_ENABLED=false
+      # Phase 3: route background probes/tester via racer (VPN netns). Off by default.
+      # - BACKGROUND_ENDPOINT_OUTBOUND=rust

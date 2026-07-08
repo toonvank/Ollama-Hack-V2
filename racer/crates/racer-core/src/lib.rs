@@ -7,7 +7,11 @@ use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::{Client, Method, Response};
 use serde::{Deserialize, Serialize};
 
+pub mod probe;
 pub mod race;
+pub use probe::{
+    ProbeBatchRequest, ProbeBatchResponse, ProbeRequest, ProbeResult,
+};
 pub use race::{join_endpoint_path, prefixed_byte_stream, RaceFailureMeta, RaceRequest, RaceWinner};
 
 mod base64_bytes {

@@ -15,6 +15,14 @@ Go calls relay when `RACER_RELAY_ENABLED=true` (default **off**).
 
 Go calls race when `RACER_RACE_ENABLED=true` (default **off**). Takes priority over relay.
 
+## Phase 3 — background probes
+
+- `POST /probe` — single endpoint health check (`GET /api/version` by default)
+- `POST /probe/batch` — bounded-concurrency batch probes (`RACER_PROBE_CONCURRENCY`, default 50)
+
+Go routes health-tracker probes and tester outbound I/O when `BACKGROUND_ENDPOINT_OUTBOUND=rust`.
+Tester streaming tests use `POST /relay` under the hood. Go still owns Postgres scores.
+
 ### Local build
 
 ```bash
@@ -32,6 +40,8 @@ curl -s http://127.0.0.1:8787/health   # from Gluetun netns / published port
 ### Enable in Go
 
 ```bash
+# Phase 3 (background probes + tester via VPN netns)
+BACKGROUND_ENDPOINT_OUTBOUND=rust
 # Phase 2 (parallel race — recommended once smoke-tested)
 RACER_RACE_ENABLED=true
 # Phase 1 (single-endpoint relay only)

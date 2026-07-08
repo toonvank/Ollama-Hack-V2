@@ -69,19 +69,39 @@ func Load() (*Config, error) {
 	return &config, nil
 }
 
-// BackgroundEndpointOutboundEnabled reports whether background jobs may reach out to
-// third-party Ollama endpoints (cyclical testing, discovery scans, Shodan, health probes).
-// Default true for backwards compatibility; set BACKGROUND_ENDPOINT_OUTBOUND=false on prod
-// when you mainly use cloud and want to avoid broadcasting your egress IP during probes.
-func BackgroundEndpointOutboundEnabled() bool {
-	val := strings.TrimSpace(os.Getenv("BACKGROUND_ENDPOINT_OUTBOUND"))
-	if val == "" {
-		return true
-	}
-	switch strings.ToLower(val) {
+// BackgroundOutboundMode controls how background jobs reach third-party Ollama endpoints.
+type BackgroundOutboundMode int
+
+const (
+	BackgroundOutboundOff BackgroundOutboundMode = iota
+	BackgroundOutboundGo
+	BackgroundOutboundRust
+)
+
+// BackgroundEndpointOutboundMode reports the outbound mode for background jobs
+// (cyclical testing, discovery scans, Shodan, health probes).
+// Default "go" (direct). Set false/off to disable. Set "rust" to egress via ollama-racer.
+func BackgroundEndpointOutboundMode() BackgroundOutboundMode {
+	val := strings.TrimSpace(strings.ToLower(os.Getenv("BACKGROUND_ENDPOINT_OUTBOUND")))
+	switch val {
+	case "", "true", "1", "yes", "on":
+		return BackgroundOutboundGo
 	case "0", "false", "no", "off":
-		return false
+		return BackgroundOutboundOff
+	case "rust":
+		return BackgroundOutboundRust
 	default:
-		return true
+		return BackgroundOutboundGo
 	}
+}
+
+// BackgroundEndpointOutboundEnabled reports whether background jobs may reach out to
+// third-party Ollama endpoints. True for both direct Go and rust sidecar modes.
+func BackgroundEndpointOutboundEnabled() bool {
+	return BackgroundEndpointOutboundMode() != BackgroundOutboundOff
+}
+
+// BackgroundEndpointOutboundRust reports whether background egress uses ollama-racer.
+func BackgroundEndpointOutboundRust() bool {
+	return BackgroundEndpointOutboundMode() == BackgroundOutboundRust
 }
