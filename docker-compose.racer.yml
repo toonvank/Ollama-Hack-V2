@@ -26,7 +26,8 @@ services:
 
   backend:
     environment:
-      # Gluetun firewall blocks app-network → container ports; use host-published :8787.
+      # Chat: fast direct Go race. Background probes: rust sidecar (VPN netns).
+      - VPN_HTTP_PROXY=
       - RACER_URL=http://host.docker.internal:8787
       - RACER_RELAY_ENABLED=false
       - RACER_RACE_ENABLED=false
