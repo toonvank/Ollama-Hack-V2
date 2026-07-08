@@ -21,4 +21,10 @@ elif [[ -f .env.vpn ]]; then
   ENV_FILE=(--env-file .env.vpn)
 fi
 
+# Optional Rust sidecar (Phase 1 relay). Enable with RACER_COMPOSE=1.
+#   RACER_COMPOSE=1 bash scripts/compose-prod.sh up -d --build racer backend
+if [[ "${RACER_COMPOSE:-0}" == "1" ]]; then
+  COMPOSE_FILES+=(-f docker-compose.racer.yml)
+fi
+
 exec docker compose "${COMPOSE_FILES[@]}" "${ENV_FILE[@]}" "$@"

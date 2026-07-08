@@ -17,6 +17,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/timlzh/ollama-hack/internal/database"
+	"github.com/timlzh/ollama-hack/internal/racer"
 	"github.com/timlzh/ollama-hack/internal/services"
 	"github.com/timlzh/ollama-hack/internal/utils"
 )
@@ -682,6 +683,25 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 				}
 			}
 		}
+	}
+
+	// Phase 1: optional Rust sidecar relay (single best endpoint, no Go race).
+	if racer.RelayEnabled() {
+		deliver := racerDeliverContext{
+			stream:                 stream,
+			rawBody:                rawBody,
+			bodyMap:                bodyMap,
+			modelRaw:               modelRaw,
+			originalModelRequested: originalModelRequested,
+			stripThinking:          stripThinking,
+			smartRouteHeader:       smartRouteHeader,
+			cacheKey:               cacheKey,
+			promptEmbedding:        promptEmbedding,
+		}
+		if h.proxyViaRacerRelay(c, method, path, endpoints[0], deliver, healthTracker) {
+			return
+		}
+		log.Printf("[racer-relay] sidecar unavailable or failed — falling back to Go race")
 	}
 
 	// 🚀 ZERO-LATENCY RACER MODE 🚀

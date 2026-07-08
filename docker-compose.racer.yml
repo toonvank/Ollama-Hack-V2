@@ -1,0 +1,28 @@
+# Optional ollama-racer sidecar (Phase 1: stream relay).
+# With VPN overlay: racer shares Gluetun network namespace for direct egress.
+#   bash scripts/compose-prod.sh -f docker-compose.racer.yml up -d --build racer
+# Rollback: RACER_RELAY_ENABLED=false on backend (instant) or omit this file.
+services:
+  gluetun:
+    environment:
+      - FIREWALL_INPUT_PORTS=8888,8787
+    ports:
+      - "8787:8787/tcp"
+
+  racer:
+    build: ./racer
+    container_name: ollama-hack-racer
+    network_mode: "service:gluetun"
+    environment:
+      - RUST_LOG=info
+      - RACER_BIND=0.0.0.0:8787
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    restart: always
+
+  backend:
+    environment:
+      - RACER_URL=http://127.0.0.1:8787
+      - RACER_RELAY_ENABLED=false
+      - RACER_RACE_ENABLED=false
