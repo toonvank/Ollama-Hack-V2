@@ -16,6 +16,7 @@ export interface ModelFromEndpointInfo {
   url: string;
   name: string;
   created_at: string;
+  endpoint_type?: string;
   /** Effective routing status (host + model + health) */
   status: AIModelStatusEnum;
   /** Raw endpoints.status */
@@ -34,6 +35,7 @@ export interface AIModelInfoWithEndpointCount {
   enabled: boolean;
   created_at: string;
   endpoints: number;
+  sglang_endpoints?: number;
   token_per_second?: number;
   max_connection_time?: number;
   param_billions?: number;

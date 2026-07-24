@@ -194,10 +194,19 @@ const ModelTable: React.FC<ModelTableProps> = ({
         );
       case "endpoints":
         // Count of *routable* hosts (host up + model available + health OK).
-        // 0 with a high score means only stale historical metrics remain.
+        // Show SGLang count as purple badge if > 0.
+        const sglangCount = model.sglang_endpoints || 0;
+        const ollamaCount = (model.endpoints || 0) - sglangCount;
         return (
           <Tooltip content="Routable endpoints only (host available + model available + health OK). 0 means the model is not currently raceable.">
-            <span>{model.endpoints || 0}</span>
+            <div className="flex items-center gap-1.5">
+              <span>{model.endpoints || 0}</span>
+              {sglangCount > 0 && (
+                <span className="inline-flex items-center rounded-full bg-purple-100 px-1.5 py-0.5 text-xs font-medium text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                  {sglangCount} SGLang
+                </span>
+              )}
+            </div>
           </Tooltip>
         );
       case "enabled":

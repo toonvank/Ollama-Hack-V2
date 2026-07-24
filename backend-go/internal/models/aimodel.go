@@ -17,6 +17,7 @@ type AIModelInfo struct {
 	Enabled        bool      `json:"enabled" db:"enabled"`
 	CreatedAt      time.Time `json:"created_at" db:"created_at"`
 	Endpoints         int       `json:"endpoints" db:"endpoints"`
+	SGLangEndpoints   int       `json:"sglang_endpoints" db:"sglang_endpoints"`
 	TokenPerSecond    *float64  `json:"token_per_second" db:"token_per_second"`
 	MaxConnectionTime *float64  `json:"max_connection_time" db:"max_connection_time"`
 	ParamBillions     *float64  `json:"param_billions" db:"param_billions"`

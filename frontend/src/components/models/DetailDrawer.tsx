@@ -113,9 +113,16 @@ const ModelDetailDrawer = ({ id, isOpen, onClose }: ModelDetailProps) => {
     switch (columnKey) {
       case "url":
         return (
-          <span className="whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-            {endpoint.url}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+              {endpoint.url}
+            </span>
+            {(endpoint.endpoint_type || "ollama") === "openai" && (
+              <span className="inline-flex items-center rounded-full bg-purple-100 px-1.5 py-0.5 text-xs font-medium text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                SGLang
+              </span>
+            )}
+          </div>
         );
       case "status":
         return (

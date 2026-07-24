@@ -83,6 +83,10 @@ func (h *AIModelHandler) List(c *gin.Context) {
 			COUNT(case when eam.status = 'available' AND e.status = 'available'
 			            AND (eh.disabled IS NOT TRUE OR eh.disabled_until IS NULL OR eh.disabled_until < NOW())
 			       then 1 end) as endpoints,
+			COUNT(case when eam.status = 'available' AND e.status = 'available'
+			            AND (eh.disabled IS NOT TRUE OR eh.disabled_until IS NULL OR eh.disabled_until < NOW())
+			            AND COALESCE(e.endpoint_type, 'ollama') = 'openai'
+			       then 1 end) as sglang_endpoints,
 			MAX(eam.token_per_second) as token_per_second,
 			MIN(eam.max_connection_time) as max_connection_time,
 			` + paramSQL + ` as param_billions,
@@ -191,6 +195,7 @@ func (h *AIModelHandler) Get(c *gin.Context) {
 		URL               string   `db:"url"`
 		Name              string   `db:"name"`
 		CreatedAt         string   `db:"created_at"`
+		EndpointType      string   `db:"endpoint_type"`
 		// ModelOnHost = endpoint_ai_models.status (last known model test)
 		ModelOnHost string `db:"model_on_host"`
 		// HostStatus = endpoints.status (is the Ollama host up?)
@@ -207,6 +212,7 @@ func (h *AIModelHandler) Get(c *gin.Context) {
 			e.url,
 			e.name,
 			e.created_at::text AS created_at,
+			COALESCE(e.endpoint_type, 'ollama') AS endpoint_type,
 			eam.status AS model_on_host,
 			e.status AS host_status,
 			eam.token_per_second,
@@ -315,6 +321,7 @@ func (h *AIModelHandler) Get(c *gin.Context) {
 			"url":                 r.URL,
 			"name":                r.Name,
 			"created_at":          r.CreatedAt,
+			"endpoint_type":       r.EndpointType,
 			"status":              effective,
 			"host_status":         r.HostStatus,
 			"model_on_host":       r.ModelOnHost,
