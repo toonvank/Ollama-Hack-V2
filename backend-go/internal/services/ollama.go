@@ -146,12 +146,9 @@ func TestOpenAIEndpoint(endpointURL string, apiKey *string) *EndpointTestResult 
 
 	result.EndpointStatus = StatusAvailable
 
-	// Convert OpenAI models to our format
-	// For OpenAI endpoints, we don't test each model individually (would be expensive)
-	// Just mark them as available
+	// Smoke test the first model via /v1/chat/completions to measure TPS
+	// This makes OpenAI-type endpoints race-eligible (TPS > 0)
 	for _, model := range modelsData.Data {
-		// Split model ID into name:tag format
-		// For most services, the ID is the full model name
 		parts := strings.SplitN(model.ID, ":", 2)
 		name := parts[0]
 		tag := "latest"
@@ -159,15 +156,70 @@ func TestOpenAIEndpoint(endpointURL string, apiKey *string) *EndpointTestResult 
 			tag = parts[1]
 		}
 
+		tps := testOpenAIModel(endpointURL, model.ID, apiKey)
+		status := StatusAvailable
+		if tps <= 0 {
+			status = StatusUnavailable
+		}
+
 		result.Models = append(result.Models, ModelTestResult{
 			ModelName:      name,
 			ModelTag:       tag,
-			Status:         StatusAvailable,
-			TokenPerSecond: 0, // Not tested for OpenAI endpoints
+			Status:         status,
+			TokenPerSecond: tps,
 		})
 	}
 
 	return result
+}
+
+// testOpenAIModel runs a smoke test via /v1/chat/completions and returns measured TPS
+func testOpenAIModel(endpointURL, modelID string, apiKey *string) float64 {
+	body, _ := json.Marshal(map[string]interface{}{
+		"model":      modelID,
+		"messages":   []map[string]string{{"role": "user", "content": testPrompt}},
+		"max_tokens": 20,
+		"stream":     false,
+	})
+
+	client := utils.BackgroundHTTPClient(getPollTimeout())
+	req, err := http.NewRequest("POST", endpointURL+"/v1/chat/completions", strings.NewReader(string(body)))
+	if err != nil {
+		return 0
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if apiKey != nil && *apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+*apiKey)
+	}
+
+	start := time.Now()
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0
+	}
+
+	var result struct {
+		Usage struct {
+			CompletionTokens int `json:"completion_tokens"`
+		} `json:"usage"`
+	}
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	elapsed := time.Since(start).Seconds()
+	if elapsed <= 0 || result.Usage.CompletionTokens <= 0 {
+		// Fallback: estimate from response time (at least 1 token to be race-eligible)
+		if elapsed > 0 {
+			return 1.0 / elapsed
+		}
+		return 0
+	}
+
+	return float64(result.Usage.CompletionTokens) / elapsed
 }
 
 // TestEndpoint fully tests an endpoint: version, lists models, tests each model

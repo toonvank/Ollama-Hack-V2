@@ -92,9 +92,11 @@ func defaultEndpointRankMode() EndpointRankMode {
 }
 
 type resolvedModelRoute struct {
-	Name string
-	Tag  string
-	URLs []string
+	Name          string
+	Tag           string
+	URLs          []string
+	EndpointTypes []string
+	APIKeys       []string
 }
 
 // bestEndpointsForModel returns the top-ranked endpoint URLs for a model.
@@ -102,9 +104,11 @@ type resolvedModelRoute struct {
 // "Llama3.2:3b" while the catalog stores "llama3.2:3b".
 func (h *OllamaHandler) bestEndpointsForModel(modelName, modelTag string, rankMode EndpointRankMode) (*resolvedModelRoute, error) {
 	type row struct {
-		URL  string `db:"url"`
-		Name string `db:"name"`
-		Tag  string `db:"tag"`
+		URL          string `db:"url"`
+		Name         string `db:"name"`
+		Tag          string `db:"tag"`
+		EndpointType string `db:"endpoint_type"`
+		APIKey       string `db:"api_key"`
 	}
 	var rows []row
 	minTPS := 0.0
@@ -115,7 +119,7 @@ func (h *OllamaHandler) bestEndpointsForModel(modelName, modelTag string, rankMo
 	orderBy := endpointOrderClause(rankMode)
 
 	err := h.db.Select(&rows, fmt.Sprintf(`
-		SELECT e.url, m.name, m.tag
+		SELECT e.url, m.name, m.tag, COALESCE(e.endpoint_type, 'ollama') as endpoint_type, COALESCE(e.api_key, '') as api_key
 		FROM endpoint_ai_models eam
 		JOIN endpoints e ON e.id = eam.endpoint_id
 		JOIN ai_models m ON m.id = eam.ai_model_id
@@ -136,13 +140,19 @@ func (h *OllamaHandler) bestEndpointsForModel(modelName, modelTag string, rankMo
 		return nil, nil
 	}
 	urls := make([]string, 0, len(rows))
+	epTypes := make([]string, 0, len(rows))
+	apiKeys := make([]string, 0, len(rows))
 	for _, r := range rows {
 		urls = append(urls, r.URL)
+		epTypes = append(epTypes, r.EndpointType)
+		apiKeys = append(apiKeys, r.APIKey)
 	}
 	return &resolvedModelRoute{
-		Name: rows[0].Name,
-		Tag:  rows[0].Tag,
-		URLs: urls,
+		Name:          rows[0].Name,
+		Tag:           rows[0].Tag,
+		URLs:          urls,
+		EndpointTypes: epTypes,
+		APIKeys:       apiKeys,
 	}, nil
 }
 
@@ -548,6 +558,8 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 
 	name, tag := parseModel(modelRaw)
 	var endpoints []string
+	var endpointTypes []string
+	var apiKeys []string
 	// For smart models, we keep the full candidate list for cascade fallback
 	var smartCandidates []smartModelCandidate
 
@@ -592,6 +604,8 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 		if resolved != nil && len(resolved.URLs) > 0 {
 			name, tag = resolved.Name, resolved.Tag
 			endpoints = resolved.URLs
+			endpointTypes = resolved.EndpointTypes
+			apiKeys = resolved.APIKeys
 			modelRaw = setCanonicalModelInBody(bodyMap, name, tag)
 			rawBody, _ = json.Marshal(bodyMap)
 		}
@@ -609,6 +623,8 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 			if resolved != nil && len(resolved.URLs) > 0 {
 				name, tag = resolved.Name, resolved.Tag
 				endpoints = resolved.URLs
+				endpointTypes = resolved.EndpointTypes
+				apiKeys = resolved.APIKeys
 				c.Header("X-Model-Fallback", fallbackRaw)
 
 				modelRaw = setCanonicalModelInBody(bodyMap, name, tag)
@@ -742,7 +758,16 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 		ctx, reqCancel := context.WithCancel(c.Request.Context())
 		cancels[i] = reqCancel
 
-		go func(index int, url string, reqCtx context.Context) {
+		epType := "ollama"
+		if i < len(endpointTypes) {
+			epType = endpointTypes[i]
+		}
+		epKey := ""
+		if i < len(apiKeys) {
+			epKey = apiKeys[i]
+		}
+
+		go func(index int, url string, reqCtx context.Context, endpointType string, apiKey string) {
 			target := url + path
 			req, err := http.NewRequestWithContext(reqCtx, method, target, bytes.NewReader(rawBody))
 			if err != nil {
@@ -750,6 +775,11 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 				return
 			}
 			req.Header.Set("Content-Type", "application/json")
+
+			// Inject Authorization header for OpenAI-compatible endpoints (e.g. SGLang)
+			if endpointType == "openai" && apiKey != "" {
+				req.Header.Set("Authorization", "Bearer "+apiKey)
+			}
 
 			// Forward relevant headers (skip auth/host)
 			for k, vs := range c.Request.Header {
@@ -854,7 +884,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 			resp.Body = io.NopCloser(io.MultiReader(bytes.NewReader(firstChunk[:n]), resp.Body))
 
 			resultCh <- raceResult{resp: resp, endpointURL: url, index: index}
-		}(i, endpointURL, ctx)
+		}(i, endpointURL, ctx, epType, epKey)
 	}
 
 	var winningResp *http.Response
