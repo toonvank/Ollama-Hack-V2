@@ -191,6 +191,48 @@ func TestHealthTracker_IsDisabled(t *testing.T) {
 	if tracker.IsDisabled(url) {
 		t.Error("Expected endpoint to be re-enabled after disable period")
 	}
+
+	// Cooldown expiry must clear the sticky Disabled flag (not just IsDisabled=false),
+	// otherwise SQL routing that reads eh.disabled permanently blackholes the node.
+	health := tracker.GetHealth(url)
+	if health == nil {
+		t.Fatal("Expected health entry after cooldown expiry")
+	}
+	if health.Disabled {
+		t.Error("Expected Disabled=false after cooldown expiry, not sticky true")
+	}
+}
+
+func TestHealthTracker_FilterHealthyEndpoints_ExpiresStickyDisable(t *testing.T) {
+	tracker := NewHealthTracker(HealthTrackerConfig{
+		Enabled:          true,
+		DisableThreshold: 30,
+		DisableDuration:  200 * time.Millisecond,
+		ProbeInterval:    1 * time.Minute,
+		FailPenalty:      10,
+		SuccessReward:    2,
+		MaxScore:         100,
+		InitialScore:     100,
+	}, nil)
+	defer tracker.Stop()
+
+	url := "http://sticky-disable:8080"
+	for i := 0; i < 8; i++ {
+		tracker.RecordFailure(url)
+	}
+	if len(tracker.FilterHealthyEndpoints([]string{url})) != 0 {
+		t.Fatal("Expected endpoint filtered while cooldown active")
+	}
+
+	time.Sleep(350 * time.Millisecond)
+
+	filtered := tracker.FilterHealthyEndpoints([]string{url})
+	if len(filtered) != 1 || filtered[0] != url {
+		t.Fatalf("Expected endpoint restored after cooldown, got %v", filtered)
+	}
+	if h := tracker.GetHealth(url); h == nil || h.Disabled {
+		t.Fatalf("Expected Disabled=false after filter expiry, got %#v", h)
+	}
 }
 
 func TestHealthTracker_FilterHealthyEndpoints(t *testing.T) {

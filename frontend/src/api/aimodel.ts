@@ -54,6 +54,27 @@ export const aiModelApi = {
       }>;
     }>(`/api/v2/ai_model/smart/resolutions`);
   },
+
+  // Priority rescan: retest endpoints for this model (full /api/tags)
+  rescanModel: (
+    modelId: number,
+    body: {
+      scope?: "linked" | "available" | "recent" | "all";
+      limit?: number;
+      recent_days?: number;
+      clear_health?: boolean;
+    } = {},
+  ) => {
+    return apiClient.post<{
+      model_id: number;
+      model: string;
+      scope: string;
+      queued: number;
+      priority?: boolean;
+      cleared_health_rows?: number;
+      message: string;
+    }>(`/api/v2/ai_model/${modelId}/rescan`, body);
+  },
 };
 
 export default aiModelApi;

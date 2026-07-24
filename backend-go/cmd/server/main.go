@@ -154,9 +154,10 @@ func main() {
 
 			// AI models
 			admin.GET("/ai_model", modelHandler.List)
-			admin.GET("/ai_model/:id", modelHandler.Get)
 			admin.GET("/ai_model/smart/resolutions", modelHandler.SmartModels)
+			admin.GET("/ai_model/:id", modelHandler.Get)
 			admin.PATCH("/ai_model/:id/toggle", modelHandler.Toggle) // enable/disable
+			admin.POST("/ai_model/:id/rescan", modelHandler.Rescan)  // priority retest for this model
 
 			// Discovery scanner
 			admin.POST("/discovery/scan", discoveryHandler.TriggerManualScan)

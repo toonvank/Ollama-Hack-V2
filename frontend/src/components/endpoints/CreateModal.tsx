@@ -3,6 +3,7 @@ import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
 import { Textarea } from "@heroui/input";
 import { Tabs, Tab } from "@heroui/tabs";
+import { Select, SelectItem } from "@heroui/select";
 import {
   Modal,
   ModalContent,
@@ -34,6 +35,7 @@ const CreateEndpointModal: React.FC<CreateEndpointModalProps> = ({
   const [formData, setFormData] = useState<EndpointCreate>({
     url: "",
     name: "",
+    endpoint_type: "ollama",
   });
 
   // Batch create endpoint form state
@@ -83,6 +85,8 @@ const CreateEndpointModal: React.FC<CreateEndpointModalProps> = ({
       await endpointApi.createEndpoint({
         url,
         name,
+        endpoint_type: formData.endpoint_type || "ollama",
+        api_key: formData.api_key || undefined,
       });
 
       // Success, close modal and refresh list
@@ -93,6 +97,7 @@ const CreateEndpointModal: React.FC<CreateEndpointModalProps> = ({
       setFormData({
         url: "",
         name: "",
+        endpoint_type: "ollama",
       });
       setSelectedTab("single");
     } catch (err) {
@@ -178,6 +183,7 @@ const CreateEndpointModal: React.FC<CreateEndpointModalProps> = ({
       setFormData({
         url: "",
         name: "",
+        endpoint_type: "ollama",
       });
       setUrls("");
     }
@@ -209,7 +215,7 @@ const CreateEndpointModal: React.FC<CreateEndpointModalProps> = ({
                       <Input
                         isRequired
                         className="w-full"
-                        description="Enter the full Ollama service URL, including protocol and port"
+                        description="Enter the full service URL, including protocol and port"
                         id="url"
                         label="Endpoint URL"
                         name="url"
@@ -219,7 +225,7 @@ const CreateEndpointModal: React.FC<CreateEndpointModalProps> = ({
                       />
                     </div>
 
-                    <div className="mb-6">
+                    <div className="mb-4">
                       <Input
                         className="w-full"
                         description="Optional. If left empty, the URL hostname will be used"
@@ -231,6 +237,38 @@ const CreateEndpointModal: React.FC<CreateEndpointModalProps> = ({
                         onChange={handleInputChange}
                       />
                     </div>
+
+                    <div className="mb-4">
+                      <Select
+                        label="Endpoint Type"
+                        description="Ollama for native Ollama nodes, SGLang for OpenAI-compatible servers"
+                        defaultSelectedKeys={["ollama"]}
+                        selectedKeys={[formData.endpoint_type || "ollama"]}
+                        onSelectionChange={(keys) => {
+                          const val = Array.from(keys)[0] as string;
+                          setFormData((prev) => ({ ...prev, endpoint_type: val }));
+                        }}
+                      >
+                        <SelectItem key="ollama">Ollama</SelectItem>
+                        <SelectItem key="openai">SGLang / OpenAI-compatible</SelectItem>
+                      </Select>
+                    </div>
+
+                    {formData.endpoint_type === "openai" && (
+                      <div className="mb-6">
+                        <Input
+                          className="w-full"
+                          description="Optional. Bearer token for OpenAI-compatible endpoints that require auth"
+                          id="api_key"
+                          label="API Key (optional)"
+                          name="api_key"
+                          placeholder="sk-..."
+                          type="password"
+                          value={formData.api_key || ""}
+                          onChange={handleInputChange}
+                        />
+                      </div>
+                    )}
                   </div>
                 </Tab>
                 <Tab key="batch" title="Batch Create">

@@ -16,7 +16,12 @@ export interface ModelFromEndpointInfo {
   url: string;
   name: string;
   created_at: string;
+  /** Effective routing status (host + model + health) */
   status: AIModelStatusEnum;
+  /** Raw endpoints.status */
+  host_status?: string;
+  /** Raw endpoint_ai_models.status (last model probe) */
+  model_on_host?: string;
   token_per_second?: number;
   max_connection_time?: number;
   model_performances: AIModelPerformance[];

@@ -111,6 +111,7 @@ const EndpointTable: React.FC<EndpointTableProps> = ({
     { key: "id", label: "ID", allowsSorting: true },
     { key: "name", label: "Name", allowsSorting: true },
     { key: "url", label: "URL", allowsSorting: true },
+    { key: "endpoint_type", label: "Type" },
     { key: "status", label: "Status", allowsSorting: true },
     { key: "models", label: "AI Models" },
     { key: "created_at", label: "Created At", allowsSorting: true },
@@ -227,6 +228,19 @@ const EndpointTable: React.FC<EndpointTableProps> = ({
           <div className="flex flex-col">
             <p className="text-bold text-small">{endpoint.url}</p>
           </div>
+        );
+      case "endpoint_type":
+        const epType = endpoint.endpoint_type || "ollama";
+        return (
+          <span
+            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+              epType === "openai"
+                ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                : "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+            }`}
+          >
+            {epType === "openai" ? "SGLang" : "Ollama"}
+          </span>
         );
       case "status":
         return <StatusBadge status={getEndpointStatus(endpoint)} />;

@@ -223,8 +223,8 @@ func (ht *HealthTracker) RecordFailure(url string) {
 	if !h.Disabled && h.Score <= ht.config.DisableThreshold {
 		h.Disabled = true
 		h.DisabledUntil = time.Now().Add(ht.config.DisableDuration)
-		log.Printf("[health-tracker] Endpoint %s DISABLED (score: %d, until: %v)",
-			url, h.Score, h.DisabledUntil.Format(time.RFC3339))
+		log.Printf("[health-tracker] Endpoint %s DISABLED (score: %d, fail_count: %d, until: %v)",
+			url, h.Score, h.FailCount, h.DisabledUntil.Format(time.RFC3339))
 	}
 }
 
@@ -266,14 +266,69 @@ func (ht *HealthTracker) RecordQuotaExceeded(url string) {
 		url, h.Score, h.DisabledUntil.Format(time.RFC3339))
 }
 
+// isCooldownExpired reports whether a disabled entry's cooldown has elapsed.
+// Zero DisabledUntil is treated as expired so stale rows without a timestamp
+// do not stay blackholed forever (especially when active probing is off).
+func isCooldownExpired(h *EndpointHealth, now time.Time) bool {
+	if h == nil || !h.Disabled {
+		return true
+	}
+	if h.DisabledUntil.IsZero() {
+		return true
+	}
+	return now.After(h.DisabledUntil)
+}
+
+// reenableExpiredLocked clears disabled state when the cooldown has elapsed.
+// Caller must hold ht.mu for writing.
+func (ht *HealthTracker) reenableExpiredLocked(h *EndpointHealth, now time.Time) bool {
+	if h == nil || !h.Disabled {
+		return false
+	}
+	if !isCooldownExpired(h, now) {
+		return false
+	}
+	h.Disabled = false
+	h.DisabledUntil = time.Time{}
+	if h.Score <= ht.config.DisableThreshold {
+		h.Score = ht.config.DisableThreshold + 1
+	}
+	return true
+}
+
+// expireCooldowns re-enables every endpoint whose disable window has passed.
+// Critical when BACKGROUND_ENDPOINT_OUTBOUND=false: without active probes,
+// expired cooldowns were only treated as healthy in memory while DB kept
+// disabled=true, and SQL routing permanently excluded those endpoints.
+func (ht *HealthTracker) expireCooldowns() int {
+	if !ht.config.Enabled {
+		return 0
+	}
+
+	ht.mu.Lock()
+	defer ht.mu.Unlock()
+
+	now := time.Now()
+	cleared := 0
+	for _, h := range ht.health {
+		if ht.reenableExpiredLocked(h, now) {
+			cleared++
+		}
+	}
+	if cleared > 0 {
+		log.Printf("[health-tracker] Re-enabled %d endpoint(s) after disable cooldown expired", cleared)
+	}
+	return cleared
+}
+
 // IsDisabled checks if an endpoint is currently disabled
 func (ht *HealthTracker) IsDisabled(url string) bool {
 	if !ht.config.Enabled {
 		return false
 	}
 
-	ht.mu.RLock()
-	defer ht.mu.RUnlock()
+	ht.mu.Lock()
+	defer ht.mu.Unlock()
 
 	h, exists := ht.health[url]
 	if !exists {
@@ -284,9 +339,9 @@ func (ht *HealthTracker) IsDisabled(url string) bool {
 		return false
 	}
 
-	// Check if disable period has expired
-	if time.Now().After(h.DisabledUntil) {
-		return false // Will be re-enabled on next probe
+	// Cooldown elapsed: clear sticky disable so routing SQL + DB stay consistent
+	if ht.reenableExpiredLocked(h, time.Now()) {
+		return false
 	}
 
 	return true
@@ -298,9 +353,10 @@ func (ht *HealthTracker) FilterHealthyEndpoints(urls []string) []string {
 		return urls
 	}
 
-	ht.mu.RLock()
-	defer ht.mu.RUnlock()
+	ht.mu.Lock()
+	defer ht.mu.Unlock()
 
+	now := time.Now()
 	healthy := make([]string, 0, len(urls))
 	for _, url := range urls {
 		h, exists := ht.health[url]
@@ -310,15 +366,13 @@ func (ht *HealthTracker) FilterHealthyEndpoints(urls []string) []string {
 			continue
 		}
 
-		if !h.Disabled {
-			healthy = append(healthy, url)
-			continue
+		if h.Disabled {
+			if !ht.reenableExpiredLocked(h, now) {
+				continue
+			}
 		}
 
-		// Check if disable period has expired
-		if time.Now().After(h.DisabledUntil) {
-			healthy = append(healthy, url)
-		}
+		healthy = append(healthy, url)
 	}
 
 	return healthy
@@ -376,6 +430,8 @@ func (ht *HealthTracker) loadFromDB() {
 
 	ht.mu.Lock()
 	defer ht.mu.Unlock()
+	now := time.Now()
+	expiredOnLoad := 0
 	for _, r := range rows {
 		h := &EndpointHealth{
 			URL:          r.URL,
@@ -396,9 +452,14 @@ func (ht *HealthTracker) loadFromDB() {
 		if r.LastProbe.Valid {
 			h.LastProbe = r.LastProbe.Time
 		}
+		// Drop sticky disables whose cooldown already elapsed while we were down
+		// or while active probing was off (otherwise SQL routing never sees them).
+		if ht.reenableExpiredLocked(h, now) {
+			expiredOnLoad++
+		}
 		ht.health[r.URL] = h
 	}
-	log.Printf("[health-tracker] Loaded %d endpoints from DB", len(rows))
+	log.Printf("[health-tracker] Loaded %d endpoints from DB (%d cooldown(s) already expired and re-enabled)", len(rows), expiredOnLoad)
 }
 
 func (ht *HealthTracker) persistLoop() {
@@ -408,8 +469,12 @@ func (ht *HealthTracker) persistLoop() {
 	for {
 		select {
 		case <-ticker.C:
+			// Expire cooldowns before writing so DB disabled flags cannot stick
+			// after disabled_until has passed.
+			ht.expireCooldowns()
 			ht.persistToDB()
 		case <-ht.stopChan:
+			ht.expireCooldowns()
 			ht.persistToDB()
 			return
 		}

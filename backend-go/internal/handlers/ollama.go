@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -95,8 +96,8 @@ type resolvedModelRoute struct {
 	Name          string
 	Tag           string
 	URLs          []string
-	EndpointTypes []string
-	APIKeys       []string
+	EndpointTypes []string // parallel to URLs: "ollama" or "openai"
+	APIKeys       []string // parallel to URLs: bearer token or ""
 }
 
 // bestEndpointsForModel returns the top-ranked endpoint URLs for a model.
@@ -111,7 +112,8 @@ func (h *OllamaHandler) bestEndpointsForModel(modelName, modelTag string, rankMo
 		APIKey       string `db:"api_key"`
 	}
 	var rows []row
-	minTPS := 0.0
+	// Default min TPS > 0 so zero/NULL (unmeasured, tags-only, failed smoke) never race.
+	minTPS := 0.01
 	if val := os.Getenv("MIN_TPS_THRESHOLD"); val != "" {
 		fmt.Sscanf(val, "%f", &minTPS)
 	}
@@ -125,14 +127,11 @@ func (h *OllamaHandler) bestEndpointsForModel(modelName, modelTag string, rankMo
 		JOIN ai_models m ON m.id = eam.ai_model_id
 		LEFT JOIN endpoint_health eh ON eh.url = e.url
 		WHERE LOWER(m.name) = LOWER($1) AND LOWER(m.tag) = LOWER($2)
-		  AND m.enabled = TRUE
-		  AND eam.status = 'available'
-		  AND e.status = 'available'
-		  AND (eh.disabled IS NULL OR eh.disabled = FALSE)
-		  AND (eam.token_per_second >= $3 OR eam.token_per_second IS NULL)
+		  AND %s
+		  AND eam.token_per_second >= $3
 		ORDER BY %s
-		LIMIT 5
-	`, orderBy), modelName, modelTag, minTPS)
+		LIMIT 1
+	`, routableEndpointSQL, orderBy), modelName, modelTag, minTPS)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +172,9 @@ func (h *OllamaHandler) resolveSmartModel(smartTag string) ([]smartModelCandidat
 		}
 	}
 
-	heuristic, _, rankingClause := smartProfileConfig(smartTag)
+	heuristic, desc, rankingClause := smartProfileConfig(smartTag)
+
+	log.Printf("[smart-profile] resolving '%s' (desc: %s) with heuristic", smartTag, desc)
 
 	// Fetch top 3 models ranked by reply time (best endpoint per model, then global sort)
 	query := fmt.Sprintf(`
@@ -187,15 +188,12 @@ func (h *OllamaHandler) resolveSmartModel(smartTag string) ([]smartModelCandidat
 			JOIN ai_models m ON m.id = eam.ai_model_id
 			LEFT JOIN endpoint_health eh ON eh.url = e.url
 			WHERE %s
-			  AND m.enabled = TRUE
-			  AND eam.status = 'available'
-			  AND e.status = 'available'
-			  AND (eh.disabled IS NULL OR eh.disabled = FALSE)
+			  AND %s
 			ORDER BY m.name, m.tag, %s
 		) ranked_models
 		ORDER BY max_connection_time ASC NULLS LAST, token_per_second DESC NULLS LAST
 		LIMIT 3
-	`, heuristic, rankingClause)
+	`, heuristic, routableEndpointSQL, rankingClause)
 
 	type modelRow struct {
 		Name string `db:"name"`
@@ -207,6 +205,8 @@ func (h *OllamaHandler) resolveSmartModel(smartTag string) ([]smartModelCandidat
 		return nil, fmt.Errorf("no models available for smart tag '%s'", smartTag)
 	}
 
+	log.Printf("[smart-profile] '%s' found %d candidate model(s) from DB: %v", smartTag, len(mRows), mRows)
+
 	candidates := make([]smartModelCandidate, 0, len(mRows))
 	for _, mRow := range mRows {
 		resolved, err := h.bestEndpointsForModel(mRow.Name, mRow.Tag, RankByReplyTime)
@@ -216,12 +216,26 @@ func (h *OllamaHandler) resolveSmartModel(smartTag string) ([]smartModelCandidat
 				name: resolved.Name,
 				tag:  resolved.Tag,
 			})
+			log.Printf("[smart-profile]   candidate: %s:%s on %d healthy endpoint(s)", resolved.Name, resolved.Tag, len(resolved.URLs))
 		}
 	}
 
 	if len(candidates) == 0 {
 		return nil, fmt.Errorf("no reachable endpoints for smart tag '%s'", smartTag)
 	}
+
+	// Secondary sort: prefer models that are available on *more* healthy endpoints.
+	// This reduces the chance of picking a rare model that only one weird node has.
+	sort.SliceStable(candidates, func(i, j int) bool {
+		// If perf was the primary (already sorted), we just boost availability
+		li, lj := len(candidates[i].urls), len(candidates[j].urls)
+		if li != lj {
+			return li > lj // more endpoints first
+		}
+		return false
+	})
+
+	log.Printf("[smart-profile] '%s' final candidates after availability boost: %d", smartTag, len(candidates))
 
 	// Cache the result for 60 seconds to relieve database load
 	h.smartCache.Store(smartTag, smartModelCacheEntry{
@@ -293,6 +307,13 @@ func stripThinkingTextStream(content string) string {
 }
 
 func stripThinkingFieldsFromMap(msg map[string]interface{}, isStream bool) {
+	// Non-stream only: promote reasoning → content before delete so blank
+	// completions don't reach Open WebUI.
+	// Mid-stream promote dumps CoT into the chat bubble (broken "think blocks").
+	if !isStream {
+		promoteReasoningToContent(msg)
+	}
+
 	for _, key := range []string{"thinking", "reasoning", "reasoning_content"} {
 		delete(msg, key)
 	}
@@ -303,6 +324,144 @@ func stripThinkingFieldsFromMap(msg map[string]interface{}, isStream bool) {
 			msg["content"] = stripThinkingText(content)
 		}
 	}
+}
+
+// normalizeReasoningFieldNames maps GLM/Ollama `reasoning`/`thinking` onto
+// Open WebUI's `reasoning_content` so collapsible think blocks render.
+func normalizeReasoningFieldNames(msg map[string]interface{}) {
+	if msg == nil {
+		return
+	}
+	if _, has := msg["reasoning_content"]; !has {
+		for _, key := range []string{"reasoning", "thinking"} {
+			if v, ok := msg[key]; ok && v != nil {
+				if s, ok := v.(string); ok && s != "" {
+					msg["reasoning_content"] = s
+				} else if !ok {
+					// non-string (rare) — still move
+					msg["reasoning_content"] = v
+				}
+				break
+			}
+		}
+	}
+	delete(msg, "reasoning")
+	delete(msg, "thinking")
+}
+
+func normalizeReasoningInPayload(payload map[string]interface{}) bool {
+	choices, ok := payload["choices"].([]interface{})
+	if !ok {
+		return false
+	}
+	changed := false
+	for _, choiceRaw := range choices {
+		choice, ok := choiceRaw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		for _, field := range []string{"delta", "message"} {
+			if msg, ok := choice[field].(map[string]interface{}); ok {
+				before, _ := json.Marshal(msg)
+				normalizeReasoningFieldNames(msg)
+				after, _ := json.Marshal(msg)
+				if !bytes.Equal(before, after) {
+					changed = true
+				}
+			}
+		}
+	}
+	return changed
+}
+
+func extractDeltaReasoningAndContent(payload map[string]interface{}) (content string, reasoning string, finish string, ok bool) {
+	choices, okArr := payload["choices"].([]interface{})
+	if !okArr || len(choices) == 0 {
+		return "", "", "", false
+	}
+	choice, okMap := choices[0].(map[string]interface{})
+	if !okMap {
+		return "", "", "", false
+	}
+	if fr, ok := choice["finish_reason"].(string); ok {
+		finish = fr
+	}
+	delta, _ := choice["delta"].(map[string]interface{})
+	msg, _ := choice["message"].(map[string]interface{})
+	src := delta
+	if src == nil {
+		src = msg
+	}
+	if src == nil {
+		return "", "", finish, true
+	}
+	if c, ok := src["content"].(string); ok {
+		content = c
+	}
+	for _, key := range []string{"reasoning_content", "reasoning", "thinking"} {
+		if r, ok := src[key].(string); ok && r != "" {
+			reasoning = r
+			break
+		}
+	}
+	return content, reasoning, finish, true
+}
+
+// promoteReasoningToContent copies reasoning → content when content is empty.
+// Safe for Open WebUI which only renders message.content / delta.content.
+func promoteReasoningToContent(msg map[string]interface{}) {
+	if msg == nil {
+		return
+	}
+	content, _ := msg["content"].(string)
+	if strings.TrimSpace(content) != "" {
+		return
+	}
+	for _, key := range []string{"reasoning", "reasoning_content", "thinking"} {
+		if r, ok := msg[key].(string); ok {
+			if t := strings.TrimSpace(r); t != "" {
+				msg["content"] = t
+				return
+			}
+		}
+	}
+}
+
+// normalizeChatResponseForClients always promotes empty content from reasoning
+// on final (non-stream) message objects so chat UIs never receive blank completions.
+func normalizeChatResponseForClients(respBytes []byte) []byte {
+	var payload map[string]interface{}
+	if err := json.Unmarshal(respBytes, &payload); err != nil {
+		return respBytes
+	}
+	choices, ok := payload["choices"].([]interface{})
+	if !ok {
+		return respBytes
+	}
+	changed := false
+	for _, choiceRaw := range choices {
+		choice, ok := choiceRaw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if msg, ok := choice["message"].(map[string]interface{}); ok {
+			before, _ := msg["content"].(string)
+			promoteReasoningToContent(msg)
+			after, _ := msg["content"].(string)
+			if before != after {
+				changed = true
+			}
+		}
+		// Do not promote delta.reasoning mid-stream — only final message objects.
+	}
+	if !changed {
+		return respBytes
+	}
+	out, err := json.Marshal(payload)
+	if err != nil {
+		return respBytes
+	}
+	return out
 }
 
 func stripThinkingFromChatResponse(respBytes []byte) []byte {
@@ -349,6 +508,25 @@ func stripThinkingFromStreamLine(line []byte) []byte {
 	return append([]byte("data: "), cleaned...)
 }
 
+func normalizeStreamLineForClients(line []byte) []byte {
+	trimmed := bytes.TrimSpace(line)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("data: [DONE]")) {
+		return line
+	}
+	if !bytes.HasPrefix(trimmed, []byte("data:")) {
+		return line
+	}
+	jsonPart := bytes.TrimSpace(bytes.TrimPrefix(trimmed, []byte("data:")))
+	if len(jsonPart) == 0 || bytes.Equal(jsonPart, []byte("[DONE]")) {
+		return line
+	}
+	cleaned := normalizeChatResponseForClients(jsonPart)
+	if bytes.Equal(cleaned, jsonPart) {
+		return line
+	}
+	return append([]byte("data: "), cleaned...)
+}
+
 // Models returns the list of available (enabled) models — OpenAI /v1/models format
 func (h *OllamaHandler) Models(c *gin.Context) {
 	log.Println("[Models] Handler called!")
@@ -357,13 +535,9 @@ func (h *OllamaHandler) Models(c *gin.Context) {
 		Tag  string `db:"tag"`
 	}
 	var rows []row
-	err := h.db.Select(&rows, `
-		SELECT DISTINCT m.name, m.tag
-		FROM ai_models m
-		JOIN endpoint_ai_models eam ON eam.ai_model_id = m.id
-		WHERE m.enabled = TRUE AND eam.status = 'available'
-		ORDER BY m.name, m.tag
-	`)
+	// Only list models with ≥1 routable endpoint so clients (OpenCode/OpenChamber)
+	// never pick catalog entries that always 404 at chat time.
+	err := h.db.Select(&rows, modelListRoutableSQL)
 	if err != nil {
 		utils.InternalServerError(c, "Failed to fetch models")
 		return
@@ -391,7 +565,7 @@ func (h *OllamaHandler) Models(c *gin.Context) {
 		})
 	}
 
-	log.Printf("[Models] Returning %d models (%d real + %d smart)", len(data), len(rows), len(pseudoModels))
+	log.Printf("[Models] Returning %d models (%d real routable + %d smart)", len(data), len(rows), len(pseudoModels))
 
 	c.JSON(200, gin.H{"object": "list", "data": data})
 }
@@ -403,13 +577,7 @@ func (h *OllamaHandler) Tags(c *gin.Context) {
 		Tag  string `db:"tag"`
 	}
 	var rows []row
-	err := h.db.Select(&rows, `
-		SELECT DISTINCT m.name, m.tag
-		FROM ai_models m
-		JOIN endpoint_ai_models eam ON eam.ai_model_id = m.id
-		WHERE m.enabled = TRUE AND eam.status = 'available'
-		ORDER BY m.name, m.tag
-	`)
+	err := h.db.Select(&rows, modelListRoutableSQL)
 	if err != nil {
 		utils.InternalServerError(c, "Failed to fetch models")
 		return
@@ -502,6 +670,16 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 
 	originalModelRequested := modelRaw
 	thinkVal, thinkExplicit := resolveThinkPreference(bodyMap, c.GetHeader("X-Ollama-Think"))
+	// Honor client think preference. Forcing think=false made GLM dump CoT into
+	// content (broken think blocks). With think=true, GLM streams reasoning
+	// separately and content stays clean — Open WebUI shows collapsible blocks
+	// once we map reasoning → reasoning_content.
+	// Opt out: X-Force-No-Think: true strips thinking (OpenCode / blank-safe).
+	if strings.EqualFold(c.GetHeader("X-Force-No-Think"), "true") {
+		thinkVal = false
+		thinkExplicit = true
+		log.Printf("[proxy] X-Force-No-Think: forcing think=false for model %s", modelRaw)
+	}
 	stripThinking := thinkExplicit && !thinkVal
 	if thinkExplicit {
 		bodyMap["think"] = thinkVal
@@ -562,6 +740,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 	var apiKeys []string
 	// For smart models, we keep the full candidate list for cascade fallback
 	var smartCandidates []smartModelCandidate
+	err = nil // reuse outer err from body read
 
 	if name == "smart" || name == "best-abliterated" {
 		profile := tag
@@ -587,8 +766,8 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 			}
 			if foundHealthy {
 				name, tag = best.name, best.tag
-				log.Printf("[smart-model] Resolved '%s' → '%s:%s' (%d fallback candidates)",
-					originalModelRequested, name, tag, len(smartCandidates)-1)
+				log.Printf("[smart-model] Resolved '%s' → '%s:%s' using %d healthy endpoint(s) (%d total fallback candidates)",
+					originalModelRequested, name, tag, len(endpoints), len(smartCandidates)-1)
 				modelRaw = fmt.Sprintf("%s:%s", name, tag)
 				bodyMap["model"] = modelRaw
 				rawBody, _ = json.Marshal(bodyMap)
@@ -599,6 +778,8 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 			}
 		}
 	} else {
+		// Concrete model only — no silent swap to unrelated models.
+		// (Smart profiles are for when the client *asks* for smart:cloud etc.)
 		var resolved *resolvedModelRoute
 		resolved, err = h.bestEndpointsForModel(name, tag, defaultEndpointRankMode())
 		if resolved != nil && len(resolved.URLs) > 0 {
@@ -608,27 +789,19 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 			apiKeys = resolved.APIKeys
 			modelRaw = setCanonicalModelInBody(bodyMap, name, tag)
 			rawBody, _ = json.Marshal(bodyMap)
-		}
-	}
-
-	// Attempt blazing fast in-memory fallback route if unavailable
-	if err != nil || len(endpoints) == 0 {
-		lookupKey := strings.ToLower(fmt.Sprintf("%s:%s", name, tag))
-		if fallbackRaw, ok := h.fallbacks[lookupKey]; ok {
-			log.Printf("[proxy] Model %s unavailable, applying fallback to %s", lookupKey, fallbackRaw)
-
-			name, tag = parseModel(fallbackRaw)
-			var resolved *resolvedModelRoute
-			resolved, err = h.bestEndpointsForModel(name, tag, defaultEndpointRankMode())
-			if resolved != nil && len(resolved.URLs) > 0 {
-				name, tag = resolved.Name, resolved.Tag
-				endpoints = resolved.URLs
-				endpointTypes = resolved.EndpointTypes
-				apiKeys = resolved.APIKeys
-				c.Header("X-Model-Fallback", fallbackRaw)
-
+		} else if fallbackRaw, ok := h.fallbacks[strings.ToLower(fmt.Sprintf("%s:%s", name, tag))]; ok {
+			// Explicit APP_FALLBACK_MODELS only (operator-configured)
+			if r, sel, ok := h.tryFallbackID(fallbackRaw); ok {
+				name, tag = r.Name, r.Tag
+				endpoints = r.URLs
+				endpointTypes = r.EndpointTypes
+				apiKeys = r.APIKeys
 				modelRaw = setCanonicalModelInBody(bodyMap, name, tag)
 				rawBody, _ = json.Marshal(bodyMap)
+				c.Header("X-Model-Fallback", sel)
+				c.Header("X-Original-Model", originalModelRequested)
+				err = nil
+				log.Printf("[proxy] APP_FALLBACK_MODELS %s → %s", originalModelRequested, sel)
 			}
 		}
 	}
@@ -768,15 +941,38 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 		}
 
 		go func(index int, url string, reqCtx context.Context, endpointType string, apiKey string) {
+			// For OpenAI-type endpoints, rewrite model from "name:tag" to the full model ID
+			// (SGLang/vLLM expect "org/model-name" not "org/model-name:latest")
+			sendBody := rawBody
+			if endpointType == "openai" {
+				var bm map[string]interface{}
+				if err := json.Unmarshal(rawBody, &bm); err == nil {
+					if m, ok := bm["model"].(string); ok {
+						if idx := strings.LastIndex(m, ":"); idx > 0 && !strings.Contains(m[:idx], "/") {
+							// Only strip ":tag" if the part before ":" doesn't contain "/"
+							// (avoids stripping "org/model:tag" incorrectly — we want to keep
+							// model IDs like "Qwen/Qwen3.6-27B-FP8" intact, only strip "name:latest")
+							bm["model"] = m[:idx]
+							sendBody, _ = json.Marshal(bm)
+						} else if idx > 0 && strings.Contains(m[:idx], "/") {
+							// For "org/model-name:tag" format, strip the ":tag" suffix
+							bm["model"] = m[:idx]
+							sendBody, _ = json.Marshal(bm)
+						}
+					}
+					// Remove keep_alive — not supported by OpenAI/SGLang endpoints
+					delete(bm, "keep_alive")
+					sendBody, _ = json.Marshal(bm)
+				}
+			}
 			target := url + path
-			req, err := http.NewRequestWithContext(reqCtx, method, target, bytes.NewReader(rawBody))
+			req, err := http.NewRequestWithContext(reqCtx, method, target, bytes.NewReader(sendBody))
 			if err != nil {
 				resultCh <- raceResult{err: err, endpointURL: url, index: index}
 				return
 			}
 			req.Header.Set("Content-Type", "application/json")
 
-			// Inject Authorization header for OpenAI-compatible endpoints (e.g. SGLang)
 			if endpointType == "openai" && apiKey != "" {
 				req.Header.Set("Authorization", "Bearer "+apiKey)
 			}
@@ -822,15 +1018,21 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 
 			// Validate Content-Type
 			contentType := strings.ToLower(resp.Header.Get("Content-Type"))
-			if strings.Contains(contentType, "text/html") {
+			if strings.Contains(contentType, "text/html") || strings.Contains(contentType, "text/plain") {
 				resp.Body.Close()
-				resultCh <- raceResult{err: fmt.Errorf("rejected honeypot: html response"), endpointURL: url, index: index}
+				resultCh <- raceResult{err: fmt.Errorf("rejected honeypot: bad content-type %s", contentType), endpointURL: url, index: index}
 				return
 			}
 
 			// Enforce streaming response if the client requested it to prevent Open WebUI parser crashes
 			streamReq, _ := bodyMap["stream"].(bool)
-			if streamReq && !strings.Contains(contentType, "event-stream") && !strings.Contains(contentType, "ndjson") {
+			if streamReq && !strings.Contains(contentType, "event-stream") && !strings.Contains(contentType, "ndjson") && !strings.Contains(contentType, "json") {
+				// json without event-stream still breaks many clients when stream=true
+				resp.Body.Close()
+				resultCh <- raceResult{err: fmt.Errorf("rejected node: expected stream but got %s", contentType), endpointURL: url, index: index}
+				return
+			}
+			if streamReq && strings.Contains(contentType, "json") && !strings.Contains(contentType, "event-stream") && !strings.Contains(contentType, "ndjson") {
 				resp.Body.Close()
 				resultCh <- raceResult{err: fmt.Errorf("rejected node: expected stream but got %s", contentType), endpointURL: url, index: index}
 				return
@@ -895,26 +1097,47 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 	var lastFailStatus int
 	var lastFailBody []byte
 
+	// Wait for first usable response. On winner: cancel losers and drain the
+	// channel in the background so we don't block streaming on their dial timeouts.
 	for i := 0; i < len(endpoints); i++ {
 		res := <-resultCh
 
 		if res.err == nil && winningResp == nil {
-			// WE HAVE A WINNER!
+			// WE HAVE A WINNER — stream immediately, don't wait for slow losers
 			winningResp = res.resp
 			winningEndpoint = res.endpointURL
-			log.Printf("[proxy-race] 🏁 WINNER: %s", res.endpointURL)
+			log.Printf("[proxy-race] 🏁 WINNER: %s (fail-so-far=%d/%d)", res.endpointURL, failures, len(endpoints))
 
-			// Record success for the winning endpoint
 			healthTracker.RecordSuccess(res.endpointURL)
 
-			// INSTANTLY send Cancellation Signals dropped to all slower GPU nodes to free their VRAM
 			for j, cancelFunc := range cancels {
 				if j != res.index {
 					cancelFunc()
 				}
 			}
+
+			// Drain remaining race results without blocking the client stream
+			remaining := len(endpoints) - i - 1
+			if remaining > 0 {
+				go func(n int, ch <-chan raceResult) {
+					for k := 0; k < n; k++ {
+						loser := <-ch
+						if loser.resp != nil {
+							loser.resp.Body.Close()
+						}
+						if loser.err != nil {
+							if isModelNotFoundError(loser.failStatus, loser.failBody) ||
+								loser.failStatus == 401 || loser.failStatus == 403 {
+								h.demoteModelOnURL(name, tag, loser.endpointURL)
+							} else if !loser.isClientError && !loser.rateLimited && !loser.quotaExceeded {
+								healthTracker.RecordFailure(loser.endpointURL)
+							}
+						}
+					}
+				}(remaining, resultCh)
+			}
+			break
 		} else if res.resp != nil {
-			// This node finished processing, but it's a loser (or we already have a winner). Clean it up.
 			res.resp.Body.Close()
 		}
 
@@ -923,19 +1146,22 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 			utils.FailedRequests.Add(1)
 			log.Printf("[proxy-race] endpoint %s failed: %v", res.endpointURL, res.err)
 
-			// Save the most recent upstream error to bubble back if the proxy fails
 			if res.failStatus > 0 {
 				lastFailStatus = res.failStatus
 				lastFailBody = res.failBody
 			}
 
-			// Handle different error categories for health scoring
 			if res.quotaExceeded {
 				healthTracker.RecordQuotaExceeded(res.endpointURL)
 			} else if res.rateLimited {
 				healthTracker.RecordRateLimit(res.endpointURL)
+			} else if isModelNotFoundError(res.failStatus, res.failBody) {
+				log.Printf("[health] demoting model-not-found on %s for %s", res.endpointURL, modelRaw)
+				h.demoteModelOnURL(name, tag, res.endpointURL)
+			} else if res.failStatus == 401 || res.failStatus == 403 {
+				log.Printf("[health] demoting auth-fail on %s for %s (status %d)", res.endpointURL, modelRaw, res.failStatus)
+				h.demoteModelOnURL(name, tag, res.endpointURL)
 			} else if !res.isClientError {
-				// Only penalize 5xx server errors or hard connection timeouts
 				healthTracker.RecordFailure(res.endpointURL)
 			}
 		}
@@ -989,6 +1215,8 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 								healthTracker.RecordQuotaExceeded(cascadeURL)
 							} else if cresp.StatusCode == 429 {
 								healthTracker.RecordRateLimit(cascadeURL)
+							} else if isModelNotFoundError(cresp.StatusCode, b) {
+								log.Printf("[health] skipping penalty (model-not-found in cascade) for %s", cascadeURL)
 							} else if cresp.StatusCode >= 500 {
 								healthTracker.RecordFailure(cascadeURL)
 							}
@@ -1010,7 +1238,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 				}
 			}
 		}
-		if winningResp == nil && isCloudTaggedModel(name, tag, originalModelRequested) {
+		if winningResp == nil && isCloudTaggedModel(name, tag, originalModelRequested) && !requestUsesTools(bodyMap) {
 			triedCloudModels := collectTriedCloudModels(name, tag, smartCandidates)
 			fbResp, fbModel, fbFailStatus, fbFailBody := h.attemptCloudProviderCascade(
 				c.Request.Context(), method, path, bodyMap, healthTracker, triedCloudModels)
@@ -1022,6 +1250,8 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 				lastFailStatus = fbFailStatus
 				lastFailBody = fbFailBody
 			}
+		} else if winningResp == nil && isCloudTaggedModel(name, tag, originalModelRequested) {
+			log.Printf("[cloud-provider-cascade] Skipping alternate cloud model cascade for tool/function-call request")
 		}
 
 		if winningResp == nil && isCloudTaggedModel(name, tag, originalModelRequested) {
@@ -1077,51 +1307,12 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 	c.Status(resp.StatusCode)
 
 	if stream {
-		// Anti-buffering headers to guarantee Nginx/aiohttp stream it live instead of waiting for EOF
+		// Anti-buffering headers — OpenCode/OpenChamber need clean SSE framing
+		c.Header("Content-Type", "text/event-stream")
 		c.Header("Cache-Control", "no-cache")
 		c.Header("Connection", "keep-alive")
 		c.Header("X-Accel-Buffering", "no")
-
-		// Streaming: flush chunks as they arrive safely line-by-line
-		flusher, ok := c.Writer.(http.Flusher)
-		reader := bufio.NewReader(resp.Body)
-
-		targetModelStr := []byte(fmt.Sprintf(`"model":"%s"`, modelRaw))
-		replModelStr := []byte(fmt.Sprintf(`"model":"%s"`, originalModelRequested))
-
-		for {
-			line, readErr := reader.ReadBytes('\n')
-			if len(line) > 0 {
-				// Rewrite the output model JSON cleanly at logical data boundaries
-				if originalModelRequested != modelRaw {
-					line = bytes.ReplaceAll(line, targetModelStr, replModelStr)
-				}
-				if stripThinking {
-					line = stripThinkingFromStreamLine(line)
-				}
-
-				c.Writer.Write(line)
-				if ok {
-					flusher.Flush()
-				}
-			}
-			if readErr != nil {
-				// Inject a terminal Usage object chunk (OpenAI standard) to protect Litellm from crashing if 'stream_options.include_usage: true' was passed
-				usageChunk := fmt.Sprintf("\ndata: {\"id\":\"chatcmpl-end\",\"object\":\"chat.completion.chunk\",\"created\":%d,\"model\":\"%s\",\"choices\":[],\"usage\":{\"prompt_tokens\":0,\"completion_tokens\":0,\"total_tokens\":0}}\n\n", time.Now().Unix(), originalModelRequested)
-				c.Writer.Write([]byte(usageChunk))
-
-				// Inject a guaranteed DONE frame if the stream ends or is aborted abruptly,
-				// which prevents python/aiohttp ClientPayloadError crashes in Open WebUI
-				c.Writer.Write([]byte("data: [DONE]\n\n"))
-				if ok {
-					flusher.Flush()
-				}
-				if readErr != io.EOF {
-					log.Printf("[proxy] Stream aborted early: %v", readErr)
-				}
-				break
-			}
-		}
+		writeNormalizedSSE(c, resp.Body, modelRaw, originalModelRequested, stripThinking)
 		resp.Body.Close()
 	} else {
 		// Non-streaming: copy full body and cache it
@@ -1135,6 +1326,18 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 		}
 		if stripThinking {
 			respBytes = stripThinkingFromChatResponse(respBytes)
+		} else {
+			// Map reasoning → reasoning_content for Open WebUI think blocks,
+			// and promote empty content so UIs never get blank replies.
+			respBytes = normalizeChatResponseForClients(respBytes)
+			var payload map[string]interface{}
+			if err := json.Unmarshal(respBytes, &payload); err == nil {
+				if normalizeReasoningInPayload(payload) {
+					if b, err := json.Marshal(payload); err == nil {
+						respBytes = b
+					}
+				}
+			}
 		}
 
 		if bodyErr == nil {
@@ -1369,6 +1572,23 @@ func isCloudTaggedModel(name, tag, originalRequested string) bool {
 	return strings.HasSuffix(strings.ToLower(originalRequested), ":cloud")
 }
 
+// requestUsesTools reports whether this request includes OpenAI-style tool/function calling.
+func requestUsesTools(bodyMap map[string]interface{}) bool {
+	if tools, ok := bodyMap["tools"]; ok {
+		if toolList, listOK := tools.([]interface{}); listOK {
+			return len(toolList) > 0
+		}
+		return true
+	}
+	if functions, ok := bodyMap["functions"]; ok {
+		if fnList, listOK := functions.([]interface{}); listOK {
+			return len(fnList) > 0
+		}
+		return true
+	}
+	return false
+}
+
 func collectTriedCloudModels(name, tag string, smartCandidates []smartModelCandidate) map[string]bool {
 	tried := map[string]bool{
 		strings.ToLower(fmt.Sprintf("%s:%s", name, tag)): true,
@@ -1475,6 +1695,8 @@ func (h *OllamaHandler) attemptModelOnEndpoints(
 					healthTracker.RecordQuotaExceeded(fallbackURL)
 				} else if resp.StatusCode == 429 {
 					healthTracker.RecordRateLimit(fallbackURL)
+				} else if isModelNotFoundError(resp.StatusCode, b) {
+					log.Printf("[health] skipping penalty (model-not-found in cloud/fallback) for %s", fallbackURL)
 				} else if resp.StatusCode >= 500 {
 					healthTracker.RecordFailure(fallbackURL)
 				}
@@ -1521,4 +1743,321 @@ func isQuotaExceededError(statusCode int, body []byte) bool {
 		}
 	}
 	return false
+}
+
+// writeNormalizedSSE rewrites upstream Ollama/OpenAI streams into strict SSE
+// frames that OpenCode/OpenChamber can parse:
+//   data: <single-json-object>\n\n
+// and at most one terminal `data: [DONE]\n\n`.
+// Also maps reasoning → reasoning_content for Open WebUI think blocks.
+// Upstream often uses single \n, empty content deltas, and we used to append a
+// second [DONE] plus a choices:[] usage chunk — that breaks strict clients.
+func writeNormalizedSSE(c *gin.Context, body io.Reader, modelRaw, originalModel string, stripThinking bool) {
+	flusher, canFlush := c.Writer.(http.Flusher)
+	reader := bufio.NewReader(body)
+	sawDone := false
+	sawContent := false
+	var bufferedReasoning strings.Builder
+	var lastChunk map[string]interface{}
+	targetModelStr := []byte(fmt.Sprintf(`"model":"%s"`, modelRaw))
+	replModelStr := []byte(fmt.Sprintf(`"model":"%s"`, originalModel))
+
+	writeEvent := func(payload string) {
+		if payload == "" {
+			return
+		}
+		// Strict SSE: one data line + blank line
+		fmt.Fprintf(c.Writer, "data: %s\n\n", payload)
+		if canFlush {
+			flusher.Flush()
+		}
+	}
+
+	emitPromotedReasoningIfNeeded := func() {
+		if !stripThinking || sawContent {
+			return
+		}
+		r := strings.TrimSpace(bufferedReasoning.String())
+		if r == "" {
+			return
+		}
+		// Last-resort: answer lived only in reasoning (blank bubble otherwise).
+		tpl := lastChunk
+		if tpl == nil {
+			tpl = map[string]interface{}{
+				"id":      "chatcmpl-promoted",
+				"object":  "chat.completion.chunk",
+				"created": time.Now().Unix(),
+				"model":   originalModel,
+				"choices": []interface{}{
+					map[string]interface{}{
+						"index": 0,
+						"delta": map[string]interface{}{
+							"role":    "assistant",
+							"content": r,
+						},
+						"finish_reason": "stop",
+					},
+				},
+			}
+		} else {
+			// shallow copy choices/delta
+			out := map[string]interface{}{}
+			for k, v := range tpl {
+				out[k] = v
+			}
+			choices, _ := out["choices"].([]interface{})
+			if len(choices) == 0 {
+				return
+			}
+			ch0, _ := choices[0].(map[string]interface{})
+			if ch0 == nil {
+				return
+			}
+			ch := map[string]interface{}{}
+			for k, v := range ch0 {
+				ch[k] = v
+			}
+			ch["delta"] = map[string]interface{}{"role": "assistant", "content": r}
+			ch["finish_reason"] = "stop"
+			out["choices"] = []interface{}{ch}
+			out["model"] = originalModel
+			tpl = out
+		}
+		if b, err := json.Marshal(tpl); err == nil {
+			writeEvent(string(b))
+			sawContent = true
+		}
+	}
+
+	for {
+		line, readErr := reader.ReadBytes('\n')
+		if len(line) > 0 {
+			trimmed := bytes.TrimSpace(line)
+			if len(trimmed) == 0 {
+				// ignore raw blank lines; we emit our own framing
+			} else {
+				payload := trimmed
+				if bytes.HasPrefix(payload, []byte("data:")) {
+					payload = bytes.TrimSpace(bytes.TrimPrefix(payload, []byte("data:")))
+				}
+				// Some broken proxies concatenate multiple JSON objects on one line
+				// separated by "} {". Split if needed.
+				chunks := splitConcatenatedJSON(payload)
+				for _, chunk := range chunks {
+					chunk = bytes.TrimSpace(chunk)
+					if len(chunk) == 0 {
+						continue
+					}
+					if bytes.Equal(chunk, []byte("[DONE]")) {
+						emitPromotedReasoningIfNeeded()
+						if !sawDone {
+							sawDone = true
+							writeEvent("[DONE]")
+						}
+						continue
+					}
+					if originalModel != modelRaw {
+						chunk = bytes.ReplaceAll(chunk, targetModelStr, replModelStr)
+					}
+					// Drop illegal empty-choices usage frames some clients reject
+					if bytes.Contains(chunk, []byte(`"choices":[]`)) || bytes.Contains(chunk, []byte(`"choices": []`)) {
+						continue
+					}
+					// Validate JSON; if invalid, skip rather than poisoning the client
+					if !json.Valid(chunk) {
+						log.Printf("[proxy] skip invalid SSE json: %s", truncateForLog(chunk, 120))
+						continue
+					}
+
+					var obj map[string]interface{}
+					if err := json.Unmarshal(chunk, &obj); err != nil {
+						continue
+					}
+					lastChunk = obj
+					contentPart, reasoningPart, _, _ := extractDeltaReasoningAndContent(obj)
+					if strings.TrimSpace(contentPart) != "" {
+						sawContent = true
+					}
+					if reasoningPart != "" {
+						bufferedReasoning.WriteString(reasoningPart)
+					}
+
+					// Always map reasoning → reasoning_content for Open WebUI
+					_ = normalizeReasoningInPayload(obj)
+
+					if stripThinking {
+						// Drop think tokens from the wire; keep content only.
+						for _, choiceRaw := range obj["choices"].([]interface{}) {
+							if choice, ok := choiceRaw.(map[string]interface{}); ok {
+								if delta, ok := choice["delta"].(map[string]interface{}); ok {
+									stripThinkingFieldsFromMap(delta, true)
+								}
+								if msg, ok := choice["message"].(map[string]interface{}); ok {
+									stripThinkingFieldsFromMap(msg, false)
+								}
+							}
+						}
+						// Skip pure-reasoning frames (empty after strip)
+						c2, r2, _, _ := extractDeltaReasoningAndContent(obj)
+						if strings.TrimSpace(c2) == "" && strings.TrimSpace(r2) == "" {
+							// keep finish frames
+							choices, _ := obj["choices"].([]interface{})
+							keep := false
+							if len(choices) > 0 {
+								if ch, ok := choices[0].(map[string]interface{}); ok {
+									if fr, _ := ch["finish_reason"].(string); fr != "" && fr != "null" {
+										keep = true
+									}
+								}
+							}
+							if !keep {
+								continue
+							}
+						}
+					}
+
+					if b, err := json.Marshal(obj); err == nil {
+						writeEvent(string(b))
+					}
+				}
+			}
+		}
+		if readErr != nil {
+			if readErr != io.EOF {
+				log.Printf("[proxy] stream aborted: %v", readErr)
+			}
+			break
+		}
+	}
+	emitPromotedReasoningIfNeeded()
+	if !sawDone {
+		writeEvent("[DONE]")
+	}
+}
+
+func splitConcatenatedJSON(b []byte) [][]byte {
+	b = bytes.TrimSpace(b)
+	if len(b) == 0 {
+		return nil
+	}
+	if bytes.Equal(b, []byte("[DONE]")) {
+		return [][]byte{b}
+	}
+	// Fast path: single object
+	if json.Valid(b) {
+		return [][]byte{b}
+	}
+	// Split on "}{" / "} {" boundaries common when newlines are stripped
+	var out [][]byte
+	start := 0
+	depth := 0
+	inStr := false
+	esc := false
+	for i := 0; i < len(b); i++ {
+		ch := b[i]
+		if inStr {
+			if esc {
+				esc = false
+				continue
+			}
+			if ch == '\\' {
+				esc = true
+				continue
+			}
+			if ch == '"' {
+				inStr = false
+			}
+			continue
+		}
+		switch ch {
+		case '"':
+			inStr = true
+		case '{', '[':
+			depth++
+		case '}', ']':
+			depth--
+			if depth == 0 {
+				// end of one value; include it
+				part := bytes.TrimSpace(b[start : i+1])
+				if len(part) > 0 {
+					out = append(out, part)
+				}
+				// skip whitespace until next value
+				j := i + 1
+				for j < len(b) && (b[j] == ' ' || b[j] == '\t' || b[j] == '\r' || b[j] == '\n') {
+					j++
+				}
+				start = j
+				i = j - 1
+			}
+		}
+	}
+	if len(out) == 0 {
+		return [][]byte{b}
+	}
+	return out
+}
+
+func truncateForLog(b []byte, n int) string {
+	if len(b) <= n {
+		return string(b)
+	}
+	return string(b[:n]) + "..."
+}
+
+// demoteModelOnURL drops a model↔endpoint link from the race pool after a hard
+// failure (model missing, 401/403). Prevents junk from re-entering top-N races.
+func (h *OllamaHandler) demoteModelOnURL(modelName, modelTag, endpointURL string) {
+	if h.db == nil || endpointURL == "" {
+		return
+	}
+	// Normalize trailing slash mismatches in catalog URLs
+	urlA := strings.TrimRight(endpointURL, "/")
+	urlB := urlA + "/"
+	res, err := h.db.Exec(`
+		UPDATE endpoint_ai_models eam
+		SET status = 'unavailable', token_per_second = 0
+		FROM endpoints e, ai_models m
+		WHERE eam.endpoint_id = e.id
+		  AND eam.ai_model_id = m.id
+		  AND LOWER(m.name) = LOWER($1)
+		  AND LOWER(m.tag) = LOWER($2)
+		  AND (e.url = $3 OR e.url = $4 OR TRIM(TRAILING '/' FROM e.url) = $3)
+	`, modelName, modelTag, urlA, urlB)
+	if err != nil {
+		log.Printf("[health] demoteModelOnURL failed for %s on %s: %v", modelName+":"+modelTag, endpointURL, err)
+		return
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		log.Printf("[health] demoted %d link(s) %s @ %s", n, modelName+":"+modelTag, endpointURL)
+	}
+}
+
+// isModelNotFoundError detects when an upstream returns 404 or error because
+// the requested model simply does not exist on that node. We must NOT penalize
+// the endpoint's health for this — it is expected that public nodes only have
+// a subset of models.
+func isModelNotFoundError(statusCode int, body []byte) bool {
+	if statusCode != 404 && statusCode != 400 {
+		return false
+	}
+	bodyStr := strings.ToLower(string(body))
+	notFoundSignals := []string{
+		"not found",
+		"model",
+		"try pulling",
+		"no such model",
+		"unknown model",
+		"does not exist",
+		"model '",
+	}
+	hasNotFound := false
+	for _, s := range notFoundSignals {
+		if strings.Contains(bodyStr, s) {
+			hasNotFound = true
+			break
+		}
+	}
+	return hasNotFound && (strings.Contains(bodyStr, "model") || statusCode == 404)
 }

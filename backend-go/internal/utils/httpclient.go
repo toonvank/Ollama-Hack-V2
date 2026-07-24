@@ -192,16 +192,18 @@ func SharedProxyClient() *http.Client {
 	return sharedProxyClient
 }
 
-// SharedRaceClient returns a VPN-masked client tuned for endpoint racing.
+// SharedRaceClient returns a client tuned for endpoint racing (fast fail).
+// Default dial 2s so a dead peer cannot stall TTFB for the whole race.
 func SharedRaceClient() *http.Client {
 	sharedRaceClientOnce.Do(func() {
-		dialTimeout := 5 * time.Second
+		dialTimeout := 2 * time.Second
 		if val := os.Getenv("RACE_DIAL_TIMEOUT"); val != "" {
 			if d, err := time.ParseDuration(val); err == nil && d > 0 {
 				dialTimeout = d
 			}
 		}
-		sharedRaceClient = newHTTPClient(120*time.Second, dialTimeout, vpnProxyOrDirect)
+		// Overall request timeout still long for streaming once a winner is chosen.
+		sharedRaceClient = newHTTPClient(120*time.Second, dialTimeout, noProxy)
 	})
 	return sharedRaceClient
 }

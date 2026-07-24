@@ -97,7 +97,7 @@ func getPollTimeout() time.Duration {
 			return time.Duration(secs) * time.Second
 		}
 	}
-	return 300 * time.Second // default 5 minutes
+	return 45 * time.Second // was 300; generate-per-model was starving the queue
 }
 
 // TestEndpointWithType tests an endpoint based on its type
@@ -146,8 +146,7 @@ func TestOpenAIEndpoint(endpointURL string, apiKey *string) *EndpointTestResult 
 
 	result.EndpointStatus = StatusAvailable
 
-	// Smoke test the first model via /v1/chat/completions to measure TPS
-	// This makes OpenAI-type endpoints race-eligible (TPS > 0)
+	// Smoke test each model via /v1/chat/completions to measure TPS
 	for _, model := range modelsData.Data {
 		parts := strings.SplitN(model.ID, ":", 2)
 		name := parts[0]
@@ -212,7 +211,6 @@ func testOpenAIModel(endpointURL, modelID string, apiKey *string) float64 {
 
 	elapsed := time.Since(start).Seconds()
 	if elapsed <= 0 || result.Usage.CompletionTokens <= 0 {
-		// Fallback: estimate from response time (at least 1 token to be race-eligible)
 		if elapsed > 0 {
 			return 1.0 / elapsed
 		}
@@ -404,8 +402,27 @@ func NewTester(db *database.DB) *Tester {
 func (t *Tester) Start() {
 	log.Println("[tester] background tester started")
 
-	// Create worker pool with 20 parallel workers to prevent connection saturation
-	for i := 0; i < 20; i++ {
+	// One-shot: never let unmeasured links sit as race-eligible
+	if res, err := t.db.Exec(`
+		UPDATE endpoint_ai_models
+		SET status = 'unavailable'
+		WHERE status = 'available'
+		  AND (token_per_second IS NULL OR token_per_second <= 0)
+	`); err != nil {
+		log.Printf("[tester] demote unmeasured links failed: %v", err)
+	} else if n, _ := res.RowsAffected(); n > 0 {
+		log.Printf("[tester] demoted %d unmeasured race-eligible model links at startup", n)
+	}
+
+	// Worker pool size (TESTER_WORKERS, default 40)
+	workers := 40
+	if v := os.Getenv("TESTER_WORKERS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 200 {
+			workers = n
+		}
+	}
+	log.Printf("[tester] starting %d workers", workers)
+	for i := 0; i < workers; i++ {
 		go func() {
 			for {
 				select {
@@ -513,22 +530,75 @@ func (t *Tester) Stop() {
 	close(t.stop)
 }
 
+// defaultExternalEndpointFeeds is the community Awesome-Ollama-Server catalog.
+// Hosted site ollama.vincentko.top died (Vercel DEPLOYMENT_DISABLED), but GitHub
+// Actions still publishes public/data.json every ~10h from forrany/Awesome-Ollama-Server.
+const defaultExternalEndpointFeed = "https://raw.githubusercontent.com/forrany/Awesome-Ollama-Server/main/public/data.json"
+
+// externalEndpointFeeds returns catalog URLs to import.
+// EXTERNAL_ENDPOINT_FEEDS=url1,url2  (comma-separated). Empty env → default GitHub raw.
+// EXTERNAL_ENDPOINT_FEEDS=off|false|none|disabled → skip import entirely.
+func externalEndpointFeeds() []string {
+	raw := strings.TrimSpace(os.Getenv("EXTERNAL_ENDPOINT_FEEDS"))
+	if raw == "" {
+		return []string{defaultExternalEndpointFeed}
+	}
+	switch strings.ToLower(raw) {
+	case "0", "false", "off", "none", "disabled", "skip":
+		return nil
+	}
+	var feeds []string
+	for _, part := range strings.Split(raw, ",") {
+		u := strings.TrimSpace(part)
+		if u != "" {
+			feeds = append(feeds, u)
+		}
+	}
+	return feeds
+}
+
 func (t *Tester) fetchExternalEndpoints() {
-	log.Println("[tester] fetching external endpoints from ollama.vincentko.top")
-	client := utils.NewHTTPClient(30 * time.Second)
-	resp, err := client.Get("https://ollama.vincentko.top/data.json")
-	if err != nil {
-		log.Printf("[tester] failed to fetch external endpoints: %v", err)
+	feeds := externalEndpointFeeds()
+	if len(feeds) == 0 {
+		log.Println("[tester] external endpoint feeds disabled (EXTERNAL_ENDPOINT_FEEDS=off)")
 		return
 	}
-	defer resp.Body.Close()
 
+	// Catalog feeds (GitHub raw, etc.) are not Ollama nodes — fetch direct.
+	// Actual endpoint probing still uses BackgroundHTTPClient / racer elsewhere.
+	client := utils.NewHTTPClient(45 * time.Second)
+	totalImported := 0
+	for _, feedURL := range feeds {
+		n, err := t.importEndpointsFromFeed(client, feedURL)
+		if err != nil {
+			log.Printf("[tester] feed %s: %v", feedURL, err)
+			continue
+		}
+		totalImported += n
+		log.Printf("[tester] feed %s: imported %d new endpoint(s)", feedURL, n)
+	}
+	if totalImported > 0 {
+		log.Printf("[tester] successfully imported %d new external endpoints total", totalImported)
+	}
+}
+
+func (t *Tester) importEndpointsFromFeed(client *http.Client, feedURL string) (int, error) {
+	log.Printf("[tester] fetching external endpoints from %s", feedURL)
+	resp, err := client.Get(feedURL)
+	if err != nil {
+		return 0, fmt.Errorf("fetch failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+
+	// Awesome-Ollama-Server / legacy vincentko format: [{"server":"http://...","models":[...]}]
 	var data []struct {
 		Server string `json:"server"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		log.Printf("[tester] failed to decode external endpoints JSON: %v", err)
-		return
+		return 0, fmt.Errorf("decode JSON: %w", err)
 	}
 
 	importedCount := 0
@@ -538,23 +608,26 @@ func (t *Tester) fetchExternalEndpoints() {
 			continue
 		}
 
-		// Check if exists
 		var exists bool
 		err := t.db.Get(&exists, "SELECT EXISTS(SELECT 1 FROM endpoints WHERE url = $1)", url)
 		if err != nil || exists {
 			continue
 		}
 
-		// Insert
 		var newID int
-		err = t.db.QueryRow("INSERT INTO endpoints (url, name, status) VALUES ($1, $2, 'pending') RETURNING id", url, url).Scan(&newID)
+		err = t.db.QueryRow(
+			"INSERT INTO endpoints (url, name, status) VALUES ($1, $2, 'pending') RETURNING id",
+			url, url,
+		).Scan(&newID)
 		if err == nil {
-			// Schedule task immediately
-			t.db.Exec("INSERT INTO endpoint_test_tasks (endpoint_id, scheduled_at, status) VALUES ($1, NOW(), 'pending')", newID)
+			t.db.Exec(
+				"INSERT INTO endpoint_test_tasks (endpoint_id, scheduled_at, status) VALUES ($1, NOW(), 'pending')",
+				newID,
+			)
 			importedCount++
 		}
 	}
-	log.Printf("[tester] successfully imported %d new external endpoints", importedCount)
+	return importedCount, nil
 }
 
 type pendingTask struct {
@@ -566,6 +639,16 @@ type pendingTask struct {
 }
 
 func (t *Tester) runPendingTasks() {
+	// Reclaim orphaned running tasks (backend restart / hung generate)
+	if _, err := t.db.Exec(`
+		UPDATE endpoint_test_tasks
+		SET status = 'pending', scheduled_at = NOW() - INTERVAL '1 hour'
+		WHERE status = 'running'
+		  AND (last_tried IS NULL OR last_tried < NOW() - INTERVAL '2 minutes')
+	`); err != nil {
+		log.Printf("[tester] reclaim running failed: %v", err)
+	}
+
 	var tasks []pendingTask
 	err := t.db.Select(&tasks, `
 		SELECT ett.id, ett.endpoint_id, e.url, e.endpoint_type, e.api_key
@@ -573,7 +656,7 @@ func (t *Tester) runPendingTasks() {
 		JOIN endpoints e ON e.id = ett.endpoint_id
 		WHERE ett.status = 'pending' AND ett.scheduled_at <= NOW()
 		ORDER BY ett.scheduled_at ASC
-		LIMIT 100
+		LIMIT 200
 	`)
 	if err != nil {
 		return
@@ -621,6 +704,11 @@ func (t *Tester) executeTask(task pendingTask) {
 
 	// Update endpoint status
 	tx.Exec("UPDATE endpoints SET status = $1 WHERE id = $2", result.EndpointStatus, task.EndpointID)
+	// Host dead/fake → drop all model race eligibility on this endpoint immediately
+	if result.EndpointStatus != StatusAvailable {
+		tx.Exec(`UPDATE endpoint_ai_models SET status = $1, token_per_second = 0 WHERE endpoint_id = $2`,
+			StatusUnavailable, task.EndpointID)
+	}
 
 	// Insert endpoint performance record
 	var epPerfID int

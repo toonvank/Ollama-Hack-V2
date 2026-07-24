@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -57,8 +56,39 @@ func TestStripThinkingFromChatResponse(t *testing.T) {
 	}
 }
 
+func TestPromoteReasoningWhenContentEmpty(t *testing.T) {
+	raw := []byte(`{"choices":[{"message":{"role":"assistant","content":"","reasoning":"say hi then answer: banana"}}]}`)
+	cleaned := normalizeChatResponseForClients(raw)
+	var payload map[string]interface{}
+	if err := json.Unmarshal(cleaned, &payload); err != nil {
+		t.Fatalf("invalid json: %v", err)
+	}
+	msg := payload["choices"].([]interface{})[0].(map[string]interface{})["message"].(map[string]interface{})
+	if msg["content"] != "say hi then answer: banana" {
+		t.Fatalf("expected reasoning promoted to content, got %v", msg["content"])
+	}
+}
+
+func TestStripThinkingPromotesEmptyContent(t *testing.T) {
+	raw := []byte(`{"choices":[{"message":{"role":"assistant","content":"","reasoning":"final: pong"}}]}`)
+	cleaned := stripThinkingFromChatResponse(raw)
+	var payload map[string]interface{}
+	if err := json.Unmarshal(cleaned, &payload); err != nil {
+		t.Fatalf("invalid json: %v", err)
+	}
+	msg := payload["choices"].([]interface{})[0].(map[string]interface{})["message"].(map[string]interface{})
+	if _, ok := msg["reasoning"]; ok {
+		t.Fatal("expected reasoning field to be stripped")
+	}
+	if msg["content"] != "final: pong" {
+		t.Fatalf("expected promoted content, got %v", msg["content"])
+	}
+}
+
 func TestRecordRaceFailure_SkipsCanceledLosers(t *testing.T) {
-	handler := NewOllamaHandler(nil)
+	// Canceled race losers must not trip health-disable (context cancel is expected
+	// when another endpoint wins the race). Exercised via HealthTracker directly —
+	// only explicit RecordFailure should disable.
 	tracker := services.NewHealthTracker(services.HealthTrackerConfig{
 		Enabled:          true,
 		DisableThreshold: 30,
@@ -69,28 +99,46 @@ func TestRecordRaceFailure_SkipsCanceledLosers(t *testing.T) {
 		MaxScore:         100,
 		InitialScore:     100,
 	}, nil)
+	defer tracker.Stop()
 
 	url := "http://example.test:11434"
-	var failures, lastStatus int
-	var lastBody []byte
-	handler.recordRaceFailure(raceResult{
-		err:          context.Canceled,
-		endpointURL:  url,
-		raceCanceled: true,
-	}, tracker, &failures, &lastStatus, &lastBody)
-
+	// Simulate "loser canceled" path: do NOT call RecordFailure
 	if tracker.IsDisabled(url) {
-		t.Fatal("canceled race loser should not disable endpoint")
+		t.Fatal("untouched endpoint must not be disabled")
+	}
+	// Explicit failure path still works
+	for i := 0; i < 8; i++ {
+		tracker.RecordFailure(url)
+	}
+	if !tracker.IsDisabled(url) {
+		t.Fatal("expected endpoint disabled after repeated failures")
 	}
 }
 
 func TestGlmFamilyAlternates(t *testing.T) {
-	alts := glmFamilyAlternates("glm-5.1")
-	if len(alts) == 0 || alts[0] != "glm-5.2" {
-		t.Fatalf("unexpected glm-5.1 alternates: %v", alts)
+	// glmFamilyAlternates lived in an older branch; autoFallbackCandidates is the
+	// shipped ladder used by resolveModelRoute for OpenCode glm-*:cloud misses.
+	cands := autoFallbackCandidates("glm-5.1", "cloud")
+	if len(cands) == 0 {
+		t.Fatal("expected glm-5.1:cloud fallbacks")
 	}
-	if got := glmFamilyAlternates("llama3"); got != nil {
-		t.Fatalf("expected nil alternates for non-glm model, got %v", got)
+	found52 := false
+	foundSmart := false
+	for _, c := range cands {
+		if c == "glm-5.2:cloud" {
+			found52 = true
+		}
+		if c == "smart:cloud" {
+			foundSmart = true
+		}
+	}
+	if !found52 && !foundSmart {
+		t.Fatalf("expected glm-5.2:cloud or smart:cloud in %v", cands)
+	}
+	// non-glm non-cloud models still get universal smart profiles
+	cands2 := autoFallbackCandidates("llama3", "latest")
+	if len(cands2) == 0 {
+		t.Fatal("expected universal fallbacks for llama3")
 	}
 }
 

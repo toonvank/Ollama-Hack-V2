@@ -193,7 +193,13 @@ const ModelTable: React.FC<ModelTableProps> = ({
           </Tooltip>
         );
       case "endpoints":
-        return model.endpoints || 0;
+        // Count of *routable* hosts (host up + model available + health OK).
+        // 0 with a high score means only stale historical metrics remain.
+        return (
+          <Tooltip content="Routable endpoints only (host available + model available + health OK). 0 means the model is not currently raceable.">
+            <span>{model.endpoints || 0}</span>
+          </Tooltip>
+        );
       case "enabled":
         return (
           <Switch

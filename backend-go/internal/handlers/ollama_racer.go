@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -59,6 +58,9 @@ func applyRaceFailures(healthTracker *services.HealthTracker, resp *http.Respons
 		} else if f.RateLimited {
 			healthTracker.RecordRateLimit(f.Endpoint)
 		} else if f.ClientError {
+			continue
+		} else if isModelNotFoundError(f.Status, nil) {  // best effort; sidecar may not send body
+			log.Printf("[health] skipping racer sidecar penalty for model-not-found on %s", f.Endpoint)
 			continue
 		} else if f.Status >= 500 || f.Status == 0 {
 			healthTracker.RecordFailure(f.Endpoint)
@@ -170,6 +172,8 @@ func (h *OllamaHandler) proxyViaRacerRelay(
 			healthTracker.RecordRateLimit(endpointURL)
 		} else if isQuotaExceededError(resp.StatusCode, body) {
 			healthTracker.RecordQuotaExceeded(endpointURL)
+		} else if isModelNotFoundError(resp.StatusCode, body) {
+			log.Printf("[health] skipping relay penalty for model-not-found on %s", endpointURL)
 		} else if resp.StatusCode >= 500 {
 			healthTracker.RecordFailure(endpointURL)
 		}
@@ -226,43 +230,11 @@ func (h *OllamaHandler) deliverUpstreamToClient(
 	c.Status(resp.StatusCode)
 
 	if deliver.stream {
+		c.Header("Content-Type", "text/event-stream")
 		c.Header("Cache-Control", "no-cache")
 		c.Header("Connection", "keep-alive")
 		c.Header("X-Accel-Buffering", "no")
-
-		flusher, ok := c.Writer.(http.Flusher)
-		reader := bufio.NewReader(resp.Body)
-
-		targetModelStr := []byte(fmt.Sprintf(`"model":"%s"`, deliver.modelRaw))
-		replModelStr := []byte(fmt.Sprintf(`"model":"%s"`, deliver.originalModelRequested))
-
-		for {
-			line, readErr := reader.ReadBytes('\n')
-			if len(line) > 0 {
-				if deliver.originalModelRequested != deliver.modelRaw {
-					line = bytes.ReplaceAll(line, targetModelStr, replModelStr)
-				}
-				if deliver.stripThinking {
-					line = stripThinkingFromStreamLine(line)
-				}
-				c.Writer.Write(line)
-				if ok {
-					flusher.Flush()
-				}
-			}
-			if readErr != nil {
-				usageChunk := fmt.Sprintf("\ndata: {\"id\":\"chatcmpl-end\",\"object\":\"chat.completion.chunk\",\"created\":%d,\"model\":\"%s\",\"choices\":[],\"usage\":{\"prompt_tokens\":0,\"completion_tokens\":0,\"total_tokens\":0}}\n\n", time.Now().Unix(), deliver.originalModelRequested)
-				c.Writer.Write([]byte(usageChunk))
-				c.Writer.Write([]byte("data: [DONE]\n\n"))
-				if ok {
-					flusher.Flush()
-				}
-				if readErr != io.EOF {
-					log.Printf("[racer-relay] stream aborted: %v", readErr)
-				}
-				break
-			}
-		}
+		writeNormalizedSSE(c, resp.Body, deliver.modelRaw, deliver.originalModelRequested, deliver.stripThinking)
 		return
 	}
 
@@ -274,6 +246,16 @@ func (h *OllamaHandler) deliverUpstreamToClient(
 	}
 	if deliver.stripThinking {
 		respBytes = stripThinkingFromChatResponse(respBytes)
+	} else {
+		respBytes = normalizeChatResponseForClients(respBytes)
+		var payload map[string]interface{}
+		if err := json.Unmarshal(respBytes, &payload); err == nil {
+			if normalizeReasoningInPayload(payload) {
+				if b, err := json.Marshal(payload); err == nil {
+					respBytes = b
+				}
+			}
+		}
 	}
 
 	if bodyErr == nil {
