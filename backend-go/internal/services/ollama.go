@@ -131,9 +131,17 @@ func TestOpenAIEndpoint(endpointURL string, apiKey *string) *EndpointTestResult 
 	}
 
 	modelsResp, err := client.Do(req)
-	if err != nil || modelsResp.StatusCode != http.StatusOK {
-		log.Printf("[tester] OpenAI endpoint %s unreachable or unauthorized: %v (status: %v)",
-			endpointURL, err, modelsResp.StatusCode)
+	if err != nil {
+		// http.Client returns a nil response for transport failures (DNS,
+		// connection refusal, timeout).  The tester processes untrusted
+		// discovered endpoints, so this must never take down the API server.
+		log.Printf("[tester] OpenAI endpoint %s unreachable: %v", endpointURL, err)
+		return result
+	}
+	if modelsResp.StatusCode != http.StatusOK {
+		log.Printf("[tester] OpenAI endpoint %s unauthorized or unavailable (status: %d)",
+			endpointURL, modelsResp.StatusCode)
+		modelsResp.Body.Close()
 		return result
 	}
 	defer modelsResp.Body.Close()

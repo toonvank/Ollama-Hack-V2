@@ -173,10 +173,12 @@ func (h *OllamaHandler) resolveSmartModel(smartTag string) ([]smartModelCandidat
 	}
 
 	heuristic, desc, rankingClause := smartProfileConfig(smartTag)
+	modelRankingClause := smartProfileModelRankingClause(smartTag, rankingClause)
 
 	log.Printf("[smart-profile] resolving '%s' (desc: %s) with heuristic", smartTag, desc)
 
-	// Fetch top 3 models ranked by reply time (best endpoint per model, then global sort)
+	// Fetch the top three models using the profile's final model ordering.
+	// The inner sort first selects the best endpoint row for each model.
 	query := fmt.Sprintf(`
 		SELECT name, tag FROM (
 			SELECT DISTINCT ON (m.name, m.tag)
@@ -191,9 +193,9 @@ func (h *OllamaHandler) resolveSmartModel(smartTag string) ([]smartModelCandidat
 			  AND %s
 			ORDER BY m.name, m.tag, %s
 		) ranked_models
-		ORDER BY max_connection_time ASC NULLS LAST, token_per_second DESC NULLS LAST
+		ORDER BY %s
 		LIMIT 3
-	`, heuristic, routableEndpointSQL, rankingClause)
+	`, heuristic, routableEndpointSQL, rankingClause, modelRankingClause)
 
 	type modelRow struct {
 		Name string `db:"name"`
@@ -778,10 +780,14 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 			}
 		}
 	} else {
-		// Concrete model only — no silent swap to unrelated models.
-		// (Smart profiles are for when the client *asks* for smart:cloud etc.)
+		// Resolve a concrete model through the configured and automatic fallback
+		// ladder when its direct route is unavailable. This keeps clients from
+		// receiving a transient "No available endpoint" while healthy capacity
+		// exists elsewhere in the configured pool.
 		var resolved *resolvedModelRoute
-		resolved, err = h.bestEndpointsForModel(name, tag, defaultEndpointRankMode())
+		var selectedModel string
+		var usedFallback bool
+		resolved, selectedModel, usedFallback, err = h.resolveModelRoute(name, tag)
 		if resolved != nil && len(resolved.URLs) > 0 {
 			name, tag = resolved.Name, resolved.Tag
 			endpoints = resolved.URLs
@@ -789,19 +795,9 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 			apiKeys = resolved.APIKeys
 			modelRaw = setCanonicalModelInBody(bodyMap, name, tag)
 			rawBody, _ = json.Marshal(bodyMap)
-		} else if fallbackRaw, ok := h.fallbacks[strings.ToLower(fmt.Sprintf("%s:%s", name, tag))]; ok {
-			// Explicit APP_FALLBACK_MODELS only (operator-configured)
-			if r, sel, ok := h.tryFallbackID(fallbackRaw); ok {
-				name, tag = r.Name, r.Tag
-				endpoints = r.URLs
-				endpointTypes = r.EndpointTypes
-				apiKeys = r.APIKeys
-				modelRaw = setCanonicalModelInBody(bodyMap, name, tag)
-				rawBody, _ = json.Marshal(bodyMap)
-				c.Header("X-Model-Fallback", sel)
+			if usedFallback {
+				c.Header("X-Model-Fallback", selectedModel)
 				c.Header("X-Original-Model", originalModelRequested)
-				err = nil
-				log.Printf("[proxy] APP_FALLBACK_MODELS %s → %s", originalModelRequested, sel)
 			}
 		}
 	}
@@ -1051,7 +1047,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 			sniffStr := strings.TrimSpace(string(firstChunk[:n]))
 			if len(sniffStr) > 0 {
 				firstChar := sniffStr[0]
-				if firstChar != '{' && firstChar != '[' && firstChar != 'd' && firstChar != '"' {
+				if firstChar != '{' && firstChar != '[' && firstChar != 'd' && firstChar != '"' && firstChar != ':' {
 					resp.Body.Close()
 					resultCh <- raceResult{err: fmt.Errorf("rejected honeypot: invalid payload start %q", firstChar), endpointURL: url, index: index}
 					return

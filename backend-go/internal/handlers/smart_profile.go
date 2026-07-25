@@ -1,5 +1,11 @@
 package handlers
 
+import (
+	"strings"
+
+	"github.com/timlzh/ollama-hack/internal/utils"
+)
+
 // pseudoModels are virtual model names exposed in /v1/models and /api/tags.
 // best-abliterated is the OpenWebUI-friendly alias (no ":" separator).
 var pseudoModels = []string{
@@ -172,24 +178,68 @@ func smartProfileConfig(profile string) (heuristic, description, rankingClause s
 		description = "Frontier cloud-class: Kimi, DeepSeek, Qwen 3.5/3.6, GLM, and :cloud titans — not tiny local toys"
 
 	case "abliterated":
+		paramBillions := utils.ParamBillionsSQL("m.name", "m.tag")
 		heuristic = `(` + junkModelSQL + `)
 			AND (
-			  m.name ILIKE '%abliterated%' OR m.name ILIKE '%uncensored%' OR m.name ILIKE '%uncen%'
-			  OR m.name ILIKE '%heretic%' OR m.name ILIKE '%dolphin%' OR m.name ILIKE '%wizard-vicuna%'
+			  -- Strong, explicit de-alignment labels.
+			  m.name ILIKE '%abliterated%' OR m.tag ILIKE '%abliterated%'
+			  OR m.name ILIKE '%ablated%' OR m.tag ILIKE '%ablated%'
+			  OR m.name ILIKE '%heretic%' OR m.tag ILIKE '%heretic%'
+			  -- Other explicit unrestricted-model labels.
+			  OR m.name ILIKE '%uncensored%' OR m.tag ILIKE '%uncensored%'
+			  OR m.name ILIKE '%uncensor%' OR m.tag ILIKE '%uncensor%'
+			  OR m.name ILIKE '%unfiltered%' OR m.tag ILIKE '%unfiltered%'
+			  OR m.name ILIKE '%unrestricted%' OR m.tag ILIKE '%unrestricted%'
+			  OR m.name ILIKE '%anti-censor%' OR m.tag ILIKE '%anti-censor%'
+			  -- Compatibility fallbacks. These labels alone are weaker evidence.
+			  OR m.name ILIKE '%dolphin%' OR m.tag ILIKE '%dolphin%'
+			  OR m.name ILIKE '%wizard-vicuna%' OR m.tag ILIKE '%wizard-vicuna%'
 			)
 			AND NOT (` + tinyModelSQL + `)
+			AND m.name NOT ILIKE '%embed%'
+			AND m.name NOT ILIKE '%rerank%'
+			AND m.name NOT ILIKE '%guard%'
+			AND m.name NOT ILIKE '%moderation%'
 		`
-		// Prefer larger uncensored weights over whatever answers in 0.3s
+		// Intent confidence comes first: a genuinely abliterated model should not
+		// lose to an arbitrary Dolphin/Wizard checkpoint. Within that tier, favor
+		// current base-model generations, then broad size bands, then measured
+		// responsiveness. Size is deliberately banded so a modern fast 32B can
+		// beat a sluggish 70B instead of raw parameter count deciding everything.
 		rankingClause = `
 			CASE
-			  WHEN m.tag ILIKE '%70b%' OR m.tag ILIKE '%72b%' OR m.tag ILIKE '%32b%' OR m.tag ILIKE '%34b%' THEN 0
-			  WHEN m.tag ILIKE '%14b%' OR m.tag ILIKE '%13b%' OR m.tag ILIKE '%12b%' OR m.tag ILIKE '%9b%' THEN 1
-			  WHEN m.tag ILIKE '%8b%' OR m.tag ILIKE '%7b%' THEN 2
+			  WHEN m.name ILIKE '%abliterated%' OR m.tag ILIKE '%abliterated%'
+			    OR m.name ILIKE '%ablated%' OR m.tag ILIKE '%ablated%'
+			    OR m.name ILIKE '%heretic%' OR m.tag ILIKE '%heretic%' THEN 0
+			  WHEN m.name ILIKE '%uncensored%' OR m.tag ILIKE '%uncensored%'
+			    OR m.name ILIKE '%uncensor%' OR m.tag ILIKE '%uncensor%'
+			    OR m.name ILIKE '%unfiltered%' OR m.tag ILIKE '%unfiltered%'
+			    OR m.name ILIKE '%unrestricted%' OR m.tag ILIKE '%unrestricted%'
+			    OR m.name ILIKE '%anti-censor%' OR m.tag ILIKE '%anti-censor%' THEN 1
+			  WHEN m.name ILIKE '%dolphin%' OR m.tag ILIKE '%dolphin%' THEN 2
+			  ELSE 3 -- legacy wizard-vicuna compatibility
+			END ASC,
+			CASE
+			  WHEN m.name ILIKE '%qwen3%' OR m.name ILIKE '%llama4%'
+			    OR m.name ILIKE '%gemma3%' OR m.name ILIKE '%deepseek-v3%'
+			    OR m.name ILIKE '%mistral-small-3%' OR m.name ILIKE '%ministral-3%'
+			    OR m.name ILIKE '%phi4%' THEN 0
+			  WHEN m.name ILIKE '%qwen2.5%' OR m.name ILIKE '%llama3.3%'
+			    OR m.name ILIKE '%llama3.2%' OR m.name ILIKE '%mistral-nemo%'
+			    OR m.name ILIKE '%mixtral%' THEN 1
+			  WHEN m.name ILIKE '%llama3.1%' OR m.name ILIKE '%llama3%' THEN 2
 			  ELSE 3
 			END ASC,
-			eam.token_per_second DESC NULLS LAST,
-			eam.max_connection_time ASC NULLS LAST`
-		description = "Abliterated/uncensored models — prefers larger weights, not the tiniest uncensored 7B"
+			CASE
+			  WHEN ` + paramBillions + ` >= 30 THEN 0
+			  WHEN ` + paramBillions + ` >= 20 THEN 1
+			  WHEN ` + paramBillions + ` >= 12 THEN 2
+			  WHEN ` + paramBillions + ` >= 7 THEN 3
+			  ELSE 4
+			END ASC,
+			eam.max_connection_time ASC NULLS LAST,
+			eam.token_per_second DESC NULLS LAST`
+		description = "Abliterated/unrestricted chat models — explicit de-alignment and modern families first, then useful size and speed"
 
 	default:
 		// Unknown smart:* → same as fastest but still exclude junk
@@ -198,4 +248,22 @@ func smartProfileConfig(profile string) (heuristic, description, rankingClause s
 	}
 
 	return heuristic, description, rankingClause
+}
+
+// smartProfileModelRankingClause returns the ordering for the final list of
+// distinct models. Most profiles retain their historical reply-time ordering.
+// Abliterated needs its semantic/quality ranking here as well; otherwise the
+// per-model DISTINCT query applies that ranking only between endpoints for the
+// same model, where all semantic fields are identical.
+func smartProfileModelRankingClause(profile, endpointRankingClause string) string {
+	if profile != "abliterated" {
+		return "ranked_models.max_connection_time ASC NULLS LAST, ranked_models.token_per_second DESC NULLS LAST"
+	}
+
+	return strings.NewReplacer(
+		"m.name", "ranked_models.name",
+		"m.tag", "ranked_models.tag",
+		"eam.max_connection_time", "ranked_models.max_connection_time",
+		"eam.token_per_second", "ranked_models.token_per_second",
+	).Replace(endpointRankingClause)
 }
