@@ -1063,8 +1063,8 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 
 				// Validate streaming integrity: If stream requested, it MUST start with "data:"
 				// Also catch upstream API errors that are embedded inside the initial SSE chunk (very common in LiteLLM/Ollama proxies)
-				if streamReq {
-					if !strings.HasPrefix(sniffStr, "data:") {
+			if streamReq {
+				if !strings.HasPrefix(sniffStr, "data:") && !strings.HasPrefix(sniffStr, ":") {
 						resp.Body.Close()
 						resultCh <- raceResult{err: fmt.Errorf("rejected node: node ignored stream parameter and returned non-chunked response"), endpointURL: url, index: index}
 						return
