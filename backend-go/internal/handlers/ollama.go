@@ -119,6 +119,13 @@ func (h *OllamaHandler) bestEndpointsForModel(modelName, modelTag string, rankMo
 	}
 
 	orderBy := endpointOrderClause(rankMode)
+	// Most models use a single best host to minimize load. Kimi K3 is an
+	// Ollama Cloud extra-usage model, however: availability differs per signed-in
+	// account, so race the verified K3 hosts and let one with credit win.
+	endpointLimit := 1
+	if strings.EqualFold(modelName, "kimi-k3") && strings.EqualFold(modelTag, "cloud") {
+		endpointLimit = 32
+	}
 
 	err := h.db.Select(&rows, fmt.Sprintf(`
 		SELECT e.url, m.name, m.tag, COALESCE(e.endpoint_type, 'ollama') as endpoint_type, COALESCE(e.api_key, '') as api_key
@@ -130,8 +137,8 @@ func (h *OllamaHandler) bestEndpointsForModel(modelName, modelTag string, rankMo
 		  AND %s
 		  AND eam.token_per_second >= $3
 		ORDER BY %s
-		LIMIT 1
-	`, routableEndpointSQL, orderBy), modelName, modelTag, minTPS)
+		LIMIT %d
+	`, routableEndpointSQL, orderBy, endpointLimit), modelName, modelTag, minTPS)
 	if err != nil {
 		return nil, err
 	}
@@ -163,9 +170,13 @@ func setCanonicalModelInBody(bodyMap map[string]interface{}, name, tag string) s
 
 // resolveSmartModel dynamically calculates the best real models for a pseudo-model tag.
 // Returns a ranked slice of candidates (best→worst) to enable cascade fallback.
-func (h *OllamaHandler) resolveSmartModel(smartTag string) ([]smartModelCandidate, error) {
+func (h *OllamaHandler) resolveSmartModel(smartTag string, allowed []string) ([]smartModelCandidate, error) {
+	// Cache key includes the API-key model filter so filtered keys never
+	// reuse an unrestricted (or differently-restricted) resolution.
+	cacheKey := smartTag + "\x00" + strings.Join(allowed, ",")
+
 	// ⚡ Fast path: Check 60-second TTL cache for smart model resolutions
-	if val, ok := h.smartCache.Load(smartTag); ok {
+	if val, ok := h.smartCache.Load(cacheKey); ok {
 		entry := val.(smartModelCacheEntry)
 		if time.Now().Before(entry.exp) {
 			return entry.candidates, nil
@@ -194,7 +205,7 @@ func (h *OllamaHandler) resolveSmartModel(smartTag string) ([]smartModelCandidat
 			ORDER BY m.name, m.tag, %s
 		) ranked_models
 		ORDER BY %s
-		LIMIT 3
+		LIMIT 50
 	`, heuristic, routableEndpointSQL, rankingClause, modelRankingClause)
 
 	type modelRow struct {
@@ -205,6 +216,25 @@ func (h *OllamaHandler) resolveSmartModel(smartTag string) ([]smartModelCandidat
 	err := h.db.Select(&mRows, query)
 	if err != nil || len(mRows) == 0 {
 		return nil, fmt.Errorf("no models available for smart tag '%s'", smartTag)
+	}
+
+	// Per-API-key model filter: restrict smart resolution to allowed models.
+	if len(allowed) > 0 {
+		var filtered []modelRow
+		for _, m := range mRows {
+			if modelAllowedByFilter(m.Name+":"+m.Tag, allowed) {
+				filtered = append(filtered, m)
+			}
+			if len(filtered) == 3 {
+				break
+			}
+		}
+		if len(filtered) == 0 {
+			return nil, fmt.Errorf("no models allowed by API key filter for smart tag '%s'", smartTag)
+		}
+		mRows = filtered
+	} else if len(mRows) > 3 {
+		mRows = mRows[:3]
 	}
 
 	log.Printf("[smart-profile] '%s' found %d candidate model(s) from DB: %v", smartTag, len(mRows), mRows)
@@ -240,12 +270,53 @@ func (h *OllamaHandler) resolveSmartModel(smartTag string) ([]smartModelCandidat
 	log.Printf("[smart-profile] '%s' final candidates after availability boost: %d", smartTag, len(candidates))
 
 	// Cache the result for 60 seconds to relieve database load
-	h.smartCache.Store(smartTag, smartModelCacheEntry{
+	h.smartCache.Store(cacheKey, smartModelCacheEntry{
 		candidates: candidates,
 		exp:        time.Now().Add(60 * time.Second),
 	})
 
 	return candidates, nil
+}
+
+// allowedModelsFromCtx returns the per-API-key model filter (nil = unrestricted).
+func allowedModelsFromCtx(c *gin.Context) []string {
+	if v, ok := c.Get("allowed_models"); ok {
+		if list, ok := v.([]string); ok {
+			return list
+		}
+	}
+	return nil
+}
+
+// modelAllowedByFilter reports whether a full model id ("name:tag") passes a filter list.
+// Filter entry semantics:
+//   - "name:tag"     — exact id match
+//   - "name"         — matches the id and every tag variant ("name:latest", "name:q4_K_M", ...)
+//   - "prefix*"      — wildcard: matches any id starting with "prefix"
+func modelAllowedByFilter(modelID string, filter []string) bool {
+	if len(filter) == 0 {
+		return true
+	}
+	modelID = strings.ToLower(modelID)
+	for _, entry := range filter {
+		e := strings.ToLower(strings.TrimSpace(entry))
+		if e == "" {
+			continue
+		}
+		if e == modelID {
+			return true
+		}
+		if strings.HasSuffix(e, "*") {
+			if strings.HasPrefix(modelID, strings.TrimSuffix(e, "*")) {
+				return true
+			}
+			continue
+		}
+		if strings.HasPrefix(modelID, e+":") {
+			return true
+		}
+	}
+	return false
 }
 
 // parseModel splits "name:tag" into name, tag. If no ":" present, tag = "latest".
@@ -546,15 +617,31 @@ func (h *OllamaHandler) Models(c *gin.Context) {
 	}
 	timestamp := time.Now().Unix()
 
+	// 🔑 API-key model filter: only expose this key's allowed models.
+	allowedFilter := allowedModelsFromCtx(c)
+	if len(allowedFilter) > 0 {
+		var filtered []row
+		for _, r := range rows {
+			if modelAllowedByFilter(r.Name+":"+r.Tag, allowedFilter) {
+				filtered = append(filtered, r)
+			}
+		}
+		rows = filtered
+	}
+
 	// Inject pseudo-models FIRST so they appear at the top
+	// (smart:* resolution honors the key filter, so pseudo-models stay valid
+	// for filtered keys as long as at least one allowed real model exists)
 	data := make([]gin.H, 0, len(rows)+len(pseudoModels))
-	for _, pm := range pseudoModels {
-		data = append(data, gin.H{
-			"id":       pm,
-			"object":   "model",
-			"owned_by": "system",
-			"created":  timestamp,
-		})
+	if len(allowedFilter) == 0 || len(rows) > 0 {
+		for _, pm := range pseudoModels {
+			data = append(data, gin.H{
+				"id":       pm,
+				"object":   "model",
+				"owned_by": "system",
+				"created":  timestamp,
+			})
+		}
 	}
 
 	// Add real models
@@ -585,16 +672,30 @@ func (h *OllamaHandler) Tags(c *gin.Context) {
 		return
 	}
 
+	// 🔑 API-key model filter: only expose this key's allowed models.
+	allowedFilter := allowedModelsFromCtx(c)
+	if len(allowedFilter) > 0 {
+		var filtered []row
+		for _, r := range rows {
+			if modelAllowedByFilter(r.Name+":"+r.Tag, allowedFilter) {
+				filtered = append(filtered, r)
+			}
+		}
+		rows = filtered
+	}
+
 	now := time.Now().Format(time.RFC3339)
 	models := make([]gin.H, 0, len(rows)+len(pseudoModels))
 
 	// Inject pseudo-models first (OpenWebUI-friendly names at the top)
-	for _, pm := range pseudoModels {
-		models = append(models, gin.H{
-			"name":        pm,
-			"model":       pm,
-			"modified_at": now,
-		})
+	if len(allowedFilter) == 0 || len(rows) > 0 {
+		for _, pm := range pseudoModels {
+			models = append(models, gin.H{
+				"name":        pm,
+				"model":       pm,
+				"modified_at": now,
+			})
+		}
 	}
 
 	for _, r := range rows {
@@ -671,6 +772,21 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 	}
 
 	originalModelRequested := modelRaw
+
+	// 🔑 API-KEY MODEL FILTER: enforce before any routing decision.
+	// A key with a filter may only request its allowed models (or smart:*
+	// pseudo-models, whose resolution is restricted to the same filter).
+	allowedFilter := allowedModelsFromCtx(c)
+	if len(allowedFilter) > 0 {
+		fName, fTag := parseModel(modelRaw)
+		if fName != "smart" && fName != "best-abliterated" && !modelAllowedByFilter(fName+":"+fTag, allowedFilter) {
+			c.JSON(403, gin.H{
+				"error": fmt.Sprintf("model '%s' is not allowed by this API key's model filter", originalModelRequested),
+			})
+			return
+		}
+	}
+
 	thinkVal, thinkExplicit := resolveThinkPreference(bodyMap, c.GetHeader("X-Ollama-Think"))
 	// Honor client think preference. Forcing think=false made GLM dump CoT into
 	// content (broken think blocks). With think=true, GLM streams reasoning
@@ -698,9 +814,14 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 	}
 
 	// 🧠 SMART ROUTING: Classify prompt and route to optimal model
+	// (Skipped for keys with a model filter — auto-classification must not
+	// bypass the filter by redirecting to an arbitrary model.)
 	var smartRouteHeader string
 	skipSmartRoute := strings.EqualFold(c.GetHeader("X-Skip-Smart-Route"), "true")
 	if messages, ok := bodyMap["messages"].([]interface{}); ok && messagesContainImages(messages) {
+		skipSmartRoute = true
+	}
+	if len(allowedFilter) > 0 {
 		skipSmartRoute = true
 	}
 	if h.smartRouter.IsEnabled() && !skipSmartRoute {
@@ -711,7 +832,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 				preferName, preferTag := parseModel(result.PreferModel)
 				var available bool
 				if preferName == "smart" {
-					candidates, err := h.resolveSmartModel(preferTag)
+					candidates, err := h.resolveSmartModel(preferTag, allowedFilter)
 					available = err == nil && len(candidates) > 0
 				} else {
 					preferResolved, preferErr := h.bestEndpointsForModel(preferName, preferTag, defaultEndpointRankMode())
@@ -749,7 +870,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 		if name == "best-abliterated" {
 			profile = "abliterated"
 		}
-		smartCandidates, err = h.resolveSmartModel(profile)
+		smartCandidates, err = h.resolveSmartModel(profile, allowedFilter)
 		if err == nil && len(smartCandidates) > 0 {
 			healthTracker := services.GetHealthTracker()
 			var best smartModelCandidate
@@ -783,11 +904,24 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 		// Resolve a concrete model through the configured and automatic fallback
 		// ladder when its direct route is unavailable. This keeps clients from
 		// receiving a transient "No available endpoint" while healthy capacity
-		// exists elsewhere in the configured pool.
+		// exists elsewhere in the configured pool. Kimi K3 is deliberately
+		// excluded: it is an Ollama Cloud extra-usage model, so silently answering
+		// with a different cloud model is misleading and makes billing failures
+		// impossible to diagnose.
 		var resolved *resolvedModelRoute
 		var selectedModel string
 		var usedFallback bool
-		resolved, selectedModel, usedFallback, err = h.resolveModelRoute(name, tag)
+		if strings.EqualFold(name, "kimi-k3") && strings.EqualFold(tag, "cloud") {
+			resolved, err = h.bestEndpointsForModel(name, tag, defaultEndpointRankMode())
+			selectedModel = fmt.Sprintf("%s:%s", name, tag)
+		} else if len(allowedFilter) > 0 {
+			// Filtered API keys: resolve directly — never silently fall back
+			// to a different model outside the key's allow-list.
+			resolved, err = h.bestEndpointsForModel(name, tag, defaultEndpointRankMode())
+			selectedModel = fmt.Sprintf("%s:%s", name, tag)
+		} else {
+			resolved, selectedModel, usedFallback, err = h.resolveModelRoute(name, tag)
+		}
 		if resolved != nil && len(resolved.URLs) > 0 {
 			name, tag = resolved.Name, resolved.Tag
 			endpoints = resolved.URLs
@@ -1063,8 +1197,8 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 
 				// Validate streaming integrity: If stream requested, it MUST start with "data:"
 				// Also catch upstream API errors that are embedded inside the initial SSE chunk (very common in LiteLLM/Ollama proxies)
-			if streamReq {
-				if !strings.HasPrefix(sniffStr, "data:") && !strings.HasPrefix(sniffStr, ":") {
+				if streamReq {
+					if !strings.HasPrefix(sniffStr, "data:") && !strings.HasPrefix(sniffStr, ":") {
 						resp.Body.Close()
 						resultCh <- raceResult{err: fmt.Errorf("rejected node: node ignored stream parameter and returned non-chunked response"), endpointURL: url, index: index}
 						return
@@ -1234,7 +1368,7 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 				}
 			}
 		}
-		if winningResp == nil && isCloudTaggedModel(name, tag, originalModelRequested) && !requestUsesTools(bodyMap) {
+		if winningResp == nil && len(allowedFilter) == 0 && isCloudTaggedModel(name, tag, originalModelRequested) && !requestUsesTools(bodyMap) {
 			triedCloudModels := collectTriedCloudModels(name, tag, smartCandidates)
 			fbResp, fbModel, fbFailStatus, fbFailBody := h.attemptCloudProviderCascade(
 				c.Request.Context(), method, path, bodyMap, healthTracker, triedCloudModels)
@@ -1246,11 +1380,11 @@ func (h *OllamaHandler) proxyRequest(c *gin.Context, method, path string) {
 				lastFailStatus = fbFailStatus
 				lastFailBody = fbFailBody
 			}
-		} else if winningResp == nil && isCloudTaggedModel(name, tag, originalModelRequested) {
+		} else if winningResp == nil && len(allowedFilter) == 0 && isCloudTaggedModel(name, tag, originalModelRequested) {
 			log.Printf("[cloud-provider-cascade] Skipping alternate cloud model cascade for tool/function-call request")
 		}
 
-		if winningResp == nil && isCloudTaggedModel(name, tag, originalModelRequested) {
+		if winningResp == nil && len(allowedFilter) == 0 && isCloudTaggedModel(name, tag, originalModelRequested) {
 			if fallbackRoute, fbErr := h.resolveConfiguredFallbackRoute(originalModelRequested); fbErr == nil && fallbackRoute != nil {
 				log.Printf("[cloud-fallback] No cloud providers left for '%s', using configured fallback '%s:%s'",
 					originalModelRequested, fallbackRoute.Name, fallbackRoute.Tag)
@@ -1603,7 +1737,7 @@ func (h *OllamaHandler) attemptCloudProviderCascade(
 	healthTracker *services.HealthTracker,
 	triedModels map[string]bool,
 ) (*http.Response, string, int, []byte) {
-	cloudCandidates, err := h.resolveSmartModel("cloud")
+	cloudCandidates, err := h.resolveSmartModel("cloud", nil)
 	if err != nil {
 		return nil, "", 0, nil
 	}
@@ -1743,7 +1877,9 @@ func isQuotaExceededError(statusCode int, body []byte) bool {
 
 // writeNormalizedSSE rewrites upstream Ollama/OpenAI streams into strict SSE
 // frames that OpenCode/OpenChamber can parse:
-//   data: <single-json-object>\n\n
+//
+//	data: <single-json-object>\n\n
+//
 // and at most one terminal `data: [DONE]\n\n`.
 // Also maps reasoning → reasoning_content for Open WebUI think blocks.
 // Upstream often uses single \n, empty content deltas, and we used to append a

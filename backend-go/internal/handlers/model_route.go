@@ -156,7 +156,9 @@ func (h *OllamaHandler) tryFallbackID(modelID string) (*resolvedModelRoute, stri
 }
 
 func (h *OllamaHandler) routeFromSmartProfile(profile string) (*resolvedModelRoute, string, bool) {
-	candidates, err := h.resolveSmartModel(profile)
+	// Fallback-ladder smart resolution: only reachable for unrestricted keys
+	// (proxyRequest bypasses the ladder entirely when a key model filter is set).
+	candidates, err := h.resolveSmartModel(profile, nil)
 	if err != nil || len(candidates) == 0 {
 		return nil, "", false
 	}

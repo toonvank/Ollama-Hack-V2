@@ -94,10 +94,18 @@ func (s *AuthService) GetUserByID(userID int) (*models.User, error) {
 }
 
 func (s *AuthService) GetUserByAPIKey(apiKey string) (*models.User, error) {
+	user, _, err := s.GetUserAndKeyByAPIKey(apiKey)
+	return user, err
+}
+
+// GetUserAndKeyByAPIKey resolves a raw API key to its owning user plus the
+// api_keys row (which carries the per-key model filter in AllowedModels).
+func (s *AuthService) GetUserAndKeyByAPIKey(apiKey string) (*models.User, *models.APIKey, error) {
 	if s.db == nil {
-		return nil, errors.New("invalid API key")
+		return nil, nil, errors.New("invalid API key")
 	}
 	var user models.User
+	var key models.APIKey
 	query := `
 		SELECT u.* FROM users u
 		INNER JOIN api_keys ak ON u.id = ak.user_id
@@ -105,11 +113,15 @@ func (s *AuthService) GetUserByAPIKey(apiKey string) (*models.User, error) {
 	`
 	err := s.db.Get(&user, query, apiKey)
 	if err != nil {
-		return nil, errors.New("invalid API key")
+		return nil, nil, errors.New("invalid API key")
+	}
+	err = s.db.Get(&key, "SELECT * FROM api_keys WHERE key = $1", apiKey)
+	if err != nil {
+		return nil, nil, errors.New("invalid API key")
 	}
 
 	// Update last_used_at
 	_, _ = s.db.Exec("UPDATE api_keys SET last_used_at = NOW() WHERE key = $1", apiKey)
 
-	return &user, nil
+	return &user, &key, nil
 }

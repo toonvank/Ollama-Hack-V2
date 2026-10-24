@@ -1,6 +1,7 @@
 // API Key creation request
 export interface ApiKeyCreate {
   name: string;
+  allowed_models?: string[];
 }
 
 // API Key info
@@ -11,6 +12,7 @@ export interface ApiKeyInfo {
   last_used_at?: string;
   user_id?: number;
   user_name?: string;
+  allowed_models?: string[] | null;
 }
 
 // API Key response (includes key value)

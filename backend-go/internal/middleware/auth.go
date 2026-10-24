@@ -31,6 +31,8 @@ func AuthMiddleware(authService *services.AuthService) gin.HandlerFunc {
 		var userID int
 		var isAdmin bool
 
+		var allowedModels []string
+
 		switch authType {
 		case "bearer":
 			// First try JWT token
@@ -40,7 +42,7 @@ func AuthMiddleware(authService *services.AuthService) gin.HandlerFunc {
 				isAdmin = claims.IsAdmin
 			} else {
 				// JWT failed, try as API key (OpenAI-compatible clients send API keys as Bearer tokens)
-				user, apiKeyErr := authService.GetUserByAPIKey(token)
+				user, apiKeyRow, apiKeyErr := authService.GetUserAndKeyByAPIKey(token)
 				if apiKeyErr != nil {
 					utils.Unauthorized(c, "Invalid or expired token")
 					c.Abort()
@@ -48,11 +50,12 @@ func AuthMiddleware(authService *services.AuthService) gin.HandlerFunc {
 				}
 				userID = user.ID
 				isAdmin = user.IsAdmin
+				allowedModels = apiKeyRow.ParseAllowedModels()
 			}
 
 		default:
 			// Try API key
-			user, err := authService.GetUserByAPIKey(token)
+			user, apiKeyRow, err := authService.GetUserAndKeyByAPIKey(token)
 			if err != nil {
 				utils.Unauthorized(c, "Invalid API key")
 				c.Abort()
@@ -60,10 +63,12 @@ func AuthMiddleware(authService *services.AuthService) gin.HandlerFunc {
 			}
 			userID = user.ID
 			isAdmin = user.IsAdmin
+			allowedModels = apiKeyRow.ParseAllowedModels()
 		}
 
 		c.Set("user_id", userID)
 		c.Set("is_admin", isAdmin)
+		c.Set("allowed_models", allowedModels)
 		c.Next()
 	}
 }

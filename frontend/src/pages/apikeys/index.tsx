@@ -102,6 +102,7 @@ const ApiKeysPage = () => {
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newApiKeyName, setNewApiKeyName] = useState("");
+  const [newApiKeyModels, setNewApiKeyModels] = useState("");
   const [createdApiKey, setCreatedApiKey] = useState<ApiKeyResponse | null>(
     null,
   );
@@ -193,13 +194,21 @@ const ApiKeysPage = () => {
   // Handle create API key
   const handleCreateApiKey = () => {
     setIsCreating(true);
-    createApiKeyMutation.mutate({ name: newApiKeyName });
+    const allowedModels = newApiKeyModels
+      .split(",")
+      .map((m) => m.trim())
+      .filter((m) => m.length > 0);
+    createApiKeyMutation.mutate({
+      name: newApiKeyName,
+      ...(allowedModels.length > 0 ? { allowed_models: allowedModels } : {}),
+    });
   };
 
   // Handle close success dialog
   const handleCloseSuccessModal = () => {
     setCreatedApiKey(null);
     setNewApiKeyName("");
+    setNewApiKeyModels("");
     setIsCreateModalOpen(false);
   };
 
@@ -235,6 +244,7 @@ const ApiKeysPage = () => {
   const columns = [
     { key: "id", label: "ID", allowsSorting: true },
     { key: "name", label: "Name", allowsSorting: true },
+    { key: "models", label: "Models", allowsSorting: false },
     { key: "created_at", label: "Created At", allowsSorting: true },
     { key: "last_used_at", label: "Last Used", allowsSorting: true },
     ...(isAdmin
@@ -253,6 +263,26 @@ const ApiKeysPage = () => {
           <span className="whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
             {apiKey.name}
           </span>
+        );
+      case "models":
+        return apiKey.allowed_models && apiKey.allowed_models.length > 0 ? (
+          <div className="flex max-w-64 flex-wrap gap-1">
+            {apiKey.allowed_models.slice(0, 3).map((m) => (
+              <span
+                key={m}
+                className="whitespace-nowrap rounded-small bg-default-100 px-2 py-0.5 text-tiny text-default-700"
+              >
+                {m}
+              </span>
+            ))}
+            {apiKey.allowed_models.length > 3 && (
+              <span className="text-tiny text-default-500">
+                +{apiKey.allowed_models.length - 3}
+              </span>
+            )}
+          </div>
+        ) : (
+          <span className="text-tiny text-default-500">All models</span>
         );
       case "created_at":
         return new Date(apiKey.created_at).toLocaleString();
@@ -382,19 +412,29 @@ const ApiKeysPage = () => {
                     </Snippet>
                   </div>
                 ) : (
-                  <Input
-                    fullWidth
-                    isRequired
-                    errorMessage={({ validationErrors }) => {
-                      return validationErrors;
-                    }}
-                    label="API Key Name"
-                    maxLength={128}
-                    minLength={3}
-                    placeholder="Enter API key name"
-                    value={newApiKeyName}
-                    onChange={(e) => setNewApiKeyName(e.target.value)}
-                  />
+                  <div className="flex flex-col gap-4">
+                    <Input
+                      fullWidth
+                      isRequired
+                      errorMessage={({ validationErrors }) => {
+                        return validationErrors;
+                      }}
+                      label="API Key Name"
+                      maxLength={128}
+                      minLength={3}
+                      placeholder="Enter API key name"
+                      value={newApiKeyName}
+                      onChange={(e) => setNewApiKeyName(e.target.value)}
+                    />
+                    <Input
+                      fullWidth
+                      description="Empty = all models. Match by exact id (name:tag), model name (all tags), or prefix with * (e.g. glm-5.3*)."
+                      label="Allowed Models (optional)"
+                      placeholder="e.g. glm-4.7-flash, glm-5.3*, smart:fastest"
+                      value={newApiKeyModels}
+                      onChange={(e) => setNewApiKeyModels(e.target.value)}
+                    />
+                  </div>
                 )}
               </ModalBody>
               <ModalFooter className="w-full">

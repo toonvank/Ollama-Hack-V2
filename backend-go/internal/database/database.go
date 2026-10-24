@@ -78,6 +78,7 @@ func (db *DB) CreateTables() error {
 		key VARCHAR(128) UNIQUE NOT NULL,
 		name VARCHAR(255) NOT NULL,
 		user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		allowed_models TEXT,
 		last_used_at TIMESTAMP,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);
@@ -209,6 +210,9 @@ func (db *DB) CreateTables() error {
 			ALTER TABLE api_keys ALTER COLUMN key TYPE VARCHAR(128);
 		END IF;
 	END $$;
+
+	-- Per-API-key model filter (comma-separated model ids; NULL = unrestricted)
+	ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS allowed_models TEXT;
 
 	-- Backfill endpoint_ai_models.max_connection_time from latest performance tests
 	UPDATE endpoint_ai_models eam
